@@ -29,11 +29,13 @@ git clone --recurse-submodules https://github.com/xxzzddxzd/dsh-iphone.git
 cd dsh-iphone
 ```
 
-iPhone 需要 rootless 越狱环境中的 OpenSSH、`dpkg`、`ldid`、`bash` 和 `curl`。先构建 Node；首次完整编译通常需要较长时间，可通过 `JOBS` 控制并发：
+iPhone 需要 rootless 越狱环境中的 OpenSSH、`dpkg`、`ldid` 和 `bash`。先构建 Node；首次完整编译通常需要较长时间，可通过 `JOBS` 控制并发：
 
 ```bash
 JOBS=8 ./scripts/build-node.sh
 ./scripts/package-node.sh
+./scripts/fetch-pnpm.sh
+./scripts/package-pnpm.sh
 ./scripts/package-dsh.sh
 ./scripts/verify.sh
 ```
@@ -42,7 +44,8 @@ JOBS=8 ./scripts/build-node.sh
 
 ```text
 dist/nodejs22_22.23.2-1_iphoneos-arm64.deb
-dist/dsh_0.1.0~rc.6-1_iphoneos-arm64.deb
+dist/pnpm10_10.34.5-1_iphoneos-arm64.deb
+dist/dsh_0.1.0~rc.6-2_iphoneos-arm64.deb
 ```
 
 仅让 DSH 的 GPT/OpenAI 通道使用独立 VLESS 固定出口时，再构建单独的 Xray 包：
@@ -54,7 +57,7 @@ dist/dsh_0.1.0~rc.6-1_iphoneos-arm64.deb
 
 它默认安装 fail-closed 配置，不包含 VLESS 凭据，也不启用 TUN。完整配置和部署步骤见[独立 VLESS 客户端](./docs/vless-client.md)。
 
-设备通过 `10.99.6.77:22` 可达时，安装两个包并启动服务：
+设备通过 `10.99.6.77:22` 可达时，安装三个包并启动服务：
 
 ```bash
 DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 DEVICE_USER=root ./scripts/deploy.sh
@@ -94,6 +97,8 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 DEVICE_USER=root ./scripts/start-tunnel.s
 | --- | --- |
 | `/var/jb/usr/local/lib/nodejs22/node` | iPhoneOS Node 22 二进制 |
 | `/var/jb/usr/local/bin/node22` | 不覆盖系统或 Node 18 的入口 |
+| `/var/jb/usr/local/lib/pnpm10` | 锁定的 pnpm JavaScript 发行包 |
+| `/var/jb/usr/local/bin/pnpm` | 固定使用 Node 22 的 profile 插件管理入口 |
 | `/var/jb/usr/local/lib/dsh-vless/xray` | iPhoneOS arm64 Xray 核心（可选包） |
 | `/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-vless.plist` | 回环端口 18080 的独立 VLESS 服务 |
 | `/var/jb/usr/local/lib/dsh` | 锁定的 DSH npm 闭包与 iOS shim |
@@ -108,10 +113,10 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 DEVICE_USER=root ./scripts/start-tunnel.s
 Node 18 和 Node 22 的启动器都使用 `/var/root/.dsh`，因此同一 DSH 数据目录可继续使用。升级前停止服务并备份：
 
 ```bash
-ssh -p 22 root@10.99.6.77 'launchctl bootout system/ai.deepseek.dsh >/dev/null 2>&1 || true; cp -a /var/root/.dsh /var/root/.dsh.backup'
+ssh -p 22 root@10.99.6.77 'launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true; cp -a /var/root/.dsh /var/root/.dsh.backup'
 ```
 
-软件包只替换 `/var/jb/usr/local/lib/dsh` 和 Node 22 自己的安装目录，不删除 `/var/root/.dsh`。如果同时改变 DSH 版本，应先阅读上游迁移说明再复用会话。
+软件包只替换 `/var/jb/usr/local/lib/dsh`、Node 22 和 pnpm 10 自己的安装目录，不删除 `/var/root/.dsh`。如果同时改变 DSH 版本，应先阅读上游迁移说明再复用会话。
 
 ## 跟踪上游
 
@@ -127,6 +132,7 @@ git -C upstream/deepseek-harness log -1 --oneline
 ## 文档
 
 - [Node.js 的 iOS 修正](./docs/node-ios-patch.md)
+- [pnpm 与 profile 插件](./docs/pnpm.md)
 - [独立 VLESS 客户端](./docs/vless-client.md)
 - [DSH 与 Safari 16 兼容层](./docs/dsh-compatibility.md)
 - [更新 DSH 与 Node](./docs/updating.md)

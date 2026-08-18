@@ -34,6 +34,7 @@ installed_size=$(du -sk "$STAGE" | awk '{print $1}')
 sed \
   -e "s/@PACKAGE_VERSION@/$DSH_DEBIAN_VERSION/g" \
   -e "s/@NODE_VERSION@/$NODE_VERSION/g" \
+  -e "s/@PNPM_VERSION@/$PNPM_VERSION/g" \
   -e "s/@INSTALLED_SIZE@/$installed_size/g" \
   "$ROOT/packaging/dsh/control.in" > "$STAGE/DEBIAN/control"
 

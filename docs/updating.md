@@ -70,9 +70,15 @@ NODE_ARCHIVE_PATH=../node-v22.23.2.tar.xz ./tests/test-source-patches.sh
 ```bash
 JOBS=8 ./scripts/build-node.sh
 ./scripts/package-node.sh
+./scripts/fetch-pnpm.sh
+./scripts/package-pnpm.sh
 ./scripts/package-dsh.sh
 ./scripts/verify.sh
 ```
+
+## 更新 pnpm
+
+pnpm 使用 npm registry 发布的完整 JavaScript 发行包，不使用 Corepack 在设备上即时下载。更新时修改 `versions.env` 的版本、URL、SHA-256 和 Debian revision，在 Mac 上重新运行 `fetch-pnpm.sh` 与 `package-pnpm.sh`，然后执行 `verify.sh`。至少在设备上验证版本、一个隔离 store 的 registry 安装，以及 `dsh plugin --profile web why <已安装插件>`；pnpm 能运行不代表含原生模块的任意插件已经适配 iPhoneOS。
 
 ## 提交升级
 
@@ -81,6 +87,6 @@ JOBS=8 ./scripts/build-node.sh
 ```bash
 git diff --submodule=log
 git status --short
-git add .gitmodules upstream/deepseek-harness versions.env dsh-runtime patches scripts shims web tests docs README.md
+git add .gitmodules upstream/deepseek-harness versions.env dsh-runtime packaging patches scripts shims web tests docs README.md THIRD_PARTY_NOTICES.md
 git commit -m "Update DSH iPhone runtime"
 ```

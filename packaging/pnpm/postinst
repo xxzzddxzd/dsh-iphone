@@ -1,0 +1,6 @@
+#!/var/jb/bin/sh
+set -eu
+
+chmod 0755 /var/jb/usr/local/bin/pnpm /var/jb/usr/local/bin/pnpx
+
+exit 0

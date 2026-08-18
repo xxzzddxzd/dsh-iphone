@@ -35,6 +35,17 @@ the complete notices.
 `patches/node-pty-1.1.0-ios.patch` adapts the Unix backend to the iOS
 `forkpty` path. The npm package retains its upstream license.
 
+## pnpm
+
+- Project: <https://github.com/pnpm/pnpm>
+- Version: 10.34.5
+- License: MIT
+
+The build downloads the published npm archive, verifies its SHA-256 digest,
+adds an iOS-only shebang-launch compatibility branch to pnpm's bundled
+`cross-spawn`, and packages it with Node 22 launch wrappers. The installed
+distribution retains pnpm's license and bundled third-party notices.
+
 ## Xray-core
 
 - Project: <https://github.com/XTLS/Xray-core>
