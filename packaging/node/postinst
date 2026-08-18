@@ -1,0 +1,10 @@
+#!/var/jb/bin/sh
+set -eu
+
+node_root=/var/jb/usr/local/lib/nodejs22
+node_binary="$node_root/node"
+
+chmod 0755 "$node_binary" /var/jb/usr/local/bin/node22
+ldid -S"$node_root/entitlements.xml" "$node_binary"
+
+exit 0

@@ -1,0 +1,16 @@
+.DS_Store
+.cache/
+build/
+dist/
+artifacts/
+dsh-runtime/node_modules/
+*.deb
+*.dylib
+*.node
+*.tar
+*.tar.gz
+*.tar.xz
+*.tgz
+*.zip
+*.log
+.env

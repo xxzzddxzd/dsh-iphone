@@ -1,0 +1,13 @@
+{
+  "name": "dsh-iphone-runtime-lock",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Locked npm dependency closure for the DSH iPhone deployment",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.6"
+  }
+}

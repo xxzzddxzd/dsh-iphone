@@ -1,0 +1,15 @@
+Package: com.xxzzddxzd.nodejs22
+Name: Node.js 22 for DSH
+Version: @PACKAGE_VERSION@
+Architecture: iphoneos-arm64
+Description: Node.js 22 runtime for rootless jailbroken iOS
+ Node.js @NODE_VERSION@ cross-compiled for iPhoneOS arm64. It is installed
+ beside older Node runtimes and carries the entitlements needed by the
+ jailbroken-device V8 execution-memory path.
+Maintainer: xxzzddxzd
+Section: Development
+Depends: firmware (>= @IOS_MIN_VERSION@), ldid
+Provides: nodejs22
+Tag: purpose::console, role::developer
+Homepage: https://nodejs.org
+Installed-Size: @INSTALLED_SIZE@

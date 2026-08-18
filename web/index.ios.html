@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta name="dsh-ios-compat" content="4" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>DeepSeek Harness</title>
+    <script>
+      (() => {
+        window.__DSH_IOS_COMPAT__ = 4;
+
+        if (typeof Promise.withResolvers !== "function") {
+          Promise.withResolvers = function withResolvers() {
+            let resolve;
+            let reject;
+            const promise = new Promise((res, rej) => {
+              resolve = res;
+              reject = rej;
+            });
+            return { promise, resolve, reject };
+          };
+        }
+
+        const defineArrayMethod = (name, implementation) => {
+          if (typeof Array.prototype[name] !== "function") {
+            Object.defineProperty(Array.prototype, name, {
+              configurable: true,
+              writable: true,
+              value: implementation,
+            });
+          }
+        };
+
+        defineArrayMethod("toSpliced", function toSpliced(start, deleteCount, ...items) {
+          const copy = Array.from(this);
+          if (arguments.length === 0) return copy;
+          if (arguments.length === 1) copy.splice(start);
+          else copy.splice(start, deleteCount, ...items);
+          return copy;
+        });
+
+        defineArrayMethod("toReversed", function toReversed() {
+          return Array.from(this).reverse();
+        });
+
+        defineArrayMethod("toSorted", function toSorted(compareFn) {
+          return Array.from(this).sort(compareFn);
+        });
+
+        defineArrayMethod("with", function withValue(index, value) {
+          const copy = Array.from(this);
+          let relativeIndex = Number(index);
+          if (Number.isNaN(relativeIndex)) relativeIndex = 0;
+          else if (Number.isFinite(relativeIndex)) relativeIndex = Math.trunc(relativeIndex);
+          const actualIndex = relativeIndex >= 0 ? relativeIndex : copy.length + relativeIndex;
+          if (actualIndex < 0 || actualIndex >= copy.length) {
+            throw new RangeError("Invalid index");
+          }
+          copy[actualIndex] = value;
+          return copy;
+        });
+
+        defineArrayMethod("findLast", function findLast(predicate, thisArg) {
+          if (typeof predicate !== "function") throw new TypeError("predicate must be a function");
+          for (let index = this.length - 1; index >= 0; index -= 1) {
+            const value = this[index];
+            if (predicate.call(thisArg, value, index, this)) return value;
+          }
+          return undefined;
+        });
+
+        defineArrayMethod("findLastIndex", function findLastIndex(predicate, thisArg) {
+          if (typeof predicate !== "function") throw new TypeError("predicate must be a function");
+          for (let index = this.length - 1; index >= 0; index -= 1) {
+            if (predicate.call(thisArg, this[index], index, this)) return index;
+          }
+          return -1;
+        });
+
+        if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout !== "function") {
+          AbortSignal.timeout = function timeout(milliseconds) {
+            const controller = new AbortController();
+            const reason = typeof DOMException === "function"
+              ? new DOMException("The operation timed out.", "TimeoutError")
+              : new Error("The operation timed out.");
+            setTimeout(() => controller.abort(reason), Math.max(0, Number(milliseconds) || 0));
+            return controller.signal;
+          };
+        }
+
+        if (typeof AbortSignal !== "undefined" && typeof AbortSignal.any !== "function") {
+          AbortSignal.any = function any(iterable) {
+            const signals = Array.from(iterable);
+            const controller = new AbortController();
+            const listeners = [];
+
+            const abortFrom = (signal) => {
+              if (!controller.signal.aborted) controller.abort(signal.reason);
+              for (const [source, listener] of listeners) {
+                source.removeEventListener("abort", listener);
+              }
+              listeners.length = 0;
+            };
+
+            for (const signal of signals) {
+              if (signal.aborted) {
+                abortFrom(signal);
+                break;
+              }
+              const listener = () => abortFrom(signal);
+              listeners.push([signal, listener]);
+              signal.addEventListener("abort", listener, { once: true });
+            }
+            return controller.signal;
+          };
+        }
+
+        if (typeof structuredClone !== "function") {
+          window.structuredClone = function structuredClonePolyfill(value) {
+            const seen = new WeakMap();
+            const clone = (input) => {
+              if (input === null || typeof input !== "object") return input;
+              if (seen.has(input)) return seen.get(input);
+              if (input instanceof Date) return new Date(input.getTime());
+              if (input instanceof RegExp) return new RegExp(input.source, input.flags);
+              if (input instanceof ArrayBuffer) return input.slice(0);
+              if (typeof Map === "function" && input instanceof Map) {
+                const output = new Map();
+                seen.set(input, output);
+                input.forEach((entryValue, key) => output.set(clone(key), clone(entryValue)));
+                return output;
+              }
+              if (typeof Set === "function" && input instanceof Set) {
+                const output = new Set();
+                seen.set(input, output);
+                input.forEach((entryValue) => output.add(clone(entryValue)));
+                return output;
+              }
+              const output = Array.isArray(input)
+                ? []
+                : Object.create(Object.getPrototypeOf(input));
+              seen.set(input, output);
+              Object.keys(input).forEach((key) => {
+                output[key] = clone(input[key]);
+              });
+              return output;
+            };
+            return clone(value);
+          };
+        }
+
+        if (
+          typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID !== "function" &&
+          typeof crypto.getRandomValues === "function"
+        ) {
+          crypto.randomUUID = function randomUUID() {
+            const bytes = crypto.getRandomValues(new Uint8Array(16));
+            bytes[6] = (bytes[6] & 15) | 64;
+            bytes[8] = (bytes[8] & 63) | 128;
+            const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+            return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+          };
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dqw48FrP.js?ioscompat=4"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-Cjbwl5VI.js?ioscompat=4">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-CjyC-hUb.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CSGf6Qzd.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

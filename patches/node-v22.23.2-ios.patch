@@ -1,0 +1,507 @@
+diff --git a/common.gypi b/common.gypi
+index 0ffa5b137195157fa9b44205d5db45cff1b2e10c..aea8cd4af399015b9c7d7066f9e9166f3d2ef8a4 100644
+--- a/common.gypi
++++ b/common.gypi
+@@ -108,7 +108,7 @@
+         'obj_dir%': '<(PRODUCT_DIR)/obj.target',
+         'v8_base': '<(PRODUCT_DIR)/obj.target/tools/v8_gypfiles/libv8_snapshot.a',
+       }],
+-      ['OS=="mac"', {
++      ['OS in "mac ios"', {
+         'obj_dir%': '<(PRODUCT_DIR)/obj.target',
+         'v8_base': '<(PRODUCT_DIR)/libv8_snapshot.a',
+       }],
+@@ -643,6 +643,44 @@
+           }],
+         ],
+       }],
++      ['OS=="ios"', {
++        'defines': ['_DARWIN_USE_64_BIT_INODE=1'],
++        'target_conditions': [
++          ['_toolset=="target"', {
++            'xcode_settings': {
++              'ALWAYS_SEARCH_USER_PATHS': 'NO',
++              'GCC_CW_ASM_SYNTAX': 'NO',
++              'GCC_DYNAMIC_NO_PIC': 'NO',
++              # ICU 77 uses dynamic_cast, so the iOS target must keep RTTI.
++              'GCC_ENABLE_CPP_RTTI': 'YES',
++              'GCC_ENABLE_PASCAL_STRINGS': 'NO',
++              'IPHONEOS_DEPLOYMENT_TARGET': '15.0',
++              'SDKROOT': 'iphoneos',
++              'ENABLE_BITCODE': 'NO',
++              'CODE_SIGNING_ALLOWED': 'NO',
++              'USE_HEADERMAP': 'NO',
++              'OTHER_CFLAGS': [ '-fno-strict-aliasing' ],
++              'WARNING_CFLAGS': [
++                '-Wall',
++                '-Wendif-labels',
++                '-W',
++                '-Wno-unused-parameter',
++              ],
++            },
++          }],
++          ['_toolset=="target" and _type!="static_library"', {
++            'xcode_settings': {
++              'OTHER_LDFLAGS': [
++                '-Wl,-no_pie',
++                '-Wl,-search_paths_first',
++              ],
++            },
++          }],
++          ['_toolset=="target" and target_arch=="arm64"', {
++            'xcode_settings': { 'ARCHS': ['arm64'] },
++          }],
++        ],
++      }],
+       ['OS=="mac"', {
+         'defines': ['_DARWIN_USE_64_BIT_INODE=1'],
+         'xcode_settings': {
+diff --git a/common_node.gypi b/common_node.gypi
+index 0bfbf7283c0f5768e2584d25aa18475f4abedee0..4dafc84c9ff435fb860b0f05414afe0fe54bf3cd 100644
+--- a/common_node.gypi
++++ b/common_node.gypi
+@@ -6,7 +6,7 @@
+         'cflags_cc!': ['-std=gnu++17'],
+         'cflags_cc': ['-std=gnu++20'],
+       }],
+-      ['OS=="mac" and clang==1', {
++      ['OS in "mac ios" and clang==1', {
+         'xcode_settings': {
+           'CLANG_CXX_LANGUAGE_STANDARD': 'gnu++20',  # -std=gnu++20
+         },
+diff --git a/configure.py b/configure.py
+index 77c87f5a9539714f68278d95ec79878cc52dc18b..e9204c50d14779557695c0ac00b8f69daa503de2 100755
+--- a/configure.py
++++ b/configure.py
+@@ -1451,6 +1451,8 @@ def configure_node_cctest_sources(o):
+ def configure_node(o):
+   if options.dest_os == 'android':
+     o['variables']['OS'] = 'android'
++  elif options.dest_os == 'ios':
++    o['variables']['OS'] = 'ios'
+   o['variables']['node_prefix'] = options.prefix
+   o['variables']['node_install_npm'] = b(not options.without_npm)
+   o['variables']['node_install_corepack'] = b(not options.without_corepack)
+diff --git a/deps/cares/config/darwin/ares_config.h b/deps/cares/config/darwin/ares_config.h
+index 6187024a3a17efa03ff9b476e0162a91f8d34987..75d03e2a296e87955a64d5fd7491422d68fe32e4 100644
+--- a/deps/cares/config/darwin/ares_config.h
++++ b/deps/cares/config/darwin/ares_config.h
+@@ -330,6 +330,9 @@
+ 
+ /* Define to 1 if you have the <sys/random.h> header file. */
+ #define HAVE_SYS_RANDOM_H 1
++#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++# undef HAVE_SYS_RANDOM_H
++#endif
+ 
+ /* Define to 1 if you have the <sys/select.h> header file. */
+ #define HAVE_SYS_SELECT_H 1
+diff --git a/deps/v8/src/common/code-memory-access-inl.h b/deps/v8/src/common/code-memory-access-inl.h
+index e1ec30c166f47b50bc05bf94069ae19c9acdba5e..a470dd9e0867ec97da562e8209179b5592425cfb 100644
+--- a/deps/v8/src/common/code-memory-access-inl.h
++++ b/deps/v8/src/common/code-memory-access-inl.h
+@@ -21,9 +21,14 @@
+ namespace v8 {
+ namespace internal {
+ 
+-RwxMemoryWriteScope::RwxMemoryWriteScope(const char* comment) {
++RwxMemoryWriteScope::RwxMemoryWriteScope(const char* comment, Address address,
++                                         size_t size) {
+   if (!v8_flags.jitless) {
++#if defined(V8_OS_IOS)
++    SetWritable(address, size);
++#else
+     SetWritable();
++#endif
+   }
+ }
+ 
+@@ -42,7 +47,7 @@ WritableJitAllocation::WritableJitAllocation(
+       // The order of these is important. We need to create the write scope
+       // before we lookup the Jit page, since the latter will take a mutex in
+       // protected memory.
+-      write_scope_("WritableJitAllocation"),
++      write_scope_(base::in_place, "WritableJitAllocation", addr, size),
+       page_ref_(ThreadIsolation::LookupJitPage(addr, size)),
+       allocation_(source == JitAllocationSource::kRegister
+                       ? page_ref_->RegisterAllocation(addr, size, type)
+@@ -71,7 +76,11 @@ WritableJumpTablePair::WritableJumpTablePair(Address jump_table_address,
+                                              size_t jump_table_size,
+                                              Address far_jump_table_address,
+                                              size_t far_jump_table_size)
+-    : write_scope_("WritableJumpTablePair"),
++    : jump_table_write_scope_("WritableJumpTablePair", jump_table_address,
++                              jump_table_size),
++      far_jump_table_write_scope_("WritableJumpTablePair",
++                                  far_jump_table_address,
++                                  far_jump_table_size),
+       // Always split the pages since we are not guaranteed that the jump table
+       // and far jump table are on the same JitPage.
+       jump_table_pages_(ThreadIsolation::SplitJitPages(
+@@ -164,7 +173,7 @@ void WritableJitAllocation::ClearBytes(size_t offset, size_t len) {
+ WritableJitPage::~WritableJitPage() = default;
+ 
+ WritableJitPage::WritableJitPage(Address addr, size_t size)
+-    : write_scope_("WritableJitPage"),
++    : write_scope_("WritableJitPage", addr, size),
+       page_ref_(ThreadIsolation::LookupJitPage(addr, size)) {}
+ 
+ WritableJitAllocation WritableJitPage::LookupAllocationContaining(
+@@ -212,7 +221,12 @@ void WritableFreeSpace::ClearTagged(size_t count) const {
+                count);
+ }
+ 
+-#if V8_HAS_PTHREAD_JIT_WRITE_PROTECT
++#if defined(V8_OS_IOS)
++
++// static
++bool RwxMemoryWriteScope::IsSupported() { return true; }
++
++#elif V8_HAS_PTHREAD_JIT_WRITE_PROTECT
+ 
+ // static
+ bool RwxMemoryWriteScope::IsSupported() { return true; }
+@@ -283,7 +297,7 @@ void RwxMemoryWriteScope::SetWritable() {}
+ // static
+ void RwxMemoryWriteScope::SetExecutable() {}
+ 
+-#endif  // V8_HAS_PTHREAD_JIT_WRITE_PROTECT
++#endif  // V8_OS_IOS / V8_HAS_PTHREAD_JIT_WRITE_PROTECT
+ 
+ }  // namespace internal
+ }  // namespace v8
+diff --git a/deps/v8/src/common/code-memory-access.cc b/deps/v8/src/common/code-memory-access.cc
+index 94328a128b80357e37705e585d1f0e2563317c74..fca32d713eb1d879634afc258724329ca895203e 100644
+--- a/deps/v8/src/common/code-memory-access.cc
++++ b/deps/v8/src/common/code-memory-access.cc
+@@ -8,6 +8,58 @@
+ namespace v8 {
+ namespace internal {
+ 
++#if defined(V8_OS_IOS)
++namespace {
++
++struct IosJitWriteState {
++  base::RecursiveMutex mutex;
++  size_t depth = 0;
++  std::vector<base::AddressRegion> writable_regions;
++};
++
++IosJitWriteState& GetIosJitWriteState() {
++  static IosJitWriteState* state = new IosJitWriteState;
++  return *state;
++}
++
++}  // namespace
++
++// iOS 16 does not provide MAP_JIT or pthread_jit_write_protect_np, but a
++// suitably entitled process can switch anonymous pages between RW and RX.
++// Serialize writers and restore executable permission when the outermost
++// write scope exits.
++void RwxMemoryWriteScope::SetWritable(Address address, size_t size) {
++  IosJitWriteState& state = GetIosJitWriteState();
++  state.mutex.Lock();
++  ++state.depth;
++  if (address == 0 || size == 0) return;
++
++  PageAllocator* allocator = GetPlatformPageAllocator();
++  const size_t page_size = allocator->CommitPageSize();
++  Address begin = RoundDown(address, page_size);
++  CHECK_LE(address, address + size);
++  Address end = RoundUp(address + size, page_size);
++  base::AddressRegion region{begin, end - begin};
++  CHECK(SetPermissions(allocator, region.begin(), region.size(),
++                       PageAllocator::kReadWrite));
++  state.writable_regions.push_back(region);
++}
++
++void RwxMemoryWriteScope::SetExecutable() {
++  IosJitWriteState& state = GetIosJitWriteState();
++  CHECK_GT(state.depth, 0);
++  if (--state.depth == 0) {
++    PageAllocator* allocator = GetPlatformPageAllocator();
++    for (base::AddressRegion region : state.writable_regions) {
++      CHECK(SetPermissions(allocator, region.begin(), region.size(),
++                           PageAllocator::kReadExecute));
++    }
++    state.writable_regions.clear();
++  }
++  state.mutex.Unlock();
++}
++#endif  // V8_OS_IOS
++
+ ThreadIsolation::TrustedData ThreadIsolation::trusted_data_;
+ 
+ #if V8_HAS_PTHREAD_JIT_WRITE_PROTECT || V8_HAS_PKU_JIT_WRITE_PROTECT
+diff --git a/deps/v8/src/common/code-memory-access.h b/deps/v8/src/common/code-memory-access.h
+index 80d96bb4ce02ec2d6f4f8e7e43cfd5a63b7fa592..73c1d63710de20109a6fe9ebf9c02e98f4c09cb1 100644
+--- a/deps/v8/src/common/code-memory-access.h
++++ b/deps/v8/src/common/code-memory-access.h
+@@ -91,7 +91,9 @@ class V8_NODISCARD RwxMemoryWriteScope {
+  public:
+   // The comment argument is used only for ensuring that explanation about why
+   // the scope is needed is given at particular use case.
+-  V8_INLINE explicit RwxMemoryWriteScope(const char* comment);
++  V8_INLINE explicit RwxMemoryWriteScope(const char* comment,
++                                         Address address = 0,
++                                         size_t size = 0);
+   V8_INLINE ~RwxMemoryWriteScope();
+ 
+   // Disable copy constructor and copy-assignment operator, since this manages
+@@ -121,8 +123,13 @@ class V8_NODISCARD RwxMemoryWriteScope {
+   // {SetWritable} and {SetExecutable} implicitly enters/exits the scope.
+   // These methods are exposed only for the purpose of implementing other
+   // scope classes that affect executable pages permissions.
++#if defined(V8_OS_IOS)
++  static V8_EXPORT_PRIVATE void SetWritable(Address address, size_t size);
++  static V8_EXPORT_PRIVATE void SetExecutable();
++#else
+   V8_INLINE static void SetWritable();
+   V8_INLINE static void SetExecutable();
++#endif
+ 
+ #if V8_HAS_PTHREAD_JIT_WRITE_PROTECT || V8_HAS_PKU_JIT_WRITE_PROTECT
+   // This counter is used for supporting scope reentrance.
+@@ -516,7 +523,8 @@ class WritableJumpTablePair {
+                                   size_t jump_table_size,
+                                   Address far_jump_table_address,
+                                   size_t far_jump_table_size);
+-  RwxMemoryWriteScope write_scope_;
++  RwxMemoryWriteScope jump_table_write_scope_;
++  RwxMemoryWriteScope far_jump_table_write_scope_;
+   std::pair<ThreadIsolation::JitPageReference,
+             ThreadIsolation::JitPageReference>
+       jump_table_pages_;
+diff --git a/node.gypi b/node.gypi
+index bb002412b3952ad74ec4948690f7d77de6122120..532c28387bcb6cb840fea60ee44ee6c218bea63d 100644
+--- a/node.gypi
++++ b/node.gypi
+@@ -260,6 +260,11 @@
+         'NODE_PLATFORM="darwin"',
+       ],
+     }],
++    [ 'OS=="ios"', {
++      # Abseil's Darwin time-zone lookup and Node's system CA support use
++      # CoreFoundation and Security on iOS as well.
++      'libraries': [ '-framework CoreFoundation -framework Security' ],
++    }],
+     [ 'OS=="freebsd"', {
+       'libraries': [
+         '-lutil',
+@@ -389,11 +394,12 @@
+           ],
+           'dependencies': [
+             './deps/openssl/openssl.gyp:openssl',
+-
+-            # For tests
+-            './deps/openssl/openssl.gyp:openssl-cli',
+           ],
+           'conditions': [
++            [ 'OS!="ios"', {
++              # For tests; the CLI target is not needed by the runtime.
++              'dependencies': [ './deps/openssl/openssl.gyp:openssl-cli' ],
++            }],
+             # -force_load or --whole-archive are not applicable for
+             # the static library
+             [ 'force_load=="true"', {
+diff --git a/src/crypto/crypto_context.cc b/src/crypto/crypto_context.cc
+index 8028f6db70f481e291aca2b8e0e6129900fbf67e..a13b5d348dfa9f009ab38ddc2ef3a5bba56feaa2 100644
+--- a/src/crypto/crypto_context.cc
++++ b/src/crypto/crypto_context.cc
+@@ -304,7 +304,8 @@ bool isSelfIssued(X509* cert) {
+ // Licensed under a BSD-style license
+ // See https://chromium.googlesource.com/chromium/src/+/HEAD/LICENSE for
+ // details.
+-#ifdef __APPLE__
++#if defined(__APPLE__) && \
++    !defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+ TrustStatus IsTrustDictionaryTrustedForPolicy(CFDictionaryRef trust_dict,
+                                               bool is_self_issued) {
+   // Trust settings may be scoped to a single application
+@@ -815,13 +816,16 @@ static std::vector<X509*>& GetBundledRootCertificates() {
+ 
+ static std::vector<X509*> InitializeSystemStoreCertificates() {
+   std::vector<X509*> system_store_certs;
+-#ifdef __APPLE__
++#if defined(__APPLE__) && \
++    !defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+   ReadMacOSKeychainCertificates(&system_store_certs);
+ #endif
+ #ifdef _WIN32
+   ReadWindowsCertificates(&system_store_certs);
+ #endif
+-#if !defined(__APPLE__) && !defined(_WIN32)
++#if (!defined(__APPLE__) || \
++     defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)) && \
++    !defined(_WIN32)
+   GetOpenSSLSystemCertificates(&system_store_certs);
+ #endif
+   return system_store_certs;
+diff --git a/tools/gyp/pylib/gyp/generator/make.py b/tools/gyp/pylib/gyp/generator/make.py
+index 16b6f4e80b119a0eca37db086c2245980a7c357a..41c34c3c28ba8b22ffc893b15f57aef4227f4f9b 100644
+--- a/tools/gyp/pylib/gyp/generator/make.py
++++ b/tools/gyp/pylib/gyp/generator/make.py
+@@ -66,8 +66,8 @@ generator_filelist_paths = None
+ def CalculateVariables(default_variables, params):
+     """Calculate additional variables for use in the build (called by gyp)."""
+     flavor = gyp.common.GetFlavor(params)
+-    if flavor == "mac":
+-        default_variables.setdefault("OS", "mac")
++    if flavor in ("mac", "ios"):
++        default_variables.setdefault("OS", flavor)
+         default_variables.setdefault("SHARED_LIB_SUFFIX", ".dylib")
+         default_variables.setdefault(
+             "SHARED_LIB_DIR", generator_default_variables["PRODUCT_DIR"]
+@@ -860,7 +860,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+         self.toolset = spec["toolset"]
+ 
+         self.is_mac_bundle = gyp.xcode_emulation.IsMacBundle(self.flavor, spec)
+-        if self.flavor == "mac":
++        if self.flavor in ("mac", "ios"):
+             self.xcode_settings = gyp.xcode_emulation.XcodeSettings(spec)
+         else:
+             self.xcode_settings = None
+@@ -1055,7 +1055,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+ 
+             # Write the actual command.
+             action_commands = action["action"]
+-            if self.flavor == "mac":
++            if self.flavor in ("mac", "ios"):
+                 action_commands = [
+                     gyp.xcode_emulation.ExpandEnvVars(command, env)
+                     for command in action_commands
+@@ -1239,7 +1239,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+                 # action, cd_action, and mkdirs get written to a toplevel variable
+                 # called cmd_foo. Toplevel variables can't handle things that change
+                 # per makefile like $(TARGET), so hardcode the target.
+-                if self.flavor == "mac":
++                if self.flavor in ("mac", "ios"):
+                     action = [
+                         gyp.xcode_emulation.ExpandEnvVars(command, env)
+                         for command in action
+@@ -1412,7 +1412,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+                 quoter=EscapeCppDefine,
+             )
+ 
+-            if self.flavor == "mac":
++            if self.flavor in ("mac", "ios"):
+                 cflags = self.xcode_settings.GetCflags(
+                     configname, arch=config.get("xcode_configuration_platform")
+                 )
+@@ -1431,7 +1431,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+             self.WriteList(cflags_c, "CFLAGS_C_%s" % configname)
+             self.WriteLn("# Flags passed to only C++ files.")
+             self.WriteList(cflags_cc, "CFLAGS_CC_%s" % configname)
+-            if self.flavor == "mac":
++            if self.flavor in ("mac", "ios"):
+                 self.WriteLn("# Flags passed to only ObjC files.")
+                 self.WriteList(cflags_objc, "CFLAGS_OBJC_%s" % configname)
+                 self.WriteLn("# Flags passed to only ObjC++ files.")
+@@ -1499,7 +1499,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+                 "%s " % precompiled_header.GetInclude("cc") + "$(CFLAGS_$(BUILDTYPE)) "
+                 "$(CFLAGS_CC_$(BUILDTYPE))"
+             )
+-            if self.flavor == "mac":
++            if self.flavor in ("mac", "ios"):
+                 self.WriteLn(
+                     "$(OBJS): GYP_OBJCFLAGS := "
+                     "$(DEFS_$(BUILDTYPE)) "
+@@ -1568,7 +1568,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+         """
+         assert not self.is_mac_bundle
+ 
+-        if self.flavor == "mac" and self.type in (
++        if self.flavor in ("mac", "ios") and self.type in (
+             "static_library",
+             "executable",
+             "shared_library",
+@@ -1615,7 +1615,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+     def _InstallImmediately(self):
+         return (
+             self.toolset == "target"
+-            and self.flavor == "mac"
++            and self.flavor in ("mac", "ios")
+             and self.type
+             in ("static_library", "executable", "shared_library", "loadable_module")
+         )
+@@ -1713,7 +1713,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+         if self.type != "none":
+             for configname in sorted(configs.keys()):
+                 config = configs[configname]
+-                if self.flavor == "mac":
++                if self.flavor in ("mac", "ios"):
+                     ldflags = self.xcode_settings.GetLdflags(
+                         configname,
+                         generator_default_variables["PRODUCT_DIR"],
+@@ -1748,7 +1748,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+                     library_dirs = [Sourceify(self.Absolutify(i)) for i in library_dirs]
+                 ldflags += [("-L%s" % library_dir) for library_dir in library_dirs]
+                 self.WriteList(ldflags, "LDFLAGS_%s" % configname)
+-                if self.flavor == "mac":
++                if self.flavor in ("mac", "ios"):
+                     self.WriteList(
+                         self.xcode_settings.GetLibtoolflags(configname),
+                         "LIBTOOLFLAGS_%s" % configname,
+@@ -1757,7 +1757,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+             if libraries:
+                 # Remove duplicate entries
+                 libraries = gyp.common.uniquer(libraries)
+-                if self.flavor == "mac":
++                if self.flavor in ("mac", "ios"):
+                     libraries = self.xcode_settings.AdjustLibraries(libraries)
+             self.WriteList(libraries, "LIBS")
+             self.WriteLn(
+@@ -1766,7 +1766,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+             )
+             self.WriteLn("%s: LIBS := $(LIBS)" % QuoteSpaces(self.output_binary))
+ 
+-            if self.flavor == "mac":
++            if self.flavor in ("mac", "ios"):
+                 self.WriteLn(
+                     "%s: GYP_LIBTOOLFLAGS := $(LIBTOOLFLAGS_$(BUILDTYPE))"
+                     % QuoteSpaces(self.output_binary)
+@@ -1775,7 +1775,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+         # Postbuild actions. Like actions, but implicitly depend on the target's
+         # output.
+         postbuilds = []
+-        if self.flavor == "mac":
++        if self.flavor in ("mac", "ios"):
+             if target_postbuilds:
+                 postbuilds.append("$(TARGET_POSTBUILDS_$(BUILDTYPE))")
+             postbuilds.extend(gyp.xcode_emulation.GetSpecPostbuildCommands(spec))
+@@ -1885,7 +1885,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+                     "Spaces in alink input filenames not supported (%s)" % link_dep
+                 )
+             if (
+-                self.flavor not in ("mac", "openbsd", "netbsd", "win")
++                self.flavor not in ("mac", "ios", "openbsd", "netbsd", "win")
+                 and not self.is_standalone_static_library
+             ):
+                 if self.flavor in ("linux", "android", "openharmony"):
+@@ -2003,7 +2003,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
+             if self.flavor != "zos":
+                 installable_deps.append(self.output)
+             if (
+-                self.flavor == "mac"
++                self.flavor in ("mac", "ios")
+                 and "product_dir" not in spec
+                 and self.toolset == "target"
+             ):
+@@ -2507,7 +2507,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
+         "LINK.host": LINK_host,
+         "PLI.host": PLI_host,
+     }
+-    if flavor == "mac":
++    if flavor in ("mac", "ios"):
+         flock_command = "%s gyp-mac-tool flock" % sys.executable
+         header_params.update(
+             {
+@@ -2685,7 +2685,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
+         spec = target_dicts[qualified_target]
+         configs = spec["configurations"]
+ 
+-        if flavor == "mac":
++        if flavor in ("mac", "ios"):
+             gyp.xcode_emulation.MergeGlobalXcodeSettingsToSpec(data[build_file], spec)
+ 
+         writer = MakefileWriter(generator_flags, flavor)
