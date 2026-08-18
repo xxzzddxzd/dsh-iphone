@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.deepseek.dsh-vless</string>
+  <key>Program</key>
+  <string>/var/jb/bin/sh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/var/jb/bin/sh</string>
+    <string>/var/jb/usr/local/bin/dsh-vless</string>
+  </array>
+  <key>ExecuteAllowed</key>
+  <true/>
+  <key>POSIXSpawnType</key>
+  <string>Interactive</string>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>WorkingDirectory</key>
+  <string>/var/root/.config/dsh-vless</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/var/root</string>
+    <key>PATH</key>
+    <string>/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/var/root/dsh-vless-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/root/dsh-vless-launchd.log</string>
+</dict>
+</plist>

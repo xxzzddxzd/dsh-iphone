@@ -34,3 +34,16 @@ the complete notices.
 
 `patches/node-pty-1.1.0-ios.patch` adapts the Unix backend to the iOS
 `forkpty` path. The npm package retains its upstream license.
+
+## Xray-core
+
+- Project: <https://github.com/XTLS/Xray-core>
+- Version: 26.3.27
+- Source commit: `d2758a023cd7f4174a5a5fa4ff66e487d4342ba0`
+- License: Mozilla Public License 2.0
+
+The optional VLESS package downloads the tagged Xray-core source archive,
+verifies its SHA-256 digest, and cross-compiles an unmodified iPhoneOS arm64
+executable. The package installs the upstream `LICENSE` beside the example
+configuration. Neither the archive nor the binary is tracked by this
+repository.

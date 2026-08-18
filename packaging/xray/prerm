@@ -1,0 +1,8 @@
+#!/var/jb/bin/sh
+
+plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-vless.plist
+if [ -f "$plist" ]; then
+  launchctl bootout user/foreground/ai.deepseek.dsh-vless >/dev/null 2>&1 || true
+fi
+
+exit 0

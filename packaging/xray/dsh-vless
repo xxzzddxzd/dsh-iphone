@@ -1,0 +1,12 @@
+#!/var/jb/bin/sh
+set -eu
+
+config=${DSH_VLESS_CONFIG:-/var/root/.config/dsh-vless/config.json}
+xray=/var/jb/usr/local/lib/dsh-vless/xray
+
+if [ ! -r "$config" ]; then
+  printf 'dsh-vless: configuration is not readable: %s\n' "$config" >&2
+  exit 78
+fi
+
+exec "$xray" run -config "$config"

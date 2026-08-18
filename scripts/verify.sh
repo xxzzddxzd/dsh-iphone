@@ -15,7 +15,7 @@ require_command rg
 
 while IFS= read -r script; do
   bash -n "$ROOT/$script"
-done < <(rg --files scripts packaging tests -g '*.sh' -g 'node22' -g 'dsh22' -g 'postinst' -g 'prerm')
+done < <(rg --files scripts packaging tests -g '*.sh' -g 'node22' -g 'dsh22' -g 'dsh-vless' -g 'postinst' -g 'prerm')
 
 while IFS= read -r module; do
   node --check "$ROOT/$module"
@@ -23,10 +23,14 @@ done < <(rg --files scripts shims tests -g '*.mjs')
 
 plutil -lint \
   "$ROOT/launchd/ai.deepseek.dsh.plist" \
-  "$ROOT/packaging/node/entitlements.xml" >/dev/null
+  "$ROOT/launchd/ai.deepseek.dsh-vless.plist" \
+  "$ROOT/packaging/node/entitlements.xml" \
+  "$ROOT/packaging/xray/entitlements.xml" >/dev/null
 
 node "$ROOT/tests/test-lockfile.mjs"
 node "$ROOT/tests/test-shims.mjs"
+node "$ROOT/tests/test-vless-config.mjs"
+"$ROOT/tests/test-xray-package.sh"
 
 VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-Cjbwl5VI.js"
 INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-Dqw48FrP.js"
@@ -55,6 +59,12 @@ if [ -n "${NODE_ARCHIVE_PATH:-}" ] || [ -f "$ROOT/.cache/$NODE_ARCHIVE" ]; then
   "$ROOT/tests/test-source-patches.sh"
 else
   printf 'Node source patch test skipped: run ./scripts/fetch-node.sh first\n'
+fi
+
+if [ -n "${XRAY_ARCHIVE_PATH:-}" ] || [ -f "$ROOT/.cache/$XRAY_ARCHIVE" ]; then
+  "$ROOT/scripts/fetch-xray.sh" >/dev/null
+else
+  printf 'Xray source test skipped: run ./scripts/fetch-xray.sh first\n'
 fi
 
 actual_upstream=$(git -C "$ROOT/upstream/deepseek-harness" rev-parse HEAD)
