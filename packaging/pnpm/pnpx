@@ -1,0 +1,3 @@
+#!/var/jb/bin/sh
+export PATH="/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:${PATH:-}"
+exec /var/jb/usr/local/lib/nodejs22/node /var/jb/usr/local/lib/pnpm10/bin/pnpx.cjs "$@"

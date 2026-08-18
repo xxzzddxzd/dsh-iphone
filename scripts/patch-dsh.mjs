@@ -168,6 +168,22 @@ await replaceExactlyOnce(
   "profile HMR loader guard",
 );
 
+await replaceExactlyOnce(
+  "lib/plugin-9h8shc4d.js",
+  `\tconst result = spawnSync("pnpm", args.map((argument) => anchorPathSpec(argument, process.cwd())), {
+\t\tcwd: dir,
+\t\tstdio: "inherit",
+\t\tshell: process.platform === "win32"
+\t});`,
+  `\tconst pnpmArgs = args.map((argument) => anchorPathSpec(argument, process.cwd()));
+\tconst result = spawnSync(process.execPath, ["/var/jb/usr/local/lib/pnpm10/bin/pnpm.cjs", ...pnpmArgs], {
+\t\tcwd: dir,
+\t\tstdio: "inherit",
+\t\tshell: false
+\t});`,
+  "iOS pnpm launcher",
+);
+
 const mimeTail = '\t".webmanifest": "application/manifest+json"\n};';
 const indexHeaders = `${mimeTail}\nconst INDEX_HEADERS = {\n\t"content-type": MIME[".html"],\n\t"cache-control": "no-store, no-cache, must-revalidate, max-age=0",\n\tpragma: "no-cache",\n\texpires: "0"\n};`;
 await replaceExactlyOnce(

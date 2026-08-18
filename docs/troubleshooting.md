@@ -5,15 +5,15 @@
 ## 先检查服务
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/node22 --version; launchctl print system/ai.deepseek.dsh | head -80'
-ssh -p 22 root@10.99.6.77 'curl -i http://127.0.0.1:3080/'
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/node22 --version; launchctl print user/foreground/ai.deepseek.dsh | head -80'
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/node22 -e '\''require("node:http").get("http://127.0.0.1:3080/", response => { console.log(response.statusCode); response.resume(); }).on("error", error => { console.error(error.message); process.exit(1); })'\'''
 ssh -p 22 root@10.99.6.77 'tail -n 200 /var/root/dsh.log'
 ```
 
 重新加载服务：
 
 ```bash
-ssh -p 22 root@10.99.6.77 'launchctl bootout system/ai.deepseek.dsh >/dev/null 2>&1 || true; launchctl bootstrap system /var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist; launchctl kickstart -k system/ai.deepseek.dsh'
+ssh -p 22 root@10.99.6.77 'launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true; while launchctl print user/foreground/ai.deepseek.dsh >/dev/null 2>&1; do sleep 1; done; launchctl bootstrap system /var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist; launchctl kickstart -k user/foreground/ai.deepseek.dsh'
 ```
 
 如果 `launchctl bootstrap` 报服务已存在，先执行 `bootout`；如果持续退出，日志中的第一条 JavaScript 或 dyld 错误比 KeepAlive 的重复输出更有用。
@@ -86,7 +86,7 @@ DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 ./scripts/deploy.sh
 
 ## permission preset read-only
 
-`read-only` 是有效预设，但它只适合读取、分析和无写入工具。需要改文件或执行会改变状态的命令时，切换到允许该操作的权限预设。服务端不应绕过用户选择的权限边界。
+`read-only` 是有效预设，但它只适合对话、分析和不依赖进程沙箱的读取。iOS 没有 DSH 当前支持的 `bubblewrap`、Landlock、`sandbox-exec` 或 Windows ACL 后端，所以 `Workspace Write` 中的 Bash 会报 `no sandbox backend is usable on this host`，即使命令本身只读。确实需要 Bash 时，由用户明确选择 `Full access` 或批准单次提升；服务端不应自动绕过权限边界。
 
 ## prompt reject (agent-busy)
 
@@ -106,6 +106,22 @@ ssh -p 22 root@10.99.6.77 'ldid -e /var/jb/usr/local/lib/dsh/node_modules/node-p
 ```bash
 ./scripts/prepare-dsh.sh
 ./scripts/build-node-pty.sh
+```
+
+## pnpm 或插件安装失败
+
+确认 pnpm 固定使用 Node 22，而不是系统 Node 18：
+
+```bash
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/pnpm --version; /var/jb/usr/local/lib/nodejs22/node --version'
+```
+
+`dsh plugin` 会把参数原样转发给由 Node 22 直接加载的 `pnpm.cjs`，并在成功后更新 profile bundle 列表。安装 registry 中的预构建 bundle 不需要设备上的 `curl` 或 `gzip`；pnpm 通过 Node HTTPS 自行下载和解包。若直接运行包装器成功，但 `dsh plugin` 报 `spawnSync pnpm EPERM`，说明 DSH 包没有包含当前仓库的 iOS pnpm 启动补丁，应重新构建并安装 DSH deb。若失败信息指向 `node-gyp`、不支持的 `os`/`cpu` 或缺少原生产物，则是目标插件没有适配 iPhoneOS，不是 pnpm 本身不可运行。
+
+profile 的 store 和 lockfile 位于 `/var/root/.dsh/profiles/<profile>` 所管理的 pnpm 状态中。不要删除整个 profile 来修复单个插件；先运行：
+
+```bash
+ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web why <package>'
 ```
 
 ## 独立 VLESS 服务失败

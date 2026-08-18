@@ -1,0 +1,15 @@
+Package: com.xxzzddxzd.pnpm10
+Name: pnpm 10 for DSH
+Version: @PACKAGE_VERSION@
+Architecture: iphoneos-arm64
+Description: pnpm package manager running on the DSH iOS Node runtime
+ Contains the upstream pnpm @PNPM_VERSION@ JavaScript distribution and wrappers
+ that force pnpm and package lifecycle scripts to use the iPhoneOS Node 22
+ runtime instead of the older system Node installation.
+Maintainer: xxzzddxzd
+Section: Development
+Depends: com.xxzzddxzd.nodejs22 (>= @NODE_VERSION@)
+Provides: pnpm
+Tag: purpose::console, role::developer
+Homepage: https://pnpm.io
+Installed-Size: @INSTALLED_SIZE@

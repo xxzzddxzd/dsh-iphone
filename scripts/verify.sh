@@ -15,7 +15,7 @@ require_command rg
 
 while IFS= read -r script; do
   bash -n "$ROOT/$script"
-done < <(rg --files scripts packaging tests -g '*.sh' -g 'node22' -g 'dsh22' -g 'dsh-vless' -g 'postinst' -g 'prerm')
+done < <(rg --files scripts packaging tests -g '*.sh' -g 'node22' -g 'dsh22' -g 'dsh-vless' -g 'pnpm' -g 'pnpx' -g 'postinst' -g 'prerm')
 
 while IFS= read -r module; do
   node --check "$ROOT/$module"
@@ -59,6 +59,13 @@ if [ -n "${NODE_ARCHIVE_PATH:-}" ] || [ -f "$ROOT/.cache/$NODE_ARCHIVE" ]; then
   "$ROOT/tests/test-source-patches.sh"
 else
   printf 'Node source patch test skipped: run ./scripts/fetch-node.sh first\n'
+fi
+
+if [ -n "${PNPM_ARCHIVE_PATH:-}" ] || [ -f "$ROOT/.cache/$PNPM_ARCHIVE" ]; then
+  "$ROOT/scripts/fetch-pnpm.sh" >/dev/null
+  "$ROOT/tests/test-pnpm-package.sh"
+else
+  printf 'pnpm package test skipped: run ./scripts/fetch-pnpm.sh first\n'
 fi
 
 if [ -n "${XRAY_ARCHIVE_PATH:-}" ] || [ -f "$ROOT/.cache/$XRAY_ARCHIVE" ]; then

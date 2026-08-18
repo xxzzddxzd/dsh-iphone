@@ -7,7 +7,7 @@ Description: DeepSeek Harness Web service adapted for rootless iOS
  compatibility layer, launch wrapper, and launchd service definition.
 Maintainer: xxzzddxzd
 Section: Utilities
-Depends: com.xxzzddxzd.nodejs22 (>= @NODE_VERSION@), bash, curl, ldid
+Depends: com.xxzzddxzd.nodejs22 (>= @NODE_VERSION@), com.xxzzddxzd.pnpm10 (>= @PNPM_VERSION@), bash, ldid
 Tag: purpose::console, role::developer
 Homepage: https://github.com/deepseek-ai/deepseek-harness
 Installed-Size: @INSTALLED_SIZE@

@@ -66,7 +66,7 @@ node scripts/patch-dsh.mjs --root build/dsh-runtime --check
 
 ## 权限与并发提示
 
-`permission preset read-only` 不是 iOS 兼容错误。`read-only` 预设允许对话和读取，但会拒绝写文件、执行需要写权限的工具或其他提升权限操作。需要执行任务时在 Web GUI 中选择对应的可写权限预设。
+`permission preset read-only` 不是 iOS 兼容错误。`read-only` 预设允许对话和不依赖进程沙箱的读取，但会拒绝写文件或提升权限操作。iOS 没有 DSH 当前支持的 `bubblewrap`、Landlock、`sandbox-exec` 或 Windows ACL 后端，因此 `Workspace Write` 下的 Bash 会拒绝无沙箱执行。确实需要 Bash 时，只能由用户明确选择 `Full access` 或批准单次提升；本项目不会静默绕过该权限边界。
 
 `prompt reject (agent-busy)` 表示该会话中的 agent 仍在处理上一轮请求。等待当前轮结束，或新建独立会话；重复点击发送不会提高并发能力。
 
