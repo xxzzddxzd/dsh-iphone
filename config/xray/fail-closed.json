@@ -1,0 +1,23 @@
+{
+  "log": {
+    "access": "/var/root/dsh-vless-access.log",
+    "error": "/var/root/dsh-vless-error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "dsh-http",
+      "listen": "127.0.0.1",
+      "port": 18080,
+      "protocol": "http",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "blocked",
+      "protocol": "blackhole",
+      "settings": {}
+    }
+  ]
+}

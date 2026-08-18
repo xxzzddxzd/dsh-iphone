@@ -1,0 +1,50 @@
+{
+  "log": {
+    "access": "/var/root/dsh-vless-access.log",
+    "error": "/var/root/dsh-vless-error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "dsh-http",
+      "listen": "127.0.0.1",
+      "port": 18080,
+      "protocol": "http",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "vless-out",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "REPLACE_VLESS_SERVER",
+            "port": 443,
+            "users": [
+              {
+                "id": "REPLACE_VLESS_UUID",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "REPLACE_TLS_SERVER_NAME",
+          "allowInsecure": false
+        },
+        "wsSettings": {
+          "path": "REPLACE_WEBSOCKET_PATH",
+          "headers": {
+            "Host": "REPLACE_WEBSOCKET_HOST"
+          }
+        }
+      }
+    }
+  ]
+}

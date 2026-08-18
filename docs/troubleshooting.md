@@ -108,6 +108,23 @@ ssh -p 22 root@10.99.6.77 'ldid -e /var/jb/usr/local/lib/dsh/node_modules/node-p
 ./scripts/build-node-pty.sh
 ```
 
+## 独立 VLESS 服务失败
+
+服务固定注册在 Dopamine 的 `user/foreground` domain；即使通过 `launchctl bootstrap system` 加载，也要用以下标识查询和重启：
+
+```bash
+ssh -p 22 root@10.99.6.77 'launchctl print user/foreground/ai.deepseek.dsh-vless | head -100'
+ssh -p 22 root@10.99.6.77 'tail -n 100 /var/root/dsh-vless-error.log; tail -n 100 /var/root/dsh-vless-launchd.log'
+```
+
+出现 `EX_CONFIG` 时，先确认 plist 通过 `/var/jb/bin/sh` 启动包装器，并检查 `/var/root/.config/dsh-vless/config.json` 是否为 root 可读的 0600 文件。直接校验配置：
+
+```bash
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/lib/dsh-vless/xray run -test -config /var/root/.config/dsh-vless/config.json'
+```
+
+如果 Xray 被 `SIGKILL` 且没有错误日志，检查 entitlement。空的 `ldid -S` 签名不足；正式包应包含 `platform-application` 和 `com.apple.private.security.no-sandbox`。若端口正常但 GPT 请求没有 access log，问题在 DSH 的域名分流，而不是 VLESS 服务。
+
 ## Node 构建时间过长
 
 首次构建需要编译 V8、OpenSSL、ICU 和 Node 核心，耗时显著高于 DSH 打包。提高并发前先确认 Mac 内存和散热：

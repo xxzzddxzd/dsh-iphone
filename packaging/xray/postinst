@@ -1,0 +1,15 @@
+#!/var/jb/bin/sh
+set -eu
+
+runtime_root=/var/jb/usr/local/lib/dsh-vless
+config_root=/var/root/.config/dsh-vless
+
+chmod 0755 "$runtime_root/xray" /var/jb/usr/local/bin/dsh-vless
+ldid -S"$runtime_root/entitlements.xml" "$runtime_root/xray"
+
+install -d -m 0700 "$config_root"
+if [ ! -e "$config_root/config.json" ]; then
+  install -m 0600 "$runtime_root/fail-closed.json" "$config_root/config.json"
+fi
+
+exit 0
