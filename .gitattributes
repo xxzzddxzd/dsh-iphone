@@ -1,0 +1,11 @@
+*.c text eol=lf
+*.h text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.patch text eol=lf whitespace=-blank-at-eol
+*.plist text eol=lf
+*.sh text eol=lf
+*.xml text eol=lf

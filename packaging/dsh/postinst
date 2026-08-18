@@ -1,0 +1,16 @@
+#!/var/jb/bin/sh
+set -eu
+
+dsh_root=/var/jb/usr/local/lib/dsh
+pty_root="$dsh_root/node_modules/node-pty/prebuilds/ios-arm64"
+
+chmod 0755 /var/jb/usr/local/bin/dsh22
+if [ -f "$pty_root/pty.node" ]; then
+  ldid -S "$pty_root/pty.node"
+fi
+if [ -f "$pty_root/spawn-helper" ]; then
+  chmod 0755 "$pty_root/spawn-helper"
+  ldid -S "$pty_root/spawn-helper"
+fi
+
+exit 0

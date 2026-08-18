@@ -1,0 +1,2 @@
+#!/var/jb/bin/sh
+exec /var/jb/usr/local/lib/nodejs22/node "$@"

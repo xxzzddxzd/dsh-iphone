@@ -1,0 +1,18 @@
+#!/var/jb/bin/sh
+export HOME="${HOME:-/var/root}"
+export DSH_HOME="${DSH_HOME:-/var/root/.dsh}"
+export PATH="/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:${PATH:-}"
+export NODE_PATH=/var/jb/usr/local/lib/dsh/node_modules
+export SHELL=/var/jb/bin/bash
+
+exec /var/jb/usr/local/lib/nodejs22/node \
+  --no-jitless \
+  --disable-wasm-trap-handler \
+  --expose-internals \
+  --no-wasm-code-gc \
+  --no-opt \
+  --no-sparkplug \
+  --single-threaded \
+  --liftoff \
+  --no-wasm-tier-up \
+  /var/jb/usr/local/lib/dsh/lib/bin.js "$@"
