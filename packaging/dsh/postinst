@@ -3,8 +3,20 @@ set -eu
 
 dsh_root=/var/jb/usr/local/lib/dsh
 pty_root="$dsh_root/node_modules/node-pty/prebuilds/ios-arm64"
+notifier_bridge=/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib
+notifier_state=/var/mobile/Library/DSHNotifier
+notifier_app=/var/jb/Applications/DSH.app
 
 chmod 0755 /var/jb/usr/local/bin/dsh22
+chmod 0755 /var/jb/usr/local/lib/dsh/ios/dsh-notify.mjs
+chmod 0755 "$notifier_bridge"
+ldid -S "$notifier_bridge"
+chmod 0755 "$notifier_app/DSHIconHost"
+ldid -S "$notifier_app/DSHIconHost"
+/var/jb/usr/bin/uicache -p "$notifier_app"
+mkdir -p "$notifier_state"
+chown mobile:mobile "$notifier_state"
+chmod 0700 "$notifier_state"
 if [ -f "$pty_root/pty.node" ]; then
   ldid -S "$pty_root/pty.node"
 fi

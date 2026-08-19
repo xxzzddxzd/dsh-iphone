@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { copyFile, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -100,6 +100,7 @@ async function installNewFile(relativePath, sourcePath, label) {
   if (current !== undefined) {
     throw new Error(`${label}: refusing to overwrite an unknown existing ${relativePath}`);
   }
+  await mkdir(dirname(target), { recursive: true });
   await copyFile(sourcePath, target);
   process.stdout.write(`${label}: installed\n`);
 }
@@ -133,6 +134,11 @@ await installNewFile(
   "node_modules/ios-koffi-stub.mjs",
   resolve(repositoryRoot, "shims/ios-koffi-stub.mjs"),
   "koffi iOS stub",
+);
+await installNewFile(
+  "node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs",
+  resolve(repositoryRoot, "ios/notifications/dsh-ios-notifier.mjs"),
+  "iOS notification plugin",
 );
 
 await replaceExactlyOnce(
@@ -184,6 +190,22 @@ await replaceExactlyOnce(
   "iOS pnpm launcher",
 );
 
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-web-app/cordis.patch.yml",
+  `    - id: api-gateway
+      name: '@deepseek-ai/dsh-host-apiproxy'
+`,
+  `    - id: api-gateway
+      name: '@deepseek-ai/dsh-host-apiproxy'
+
+    # Rootless iOS system notifications for goal completion/blocking and
+    # pending confirmation. Its URL action opens the originating Web session.
+    - id: ios-notifier
+      name: 'file:///var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs'
+`,
+  "iOS notification composition",
+);
+
 const mimeTail = '\t".webmanifest": "application/manifest+json"\n};';
 const indexHeaders = `${mimeTail}\nconst INDEX_HEADERS = {\n\t"content-type": MIME[".html"],\n\t"cache-control": "no-store, no-cache, must-revalidate, max-age=0",\n\tpragma: "no-cache",\n\texpires: "0"\n};`;
 await replaceExactlyOnce(
@@ -212,7 +234,7 @@ await replaceExactlyOnce(
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-Dqw48FrP.js",
   'from"./vendor-Cjbwl5VI.js"',
-  'from"./vendor-Cjbwl5VI.js?ioscompat=4"',
+  'from"./vendor-Cjbwl5VI.js?ioscompat=5"',
   "frontend vendor cache key",
 );
 await installExactFile(

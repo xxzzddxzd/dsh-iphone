@@ -14,7 +14,7 @@
 | DSH | 0.1.0-rc.6 | 上游提交 `fb82698709c39f1860b0ab0ed147e1fa30c1d5d0` |
 | node-pty | 1.1.0 | iOS `forkpty` 后端 |
 | Xray（可选） | 26.3.27 | 仅回环 HTTP 入站、VLESS 出站 |
-| Web GUI | compatibility 4 | Safari/Chrome 的 iOS 16 WebKit |
+| Web GUI | compatibility 5 | Safari/Chrome 的 iOS 16 WebKit、通知 session 深链接 |
 
 仓库不提交 Node/DSH 完整源码副本、npm 依赖目录、`.deb` 或 Mach-O 产物。DSH 官方源码通过 [`upstream/deepseek-harness`](./upstream/deepseek-harness) 子模块引用，Node 官方源包按 SHA-256 下载后应用版本化补丁。
 
@@ -29,7 +29,7 @@ git clone --recurse-submodules https://github.com/xxzzddxzd/dsh-iphone.git
 cd dsh-iphone
 ```
 
-iPhone 需要 rootless 越狱环境中的 OpenSSH、`dpkg`、`ldid` 和 `bash`。先构建 Node；首次完整编译通常需要较长时间，可通过 `JOBS` 控制并发：
+iPhone 需要 rootless 越狱环境中的 OpenSSH、`dpkg`、`ldid`、`bash`、`uikittools` 和 `ellekit`。DSH 系统通知还依赖 Limneos 源中的 `net.limneos.libbulletin`，安装 DSH 包时由 `dpkg` 检查。先构建 Node；首次完整编译通常需要较长时间，可通过 `JOBS` 控制并发：
 
 ```bash
 JOBS=8 ./scripts/build-node.sh
@@ -45,7 +45,7 @@ JOBS=8 ./scripts/build-node.sh
 ```text
 dist/nodejs22_22.23.2-1_iphoneos-arm64.deb
 dist/pnpm10_10.34.5-1_iphoneos-arm64.deb
-dist/dsh_0.1.0~rc.6-2_iphoneos-arm64.deb
+dist/dsh_0.1.0~rc.6-4_iphoneos-arm64.deb
 ```
 
 仅让 DSH 的 GPT/OpenAI 通道使用独立 VLESS 固定出口时，再构建单独的 Xray 包：
@@ -72,13 +72,13 @@ DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 DEVICE_USER=root ./scripts/start-tunnel.sh
 浏览器打开：
 
 ```text
-http://127.0.0.1:3082/?ioscompat=4
+http://127.0.0.1:3082/?ioscompat=5
 ```
 
 iPhone 本机 Safari 直接打开：
 
 ```text
-http://127.0.0.1:3080/?ioscompat=4
+http://127.0.0.1:3080/?ioscompat=5
 ```
 
 通过 USB `iproxy` 连接时使用：
@@ -91,7 +91,7 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 DEVICE_USER=root ./scripts/start-tunnel.s
 
 ## 构建内容
 
-脚本生成两个可共存的软件包：
+脚本生成三个基础软件包以及一个可选的 Xray 软件包：
 
 | 路径 | 用途 |
 | --- | --- |
@@ -103,10 +103,13 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 DEVICE_USER=root ./scripts/start-tunnel.s
 | `/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-vless.plist` | 回环端口 18080 的独立 VLESS 服务 |
 | `/var/jb/usr/local/lib/dsh` | 锁定的 DSH npm 闭包与 iOS shim |
 | `/var/jb/usr/local/bin/dsh22` | 带 iOS V8 参数的 DSH 入口 |
+| `/var/jb/usr/local/bin/dsh-notify` | 通过 SpringBoard 发布可点击系统通知的 helper |
+| `/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib` | 接收 helper 请求并安全发布通知的 arm64/arm64e SpringBoard 桥 |
+| `/var/jb/Applications/DSH.app` | 隐藏的通知图标宿主，向 iOS 注册 DSH 黑鲸鱼图标 |
 | `/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist` | 端口 3080 的 Web 服务 |
 | `/var/root/.dsh` | 会话、设置和凭据目录，不属于安装包 |
 
-`package-dsh.sh` 使用提交的 `package-lock.json` 执行 `npm ci --ignore-scripts`，随后执行严格、可重复运行的 DSH 补丁器，并为 iPhoneOS 编译 `pty.node` 与 `spawn-helper`。任一上游文件或 bundle 名称不匹配时，补丁器会直接失败。
+`package-dsh.sh` 使用提交的 `package-lock.json` 执行 `npm ci --ignore-scripts`，随后执行严格、可重复运行的 DSH 补丁器，并为 iPhoneOS 编译 `pty.node`、`spawn-helper` 与通知桥。任一上游文件或 bundle 名称不匹配时，补丁器会直接失败。
 
 ## 保留现有会话
 
@@ -135,6 +138,7 @@ git -C upstream/deepseek-harness log -1 --oneline
 - [pnpm 与 profile 插件](./docs/pnpm.md)
 - [独立 VLESS 客户端](./docs/vless-client.md)
 - [DSH 与 Safari 16 兼容层](./docs/dsh-compatibility.md)
+- [iOS 系统通知与 session 深链接](./docs/notifications.md)
 - [更新 DSH 与 Node](./docs/updating.md)
 - [部署与运行排障](./docs/troubleshooting.md)
 - [第三方软件声明](./THIRD_PARTY_NOTICES.md)

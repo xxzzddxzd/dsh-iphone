@@ -4,5 +4,13 @@ plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist
 if [ -f "$plist" ]; then
   launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true
 fi
+case "${1:-remove}" in
+  remove | deconfigure)
+    if [ -d /var/jb/Applications/DSH.app ]; then
+      /var/jb/usr/bin/uicache -u /var/jb/Applications/DSH.app >/dev/null 2>&1 || true
+    fi
+    rm -f /var/mobile/Library/DSHNotifier/notify.sock
+    ;;
+esac
 
 exit 0
