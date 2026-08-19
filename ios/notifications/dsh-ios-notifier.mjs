@@ -199,6 +199,19 @@ function assistantSummary(session, turn) {
   return undefined;
 }
 
+function activeGoalDetail(session) {
+  if (session === undefined || !Array.isArray(session.events)) return "";
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    if (event.type !== "goal/change") continue;
+    if (event.data?.operation === "clear") return "";
+    return event.data?.goal?.phase === "active"
+      ? compactText(event.data.goal.objective)
+      : "";
+  }
+  return "";
+}
+
 function renderGoalNotification(change, config, session) {
   if (!config.enabled) return undefined;
   if (change.operation === "complete") {
@@ -516,16 +529,31 @@ function taskKey(sessionId, turn) {
 function newestRunningTask(tasks) {
   let selected;
   for (const task of tasks.values()) {
+    if (task.finishedAtMilliseconds > 0) continue;
     if (selected === undefined || task.startOrder > selected.startOrder) selected = task;
   }
   return selected;
 }
 
-function latestSessionTask(tasks, sessionId, turn) {
-  if (Number.isSafeInteger(turn)) return tasks.get(taskKey(sessionId, turn));
+function newestFinishedTask(tasks) {
   let selected;
   for (const task of tasks.values()) {
-    if (task.sessionID !== sessionId) continue;
+    if (!(task.finishedAtMilliseconds > 0)) continue;
+    if (selected === undefined || task.finishedAtMilliseconds > selected.finishedAtMilliseconds) {
+      selected = task;
+    }
+  }
+  return selected;
+}
+
+function latestSessionTask(tasks, sessionId, turn) {
+  if (Number.isSafeInteger(turn)) {
+    const task = tasks.get(taskKey(sessionId, turn));
+    return task?.finishedAtMilliseconds > 0 ? undefined : task;
+  }
+  let selected;
+  for (const task of tasks.values()) {
+    if (task.sessionID !== sessionId || task.finishedAtMilliseconds > 0) continue;
     if (selected === undefined || task.startOrder > selected.startOrder) selected = task;
   }
   return selected;
@@ -538,6 +566,20 @@ function taskForAgentSession(tasks, sessionId) {
     if (task.agentSessionIDs?.has(sessionId)) return task;
   }
   return undefined;
+}
+
+function updateLiveGoal(tasks, session, change) {
+  // A Live Activity represents the root session. A child agent can own a
+  // different goal, so letting it overwrite the root goal would be misleading.
+  if (session.header?.origin === "subagent") return false;
+  const task = latestSessionTask(tasks, session.id);
+  if (task === undefined) return false;
+  const goalDetail = change?.goal?.phase === "active"
+    ? compactText(change.goal.objective)
+    : "";
+  if (task.goalDetail === goalDetail) return false;
+  task.goalDetail = goalDetail;
+  return true;
 }
 
 function registerSubagentSession(tasks, session) {
@@ -617,6 +659,35 @@ function findToolCall(session, callId) {
   return undefined;
 }
 
+function terminalActivityPresentation(reason) {
+  switch (reason?.kind) {
+    case "completed":
+      return { phase: "已完成", fallback: "回复已完成，点击查看完整结果" };
+    case "blocked":
+      return { phase: "已阻塞", fallback: "任务被阻塞，点击查看原因并继续处理" };
+    case "error": {
+      const code = compactText(reason.error?.code);
+      const message = compactText(reason.error?.message) || "未知错误";
+      return {
+        phase: "运行失败",
+        fallback: `运行失败：${code === "" ? "" : `[${code}] `}${message}`,
+      };
+    }
+    case "max-tokens":
+      return { phase: "已截断", fallback: "输出达到 token 上限，点击查看并继续会话" };
+    case "interrupted":
+      return { phase: "已中断", fallback: "任务未正常结束，点击查看会话状态" };
+    case "aborted":
+      if (reason.reason?.kind !== "hook") return undefined;
+      return {
+        phase: "已停止",
+        fallback: `会话被系统停止：${compactText(reason.reason.reason) || "未提供原因"}`,
+      };
+    default:
+      return undefined;
+  }
+}
+
 function updateLiveTasks(tasks, session, event) {
   if (session.header?.origin === "subagent") {
     // Count each session-backed child once for the root task. Looking up a
@@ -627,6 +698,12 @@ function updateLiveTasks(tasks, session, event) {
   if (event.type === "turn/start") {
     const key = taskKey(session.id, event.data.turn);
     if (!tasks.has(key)) {
+      // A new root turn supersedes the retained terminal card. The native
+      // broker observes finishedAtMilliseconds returning to zero and replaces
+      // the old Activity ID before rendering this task.
+      for (const [finishedKey, task] of tasks) {
+        if (task.finishedAtMilliseconds > 0) tasks.delete(finishedKey);
+      }
       const eventTime = Number(event.time);
       tasks.set(key, {
         sessionID: session.id,
@@ -636,9 +713,11 @@ function updateLiveTasks(tasks, session, event) {
         title: sessionTitle(session) ?? "未命名会话",
         phase: "正在开始",
         detail: "正在准备本轮任务",
+        goalDetail: activeGoalDetail(session),
         assistantDetail: "等待 Assistant 回复",
         toolDetail: "尚未调用 Tool",
         step: 0,
+        finishedAtMilliseconds: 0,
         completedItems: 0,
         totalItems: 0,
         waitingForUser: false,
@@ -649,8 +728,30 @@ function updateLiveTasks(tasks, session, event) {
     return newestRunningTask(tasks);
   }
   if (event.type === "turn/end") {
-    tasks.delete(taskKey(session.id, event.data.turn));
-    return newestRunningTask(tasks);
+    const key = taskKey(session.id, event.data.turn);
+    const task = tasks.get(key);
+    const presentation = terminalActivityPresentation(event.data.reason);
+    if (task === undefined || presentation === undefined) {
+      tasks.delete(key);
+      return newestRunningTask(tasks) ?? newestFinishedTask(tasks);
+    }
+    for (const [finishedKey, candidate] of tasks) {
+      if (finishedKey !== key && candidate.finishedAtMilliseconds > 0) tasks.delete(finishedKey);
+    }
+    const eventTime = Number(event.time);
+    const now = Number.isFinite(eventTime) && eventTime > 0 ? Math.trunc(eventTime) : Date.now();
+    const summary = assistantSummary(session, event.data.turn);
+    task.phase = presentation.phase;
+    task.detail = presentation.fallback;
+    task.finishedAtMilliseconds = Math.max(task.startedAtMilliseconds, now);
+    task.waitingForUser = false;
+    if (summary !== undefined) {
+      task.assistantDetail = summary;
+    } else if (event.data.reason.kind !== "completed"
+      || task.assistantDetail === "等待 Assistant 回复") {
+      task.assistantDetail = presentation.fallback;
+    }
+    return newestRunningTask(tasks) ?? newestFinishedTask(tasks);
   }
   if (event.type === "session/title") {
     const title = compactText(event.data?.title);
@@ -778,19 +879,21 @@ function updateLiveTasks(tasks, session, event) {
 }
 
 function activityCommand(tasks) {
-  const task = newestRunningTask(tasks);
+  const task = newestRunningTask(tasks) ?? newestFinishedTask(tasks);
   if (task === undefined) return { version: 1, operation: "end" };
   return {
     version: 1,
     operation: "update",
     task: {
       sessionID: task.sessionID,
-      title: truncate(task.title, 120),
-      phase: truncate(task.phase, 80),
-      detail: truncate(task.detail, 240),
-      assistantDetail: truncate(task.assistantDetail, 240),
-      toolDetail: truncate(task.toolDetail, 240),
+      title: truncate(task.title, 100),
+      phase: truncate(task.phase, 40),
+      detail: truncate(task.detail, 160),
+      goalDetail: truncate(task.goalDetail, 160),
+      assistantDetail: truncate(task.assistantDetail, 320),
+      toolDetail: truncate(task.toolDetail, 160),
       startedAtMilliseconds: task.startedAtMilliseconds,
+      finishedAtMilliseconds: task.finishedAtMilliseconds,
       step: task.step,
       agentCount: 1 + (task.agentSessionIDs?.size ?? 0),
       completedItems: task.completedItems,
@@ -1252,6 +1355,7 @@ function apply(ctx, config = {}) {
   syncLiveActivity();
 
   const stopGoals = ctx.on("goal/changed", ({ agent, change }) => {
+    if (updateLiveGoal(liveTasks, agent.session, change)) syncLiveActivity();
     const notification = renderGoalNotification(change, resolved, agent.session);
     if (notification !== undefined) {
       const turn = activeTurn(agent.session);
@@ -1329,6 +1433,7 @@ export {
   ACTION_SOCKET_PATH,
   ACTIVITY_SOCKET_PATH,
   apply,
+  activeGoalDetail,
   activeTurn,
   activityCommand,
   dismissNotifier,
@@ -1351,5 +1456,6 @@ export {
   subagentMode,
   toolActionDetail,
   truncate,
+  updateLiveGoal,
   updateLiveTasks,
 };

@@ -53,15 +53,16 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 - 会话标题和当前阶段；
 - 圆环中从本轮开始时间连续刷新的执行时长，圆环上的点表示根任务及已启动的 subagent 数量；
-- `ASSISTANT` 区块保留最近一条有效的 assistant 可见文本；
+- `GOAL` 区块只在根会话存在 `active` 目标时显示目标内容，目标暂停、阻塞、完成或清除后立即隐藏；
+- `ASSISTANT` 区块保留最近一条有效的 assistant 可见文本；无目标时最多显示四行，有目标时最多显示三行；
 - `TOOL` 区块独立显示最近一次工具调用、执行结果或待授权动作；
-- 等待回答、计划确认或操作授权时使用醒目的等待状态。
+- 等待回答、计划确认或操作授权时使用醒目的等待状态和“打开处理”入口。
 
 `assistant/chunk` 的 token 流不会用“模型正在输出”覆盖正文；只有完整且非空的 `assistant/message` 才更新 `ASSISTANT` 区块。因此模型输出或工具运行期间，上一条有用信息会一直保留。
 
-同时有多个任务时，只展示最后开始且仍在运行的根任务。该任务结束后，如果较早任务仍在运行，会自动回退展示它；全部结束后立即关闭 Live Activity。subagent 不单独抢占这张卡片。
+同时有多个任务时，只展示最后开始且仍在运行的根任务。该任务结束后，如果较早任务仍在运行，会自动回退展示它。全部任务结束后，最后一张卡片冻结执行时长，保留最终 `ASSISTANT` 结果和“查看结果”入口；用户可自行划掉，开始下一项根任务时 broker 会结束旧 Activity 并创建新卡。用户主动取消的 turn 不保留终态卡。subagent 不单独抢占这张卡片。
 
-手机当前为 iOS 16.1，Live Activity 本身不支持交互按钮，因此授权按钮放在系统授权通知上；点击 Live Activity 则打开它所对应的 DSH session。
+系统通知与 Live Activity 并行发送，终态卡不会替代完成、阻塞或失败通知。手机当前为 iOS 16.1，Live Activity 本身不支持真正的交互按钮，因此卡片中的“打开处理”/“查看结果”是点击提示，点击整张 Live Activity 会打开对应 DSH session；真正的“允许一次”/“拒绝”仍放在系统授权通知上。
 
 Live Activity 请求进入独立的 launchd broker `DSHActivityD`。broker 本身不加载 ActivityKit，而是为每次 create、update 或 end 启动固定名称、带最小私有权限的短命原生 helper `DSHActivityOp`。helper 调用 iOS 16.1.1 的私有 ActivityKit input XPC 接口，并用 `custom-platter-target` 把 platter target 明确设为 `ai.deepseek.dsh`。因此不需要用户启动或首次手动打开 DSH App，也不会用前台 App 创建 Activity。若 broker、helper、私有接口或服务端不可用，操作会返回错误，不会退回前台启动 App。
 
@@ -105,6 +106,7 @@ uikittools
 | `/var/mobile/Library/DSHNotifier/action.sock` | 一次性动作回调 socket |
 | `/var/mobile/Library/DSHNotifier/activity.sock` | Live Activity 更新 socket |
 | `/var/mobile/Library/DSHNotifier/activity.id` | 当前 Activity UUID，用于 respring 后继续更新或结束 |
+| `/var/mobile/Library/DSHNotifier/activity.finished` | 当前卡片是否为保留终态；下一项任务据此强制换新 Activity UUID |
 
 `DSH.app` 带有 `SBAppTags = hidden`，不会显示在主屏幕；它只提供 DSH Bundle 身份、黑鲸鱼图标和 ActivityKit 所需的 widget extension。创建动作由 launchd broker 调度，实际请求方是 `DSHActivityOp`；返回 descriptor 中的 platter target 是 `ai.deepseek.dsh`，所以系统仍选择该 Bundle 的 widget 渲染界面。分阶段实测确认 create 和 update 不启动容器 App；end 时 iOS 会短暂唤醒 containing App。`DSHActivityHost` 因此是一个不包含 ActivityKit、不监听 socket、不创建窗口的最小壳，完成 UIKit check-in 后立即正常退出，不需要用户操作，也不会与 broker 竞争。
 
@@ -171,4 +173,4 @@ DSH 启动后应记录成功连接官方授权 mux；通知发送成功或失败
 grep 'ios-notifier' /var/root/dsh.log
 ```
 
-`notify.sock` 由 SpringBoard bridge 监听，安装原生 bridge 后需要 respring。`activity.sock` 由 launchd job `ai.deepseek.dsh-activity` 监听，不依赖 SpringBoard；缺失时检查该 job 或重新安装包。`DSHActivityOp` 只在一次 Activity 操作期间短暂存在，不会拉起 App。若 `activity.id` 存在，broker 会在自身重启后恢复该 UUID；任务全部结束时会立即结束 Activity 并删除此文件。如果浏览器打开 DSH 但没有选中会话，确认 session 仍存在于 `/var/root/.dsh/sessions`。
+`notify.sock` 由 SpringBoard bridge 监听，安装原生 bridge 后需要 respring。`activity.sock` 由 launchd job `ai.deepseek.dsh-activity` 监听，不依赖 SpringBoard；缺失时检查该 job 或重新安装包。`DSHActivityOp` 只在一次 Activity 操作期间短暂存在，不会拉起 App。若 `activity.id` 存在，broker 会在自身重启后恢复该 UUID；终态卡保留时此文件继续存在，下一项任务会换新 UUID。如果浏览器打开 DSH 但没有选中会话，确认 session 仍存在于 `/var/root/.dsh/sessions`。
