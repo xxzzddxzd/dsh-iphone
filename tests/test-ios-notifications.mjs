@@ -101,13 +101,16 @@ const bridgeSource = await readFile(
 assert.match(bridgeSource, /dispatch_async\(queue/);
 assert.match(bridgeSource, /actionWithLaunchURL:callblock:/);
 assert.match(bridgeSource, /observer:addBulletin:forFeed:/);
+assert.match(bridgeSource, /observer:removeBulletin:/);
 assert.match(bridgeSource, /setPublisherBulletinID:/);
+assert.match(bridgeSource, /setClearable:/);
 assert.match(bridgeSource, /dsh-notifier-/);
 assert.match(bridgeSource, /responseForAction:/);
 assert.match(bridgeSource, /posix_spawn/);
 assert.match(bridgeSource, /\/var\/jb\/usr\/bin\/uiopen/);
 assert.match(bridgeSource, /method_setImplementation/);
 assert.match(bridgeSource, /if \(handled\) return nil/);
+assert.match(bridgeSource, /DSHRemoveBulletin\(bulletin\)/);
 
 const bridgeBuildScript = await readFile(
   new URL("../scripts/build-ios-notifier.sh", import.meta.url),

@@ -28,7 +28,7 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 ## 点击行为
 
-`dsh-notify` 把请求写入仅限本机 root/mobile 使用的 Unix socket。`DSHNotifierBridge.dylib` 在 SpringBoard 内先创建 `BBAction` URL 默认动作，再通过通知控制器自己的队列发布 Bulletin。点击时桥接立即结束 BulletinBoard 响应，并在后台用 `uiopen` 把地址交给默认浏览器，避免 SpringBoard 主线程等待。地址默认形如：
+`dsh-notify` 把请求写入仅限本机 root/mobile 使用的 Unix socket。`DSHNotifierBridge.dylib` 在 SpringBoard 内先创建 `BBAction` URL 默认动作，再通过通知控制器自己的队列发布可清除 Bulletin。点击时桥接用 `observer:removeBulletin:` 撤回该条通知，立即结束 BulletinBoard 响应，并在后台用 `uiopen` 把地址交给默认浏览器。这样既不会进入会卡住约十秒的原始 action 路径，也不会让已点击通知留在通知中心。地址默认形如：
 
 ```text
 http://127.0.0.1:3080/?session=session-…
