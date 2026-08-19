@@ -9,10 +9,12 @@ const html = await readFile(htmlPath, "utf8");
 const inlineScript = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
 
 assert.ok(inlineScript, "compatibility bootstrap script is missing");
-assert.match(html, /name="dsh-ios-compat" content="4"/);
-assert.match(html, /index-Dqw48FrP\.js\?ioscompat=4/);
-assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=4/);
+assert.match(html, /name="dsh-ios-compat" content="5"/);
+assert.match(html, /index-Dqw48FrP\.js\?ioscompat=5/);
+assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=5/);
 
+const storage = new Map();
+let replacedUrl;
 const context = vm.createContext({
   AbortController,
   AbortSignal,
@@ -25,8 +27,27 @@ const context = vm.createContext({
   RegExp,
   Set,
   setTimeout,
+  URL,
+  URLSearchParams,
   Uint8Array,
   WeakMap,
+  history: {
+    state: null,
+    replaceState(_state, _title, url) {
+      replacedUrl = url;
+    },
+  },
+  localStorage: {
+    getItem(key) {
+      return storage.get(key) ?? null;
+    },
+    setItem(key, value) {
+      storage.set(key, value);
+    },
+  },
+  location: {
+    href: "http://127.0.0.1:3080/?ioscompat=5&session=child-1&parent=parent-1&mode=continuable",
+  },
 });
 context.window = context;
 vm.runInContext(
@@ -55,6 +76,16 @@ assert.equal(vm.runInContext("[1, 2, 3].toSpliced(1, 1, 9).join(',')", context),
 assert.equal(vm.runInContext("[3, 1, 2].toSorted().join(',')", context), "1,2,3");
 assert.equal(vm.runInContext("[1, 2, 3].with(-1, 9).join(',')", context), "1,2,9");
 assert.equal(vm.runInContext("[1, 2, 3].findLast((value) => value < 3)", context), 2);
+assert.deepEqual(JSON.parse(storage.get("dsh.sessions.current")), {
+  sessionId: "child-1",
+  subagentAddress: {
+    parentSessionId: "parent-1",
+    childSessionId: "child-1",
+    mode: "continuable",
+  },
+});
+assert.equal(replacedUrl, "/?ioscompat=5");
+assert.equal(vm.runInContext("__DSH_IOS_SESSION_LINK__.sessionId", context), "child-1");
 
 const vendorPath = process.argv[2];
 const indexPath = process.argv[3];
@@ -68,7 +99,7 @@ if (vendorPath !== undefined || indexPath !== undefined) {
     'new RegExp("([-.\\\\w+]+)@([-\\\\w]+(?:\\\\.[-\\\\w]+)+)","gu")';
   assert.equal(vendor.includes(unsupported), false, "Safari lookbehind remains");
   assert.equal(vendor.split(compatible).length - 1, 1, "compatible regexp count");
-  assert.ok(index.includes('from"./vendor-Cjbwl5VI.js?ioscompat=4"'));
+  assert.ok(index.includes('from"./vendor-Cjbwl5VI.js?ioscompat=5"'));
 }
 
 console.log("iOS 16 frontend compatibility checks passed");

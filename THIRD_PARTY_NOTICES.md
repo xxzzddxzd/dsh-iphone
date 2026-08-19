@@ -58,3 +58,13 @@ verifies its SHA-256 digest, and cross-compiles an unmodified iPhoneOS arm64
 executable. The package installs the upstream `LICENSE` beside the example
 configuration. Neither the archive nor the binary is tracked by this
 repository.
+
+## Libbulletin, ElleKit and UIKit Tools
+
+- Packages: `net.limneos.libbulletin`, `ellekit`, `uikittools`
+- Distributors: Limneos jailbreak repository, ElleKit project, and the configured jailbreak bootstrap repository
+
+The DSH package declares these as external runtime dependencies for system
+notification delivery. This repository does not copy or redistribute their
+binaries; users obtain them separately from their configured package source,
+under the distributor's terms.

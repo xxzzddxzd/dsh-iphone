@@ -19,7 +19,7 @@ done < <(rg --files scripts packaging tests -g '*.sh' -g 'node22' -g 'dsh22' -g 
 
 while IFS= read -r module; do
   node --check "$ROOT/$module"
-done < <(rg --files scripts shims tests -g '*.mjs')
+done < <(rg --files scripts shims tests ios -g '*.mjs')
 
 plutil -lint \
   "$ROOT/launchd/ai.deepseek.dsh.plist" \
@@ -30,6 +30,7 @@ plutil -lint \
 node "$ROOT/tests/test-lockfile.mjs"
 node "$ROOT/tests/test-shims.mjs"
 node "$ROOT/tests/test-vless-config.mjs"
+node "$ROOT/tests/test-ios-notifications.mjs"
 "$ROOT/tests/test-xray-package.sh"
 
 VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-Cjbwl5VI.js"
