@@ -12,8 +12,8 @@ const DEFAULTS = Object.freeze({
   enabled: true,
   browserBaseUrl: "http://127.0.0.1:3080/",
   bundleId: "ai.deepseek.dsh",
-  completeTitle: "DSH 目标已完成",
-  blockedTitle: "DSH 目标被阻塞",
+  completeTitle: "DSH 回复已完成",
+  blockedTitle: "DSH 会话被阻塞",
   confirmTitle: "DSH 等待确认",
   notifyComplete: true,
   notifyBlocked: true,
@@ -138,7 +138,16 @@ function firstQuestion(argumentsJson) {
 }
 
 function renderSessionNotification(event, config) {
-  if (!config.enabled || !config.notifyConfirm) return undefined;
+  if (!config.enabled) return undefined;
+  if (event.type === "turn/end" && event.data.reason.kind === "completed") {
+    if (!config.notifyComplete) return undefined;
+    return { title: config.completeTitle, body: "回复已完成，点击查看" };
+  }
+  if (event.type === "turn/end" && event.data.reason.kind === "blocked") {
+    if (!config.notifyBlocked) return undefined;
+    return { title: config.blockedTitle, body: "本轮处理被阻塞，点击查看" };
+  }
+  if (!config.notifyConfirm) return undefined;
   if (event.type === "approval/asked") {
     const detail = typeof event.data.reason === "string" && event.data.reason.trim() !== ""
       ? event.data.reason.trim()
@@ -153,6 +162,27 @@ function renderSessionNotification(event, config) {
     return { title: config.confirmTitle, body: "计划已准备好，等待你确认" };
   }
   return undefined;
+}
+
+function sessionEventNotificationKind(event) {
+  if (event.type === "turn/end") {
+    if (event.data.reason.kind === "completed") return "complete";
+    if (event.data.reason.kind === "blocked") return "block";
+  }
+  return "confirm";
+}
+
+function activeTurn(session) {
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    if (event.type === "turn/end") return undefined;
+    if (event.type === "turn/start") return event.data.turn;
+  }
+  return undefined;
+}
+
+function turnNotificationKey(session, turn, kind) {
+  return `${session.id}:${turn}:${kind}`;
 }
 
 function subagentMode(session) {
@@ -242,6 +272,7 @@ function apply(ctx, config = {}) {
   const resolved = resolveConfig(config);
   let stopped = false;
   let queue = Promise.resolve();
+  const notifiedGoalTurns = new Set();
 
   const enqueue = (kind, session, notification, detail) => {
     if (notification === undefined || stopped) return;
@@ -260,10 +291,37 @@ function apply(ctx, config = {}) {
   };
 
   const stopGoals = ctx.on("goal/changed", ({ agent, change }) => {
-    enqueue(change.operation, agent.session, renderGoalNotification(change, resolved), `goal "${change.ref.id}"`);
+    const notification = renderGoalNotification(change, resolved);
+    if (notification !== undefined) {
+      const turn = activeTurn(agent.session);
+      const reasonKind = change.operation === "complete"
+        ? "completed"
+        : change.operation === "block" ? "blocked" : undefined;
+      if (turn !== undefined && reasonKind !== undefined) {
+        notifiedGoalTurns.add(turnNotificationKey(agent.session, turn, reasonKind));
+      }
+    }
+    enqueue(change.operation, agent.session, notification, `goal "${change.ref.id}"`);
   }, { global: true });
   const stopSessionEvents = ctx.on("session/event", (session, event) => {
-    enqueue("confirm", session, renderSessionNotification(event, resolved), `event "${event.type}"`);
+    if (event.type === "turn/end") {
+      const key = turnNotificationKey(session, event.data.turn, event.data.reason.kind);
+      const alreadyNotified = notifiedGoalTurns.delete(key);
+      const prefix = `${session.id}:${event.data.turn}:`;
+      for (const pendingKey of notifiedGoalTurns) {
+        if (pendingKey.startsWith(prefix)) notifiedGoalTurns.delete(pendingKey);
+      }
+      if (alreadyNotified) return;
+      // A root turn corresponds to a user-visible reply. Subagent turns can be
+      // numerous; their explicit goal and confirmation notifications remain.
+      if (session.header?.origin === "subagent") return;
+    }
+    enqueue(
+      sessionEventNotificationKind(event),
+      session,
+      renderSessionNotification(event, resolved),
+      `event "${event.type}"`,
+    );
   }, { global: true });
 
   ctx.effect(() => () => {
@@ -278,6 +336,7 @@ export {
   Config,
   DEFAULTS,
   apply,
+  activeTurn,
   inject,
   name,
   navigationUrl,
@@ -285,6 +344,7 @@ export {
   renderSessionNotification,
   resolveConfig,
   runNotifier,
+  sessionEventNotificationKind,
   subagentMode,
   truncate,
 };
