@@ -11,8 +11,8 @@
 | --- | --- | --- |
 | iPhone | iPhone 14 Pro | iOS 16.1.1、rootless 越狱 |
 | Node.js | 22.23.2 | iPhoneOS arm64，最低 iOS 15.0 |
-| DSH | 0.1.0-rc.6 | 上游提交 `fb82698709c39f1860b0ab0ed147e1fa30c1d5d0` |
-| node-pty | 1.1.0 | iOS `forkpty` 后端 |
+| DSH | 0.1.0-rc.7 | 上游提交 `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca` |
+| node-pty | 1.2.0-beta.15 | iOS `posix_spawn` 后端 |
 | Xray（可选） | 26.3.27 | 仅回环 HTTP 入站、VLESS 出站 |
 | Web GUI | compatibility 5 | Safari/Chrome 的 iOS 16 WebKit、通知 session 深链接 |
 
@@ -45,7 +45,7 @@ JOBS=8 ./scripts/build-node.sh
 ```text
 dist/nodejs22_22.23.2-1_iphoneos-arm64.deb
 dist/pnpm10_10.34.5-1_iphoneos-arm64.deb
-dist/dsh_0.1.0~rc.6-7_iphoneos-arm64.deb
+dist/dsh_0.1.0~rc.7-1_iphoneos-arm64.deb
 ```
 
 仅让 DSH 的 GPT/OpenAI 通道使用独立 VLESS 固定出口时，再构建单独的 Xray 包：

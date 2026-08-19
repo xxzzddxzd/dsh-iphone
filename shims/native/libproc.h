@@ -1,2 +1,2 @@
 #pragma once
-/* node-pty includes libproc.h on Apple targets; the iOS forkpty path does not use it. */
+/* node-pty includes libproc.h on Apple targets but does not use its declarations. */

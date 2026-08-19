@@ -110,14 +110,14 @@ async function readJson(relativePath) {
 }
 
 const dshPackage = await readJson("package.json");
-if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.1.0-rc.6") {
+if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.1.0-rc.7") {
   throw new Error(
     `unsupported DSH package: ${dshPackage.name ?? "unknown"}@${dshPackage.version ?? "unknown"}`,
   );
 }
 
 const nodePtyPackage = await readJson("node_modules/node-pty/package.json");
-if (nodePtyPackage.version !== "1.1.0") {
+if (nodePtyPackage.version !== "1.2.0-beta.15") {
   throw new Error(`unsupported node-pty version: ${nodePtyPackage.version}`);
 }
 const nodeAddonApiPackage = await readJson("node_modules/node-addon-api/package.json");
@@ -232,7 +232,7 @@ await replaceExactlyOnce(
   "Safari 16 GFM email regexp",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-Dqw48FrP.js",
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js",
   'from"./vendor-Cjbwl5VI.js"',
   'from"./vendor-Cjbwl5VI.js?ioscompat=5"',
   "frontend vendor cache key",
@@ -240,7 +240,7 @@ await replaceExactlyOnce(
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
   resolve(repositoryRoot, "web/index.ios.html"),
-  "85b42d12a45dd4a3acea9b11237c6eee3f0d374281620a29ace088f2d24246c5",
+  "dd159dc02803ac2b16892ec5843567722e0b18e93a9a7a888c77410ea108a13e",
   "Safari 16 entry document",
 );
 

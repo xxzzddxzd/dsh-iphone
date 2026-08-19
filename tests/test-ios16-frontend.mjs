@@ -10,7 +10,7 @@ const inlineScript = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
 
 assert.ok(inlineScript, "compatibility bootstrap script is missing");
 assert.match(html, /name="dsh-ios-compat" content="5"/);
-assert.match(html, /index-Dqw48FrP\.js\?ioscompat=5/);
+assert.match(html, /index-C-1AiF3k\.js\?ioscompat=5/);
 assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=5/);
 
 const storage = new Map();

@@ -34,7 +34,7 @@ node "$ROOT/tests/test-ios-notifications.mjs"
 "$ROOT/tests/test-xray-package.sh"
 
 VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-Cjbwl5VI.js"
-INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-Dqw48FrP.js"
+INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js"
 if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios16-frontend.mjs" "$VENDOR" "$INDEX"
   node "$ROOT/scripts/patch-dsh.mjs" --root "$ROOT/build/dsh-runtime" --check

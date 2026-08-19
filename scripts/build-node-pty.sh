@@ -9,14 +9,12 @@ ROOT=$(repo_root)
 load_versions
 require_command xcrun
 require_command node
-require_command patch
 require_command rg
 
 SOURCE_ROOT="$ROOT/build/node-v$NODE_VERSION"
 RUNTIME_ROOT=${DSH_RUNTIME_ROOT:-"$ROOT/build/dsh-runtime"}
 PTY_ROOT="$RUNTIME_ROOT/node_modules/node-pty"
 NODE_ADDON_API="$RUNTIME_ROOT/node_modules/node-addon-api"
-PATCH_FILE="$ROOT/patches/node-pty-$NODE_PTY_VERSION-ios.patch"
 OUTPUT_ROOT="$PTY_ROOT/prebuilds/ios-arm64"
 
 [ -d "$SOURCE_ROOT" ] || "$SCRIPT_DIR/fetch-node.sh" >/dev/null
@@ -29,14 +27,12 @@ actual_napi_version=$(node -p "require('$NODE_ADDON_API/package.json').version")
 [ "$actual_napi_version" = "$NODE_ADDON_API_VERSION" ] || \
   die "expected node-addon-api $NODE_ADDON_API_VERSION, got $actual_napi_version"
 
-if rg -q '^#if defined\(NODE_PTY_IOS\)$' "$PTY_ROOT/src/unix/pty.cc" && \
-  rg -q '^#if defined\(__APPLE__\) && !defined\(NODE_PTY_IOS\)$' "$PTY_ROOT/src/unix/pty.cc"; then
-  printf 'node-pty iOS patch already applied\n'
-elif patch -d "$PTY_ROOT" -p1 --forward --force --dry-run < "$PATCH_FILE" >/dev/null; then
-  patch -d "$PTY_ROOT" -p1 --forward --force < "$PATCH_FILE"
-else
-  die "node-pty patch preimage mismatch in $PTY_ROOT"
-fi
+rg -Fq 'pty_posix_spawn(argv, env, term, &winp, &master, &pid, &err);' \
+  "$PTY_ROOT/src/unix/pty.cc" || \
+  die "node-pty $NODE_PTY_VERSION is missing the Apple posix_spawn backend"
+rg -Fq "var helperPath = native.dir + '/spawn-helper';" \
+  "$PTY_ROOT/lib/unixTerminal.js" || \
+  die "node-pty $NODE_PTY_VERSION helper path preimage changed"
 
 IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
 CXX=$(xcrun --sdk iphoneos -f clang++)
@@ -51,7 +47,6 @@ mkdir -p "$OUTPUT_ROOT"
   -Wl,-undefined,dynamic_lookup \
   -DNODE_GYP_MODULE_NAME=pty \
   -DBUILDING_NODE_EXTENSION \
-  -DNODE_PTY_IOS=1 \
   -include "$ROOT/shims/native/pty-decls.h" \
   -I "$ROOT/shims/native" \
   -I "$SOURCE_ROOT/src" \
