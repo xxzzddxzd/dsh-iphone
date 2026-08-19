@@ -147,43 +147,121 @@ if (pluginAvailable) {
   } = await import(`${pluginPath.href}?test=${Date.now()}`);
   const config = resolveConfig();
   assert.equal(config.browserBaseUrl, "http://127.0.0.1:3080/");
+  assert.equal(config.notifyFailure, true);
   assert.throws(() => resolveConfig({ browserBaseUrl: "file:///tmp/dsh" }), /HTTP\(S\)/);
+
+  const detailedSession = {
+    id: "session-detailed",
+    header: {},
+    events: [
+      { type: "session/title", data: { title: "通知链路测试" } },
+      {
+        type: "assistant/message",
+        data: {
+          turn: 1,
+          message: {
+            content: [
+              { type: "reasoning", text: "不应出现在通知中" },
+              { type: "text", text: "通知链路已经完成。\n可以点击查看。" },
+            ],
+          },
+        },
+      },
+    ],
+  };
 
   assert.deepEqual(renderGoalNotification({
     operation: "complete",
     ref: { id: "g1" },
     goal: { objective: "完成通知链路" },
-  }, config), { title: "DSH 回复已完成", body: "完成通知链路" });
-  assert.deepEqual(renderSessionNotification({
-    type: "turn/end",
-    data: { turn: 1, reason: { kind: "completed" } },
-  }, config), { title: "DSH 回复已完成", body: "回复已完成，点击查看" });
-  assert.deepEqual(renderSessionNotification({
-    type: "turn/end",
-    data: { turn: 1, reason: { kind: "completed" } },
-  }, resolveConfig({ notifyConfirm: false })), {
+  }, config, detailedSession), {
     title: "DSH 回复已完成",
-    body: "回复已完成，点击查看",
+    body: "会话：通知链路测试\n状态：目标已完成\n目标：完成通知链路",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "completed" } },
+  }, config, detailedSession), {
+    title: "DSH 回复已完成",
+    body: "会话：通知链路测试\n状态：回复已完成\n回复摘要：通知链路已经完成。 可以点击查看。",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "completed" } },
+  }, resolveConfig({ notifyConfirm: false }), detailedSession), {
+    title: "DSH 回复已完成",
+    body: "会话：通知链路测试\n状态：回复已完成\n回复摘要：通知链路已经完成。 可以点击查看。",
   });
   assert.deepEqual(renderSessionNotification({
     type: "turn/end",
     data: { turn: 2, reason: { kind: "blocked" } },
-  }, config), { title: "DSH 会话被阻塞", body: "本轮处理被阻塞，点击查看" });
+  }, config, detailedSession), {
+    title: "DSH 会话被阻塞",
+    body: "会话：通知链路测试\n状态：本轮处理被阻塞\n说明：点击查看阻塞原因",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 2, reason: { kind: "error", error: { code: "TIMEOUT", message: "请求超时" } } },
+  }, config, detailedSession), {
+    title: "DSH 运行失败",
+    body: "会话：通知链路测试\n状态：运行失败\n错误：[TIMEOUT] 请求超时",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "max-tokens" } },
+  }, config, detailedSession), {
+    title: "DSH 输出已截断",
+    body: "会话：通知链路测试\n状态：输出达到 token 上限，回复可能不完整\n最后内容：通知链路已经完成。 可以点击查看。",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 2, reason: { kind: "interrupted" } },
+  }, config, detailedSession), {
+    title: "DSH 会话异常中断",
+    body: "会话：通知链路测试\n状态：上一轮未正常结束\n说明：DSH 恢复会话时发现异常中断，请点击查看",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 2, reason: { kind: "aborted", reason: { kind: "hook", reason: "依赖服务不可用" } } },
+  }, config, detailedSession), {
+    title: "DSH 会话已停止",
+    body: "会话：通知链路测试\n状态：会话被系统停止\n原因：依赖服务不可用",
+  });
+  assert.equal(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 2, reason: { kind: "error", error: { code: "FAIL", message: "failed" } } },
+  }, resolveConfig({ notifyFailure: false }), detailedSession), undefined);
   assert.equal(renderSessionNotification({
     type: "turn/end",
     data: { turn: 3, reason: { kind: "aborted", reason: { kind: "user" } } },
-  }, config), undefined);
+  }, config, detailedSession), undefined);
   assert.deepEqual(renderSessionNotification({
     type: "approval/asked",
     data: { toolName: "bash", reason: "需要允许部署" },
-  }, config), { title: "DSH 等待确认", body: "需要允许部署" });
+  }, config, detailedSession), {
+    title: "DSH 等待确认",
+    body: "会话：通知链路测试\n状态：等待工具授权\n工具：bash\n原因：需要允许部署",
+  });
   assert.deepEqual(renderSessionNotification({
     type: "tool/call",
     data: {
       name: "ask_user_question",
       arguments: JSON.stringify({ questions: [{ question: "使用哪个出口？" }] }),
     },
-  }, config), { title: "DSH 等待确认", body: "使用哪个出口？" });
+  }, config, detailedSession), {
+    title: "DSH 等待确认",
+    body: "会话：通知链路测试\n状态：等待你回答\n问题：使用哪个出口？",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "tool/call",
+    data: {
+      name: "exit_plan_mode",
+      arguments: JSON.stringify({ plan: "# 部署方案\n\n- 构建\n- 安装" }),
+    },
+  }, config, detailedSession), {
+    title: "DSH 等待确认",
+    body: "会话：通知链路测试\n状态：计划已准备好，等待你确认\n计划摘要：部署方案 - 构建 - 安装",
+  });
 
   const rootSession = { id: "session-root", header: {}, events: [] };
   assert.equal(activeTurn(rootSession), undefined);
@@ -270,7 +348,10 @@ if (pluginAvailable) {
   const goalSession = {
     id: "session-goal",
     header: {},
-    events: [{ type: "turn/start", data: { turn: 5 } }],
+    events: [
+      { type: "session/title", data: { title: "去重测试" } },
+      { type: "turn/start", data: { turn: 5 } },
+    ],
   };
   handlers.get("goal/changed")({
     agent: { session: goalSession },
@@ -285,11 +366,50 @@ if (pluginAvailable) {
     data: { turn: 5, reason: { kind: "completed" } },
   });
 
+  const blockedGoalSession = {
+    id: "session-blocked-goal",
+    header: {},
+    events: [{ type: "turn/start", data: { turn: 6 } }],
+  };
+  handlers.get("goal/changed")({
+    agent: { session: blockedGoalSession },
+    change: {
+      operation: "block",
+      ref: { id: "g6" },
+      goal: {
+        objective: "部署到手机",
+        blockedReason: { message: "SSH 连接不可用" },
+      },
+    },
+  });
+  // Goal blocking is the outcome even if the agent loop itself ended cleanly.
+  handlers.get("session/event")(blockedGoalSession, {
+    type: "turn/end",
+    data: { turn: 6, reason: { kind: "completed" } },
+  });
+
+  handlers.get("session/event")(rootSession, {
+    type: "turn/end",
+    data: { turn: 7, reason: { kind: "error", error: { code: "TIMEOUT", message: "请求超时" } } },
+  });
+
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
-  assert.equal(notifierRequests.length, 2);
+  assert.equal(notifierRequests.length, 4);
   assert.equal(notifierRequests[0].argv.at(-2), "DSH 回复已完成");
-  assert.equal(notifierRequests[0].argv.at(-1), "回复已完成，点击查看");
-  assert.equal(notifierRequests[1].argv.at(-1), "只应通知一次");
+  assert.equal(
+    notifierRequests[0].argv.at(-1),
+    "会话：未命名会话\n状态：回复已完成\n说明：点击查看完整回复",
+  );
+  assert.equal(
+    notifierRequests[1].argv.at(-1),
+    "会话：去重测试\n状态：目标已完成\n目标：只应通知一次",
+  );
+  assert.equal(notifierRequests[2].argv.at(-2), "DSH 会话被阻塞");
+  assert.equal(
+    notifierRequests[2].argv.at(-1),
+    "会话：未命名会话\n状态：目标被阻塞\n目标：部署到手机\n原因：SSH 连接不可用",
+  );
+  assert.equal(notifierRequests[3].argv.at(-2), "DSH 运行失败");
   await disposeNotifier();
 } else {
   const source = await readFile(new URL("../ios/notifications/dsh-ios-notifier.mjs", import.meta.url), "utf8");

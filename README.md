@@ -45,7 +45,7 @@ JOBS=8 ./scripts/build-node.sh
 ```text
 dist/nodejs22_22.23.2-1_iphoneos-arm64.deb
 dist/pnpm10_10.34.5-1_iphoneos-arm64.deb
-dist/dsh_0.1.0~rc.6-5_iphoneos-arm64.deb
+dist/dsh_0.1.0~rc.6-6_iphoneos-arm64.deb
 ```
 
 仅让 DSH 的 GPT/OpenAI 通道使用独立 VLESS 固定出口时，再构建单独的 Xray 包：
