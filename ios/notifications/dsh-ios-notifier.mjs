@@ -1,3 +1,17 @@
+import { randomBytes } from "node:crypto";
+import {
+  chmodSync,
+  chownSync,
+  existsSync,
+  mkdirSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
+import { createConnection, createServer } from "node:net";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { dirname } from "node:path";
+import WebSocket from "ws";
 import z from "@deepseek-ai/schemastery";
 
 const name = "ios-notifier";
@@ -5,8 +19,14 @@ const inject = ["goals", "subprocess"];
 
 const HELPER_PATH = "/var/jb/usr/local/bin/dsh-notify";
 const LAUNCHER_PATH = "/var/jb/usr/bin/bash";
+const UIOPEN_PATH = "/var/jb/usr/bin/uiopen";
+const ACTION_SOCKET_PATH = "/var/mobile/Library/DSHNotifier/action.sock";
+const ACTIVITY_SOCKET_PATH = "/var/mobile/Library/DSHNotifier/activity.sock";
 const HELPER_CWD = "/var/root";
 const DEFAULT_HELPER_TIMEOUT_MS = 15_000;
+const DEFAULT_SOCKET_TIMEOUT_MS = 5_000;
+const ACTIVITY_SOCKET_TIMEOUT_MS = 5_000;
+const APPROVAL_ACTION_TTL_MS = 2 * 60 * 60 * 1_000;
 
 const DEFAULTS = Object.freeze({
   enabled: true,
@@ -23,6 +43,8 @@ const DEFAULTS = Object.freeze({
   notifyBlocked: true,
   notifyConfirm: true,
   notifyFailure: true,
+  actionableApprovals: true,
+  liveActivity: true,
   soundId: undefined,
   maxBodyChars: 800,
   logSuccess: true,
@@ -43,6 +65,8 @@ const Config = z.object({
   notifyBlocked: z.boolean().default(DEFAULTS.notifyBlocked),
   notifyConfirm: z.boolean().default(DEFAULTS.notifyConfirm),
   notifyFailure: z.boolean().default(DEFAULTS.notifyFailure),
+  actionableApprovals: z.boolean().default(DEFAULTS.actionableApprovals),
+  liveActivity: z.boolean().default(DEFAULTS.liveActivity),
   soundId: z.number(),
   maxBodyChars: z.number().default(DEFAULTS.maxBodyChars),
   logSuccess: z.boolean().default(DEFAULTS.logSuccess),
@@ -112,6 +136,12 @@ function resolveConfig(config = {}) {
     notifyBlocked: booleanValue(config.notifyBlocked, DEFAULTS.notifyBlocked, "notifyBlocked"),
     notifyConfirm: booleanValue(config.notifyConfirm, DEFAULTS.notifyConfirm, "notifyConfirm"),
     notifyFailure: booleanValue(config.notifyFailure, DEFAULTS.notifyFailure, "notifyFailure"),
+    actionableApprovals: booleanValue(
+      config.actionableApprovals,
+      DEFAULTS.actionableApprovals,
+      "actionableApprovals",
+    ),
+    liveActivity: booleanValue(config.liveActivity, DEFAULTS.liveActivity, "liveActivity"),
     soundId,
     maxBodyChars: positiveInteger(config.maxBodyChars, DEFAULTS.maxBodyChars, "maxBodyChars"),
     logSuccess: booleanValue(config.logSuccess, DEFAULTS.logSuccess, "logSuccess"),
@@ -376,17 +406,7 @@ function renderExecutionError(message, stdout, stderr) {
   return detail === "" ? message : `${message}: ${detail}`;
 }
 
-async function runNotifier(ctx, config, notification, session) {
-  const helperArgs = [
-    "--bundle-id",
-    config.bundleId,
-    "--url",
-    navigationUrl(session, config),
-    "--timeout",
-    String(DEFAULT_HELPER_TIMEOUT_MS),
-  ];
-  if (config.soundId !== undefined) helperArgs.push("--sound-id", String(config.soundId));
-  helperArgs.push(notification.title, notification.body);
+async function runNotifierHelper(ctx, helperArgs) {
   // iOS denies direct posix_spawn of the script from Node (EPERM). DSH can
   // launch the signed rootless Bash binary, which then execs the exact argv.
   // The command string is constant; all variable values remain positional args.
@@ -426,11 +446,515 @@ async function runNotifier(ctx, config, notification, session) {
   }
 }
 
+async function runNotifier(ctx, config, notification, session) {
+  const helperArgs = [
+    "--bundle-id",
+    config.bundleId,
+    "--url",
+    navigationUrl(session, config),
+    "--timeout",
+    String(DEFAULT_HELPER_TIMEOUT_MS),
+  ];
+  if (notification.id !== undefined) helperArgs.push("--id", notification.id);
+  if (notification.actions !== undefined) {
+    helperArgs.push("--actions-json", JSON.stringify(notification.actions));
+  }
+  if (config.soundId !== undefined) helperArgs.push("--sound-id", String(config.soundId));
+  helperArgs.push(notification.title, notification.body);
+  return runNotifierHelper(ctx, helperArgs);
+}
+
+async function dismissNotifier(ctx, notificationId) {
+  return runNotifierHelper(ctx, [
+    "--dismiss-id",
+    notificationId,
+    "--timeout",
+    String(DEFAULT_HELPER_TIMEOUT_MS),
+  ]);
+}
+
+function notificationIdForApproval(approvalId) {
+  const safe = String(approvalId).replace(/[^A-Za-z0-9._:-]/gu, "_").slice(0, 220);
+  return `approval-${safe}`;
+}
+
+function renderApprovalNotification(frame, config, session, tokens) {
+  if (!config.enabled || !config.notifyConfirm) return undefined;
+  const reason = compactText(frame.reason) || "该操作超出当前权限，需要你决定是否只放行这一次";
+  return {
+    id: notificationIdForApproval(frame.approvalId),
+    title: config.confirmTitle,
+    body: notificationBody(session, [
+      "状态：任务暂停，等待操作授权",
+      `权限：允许“${frame.toolName}”执行当前请求一次`,
+      `原因：${reason}`,
+      "操作：展开通知后选择“允许一次”或“拒绝”",
+    ], config),
+    actions: [
+      { title: "拒绝", token: tokens.reject, authenticationRequired: false },
+      { title: "允许一次", token: tokens.allow, authenticationRequired: true },
+    ],
+  };
+}
+
+function randomActionToken() {
+  return randomBytes(24).toString("base64url");
+}
+
+let nextTaskStartOrder = 0;
+
+function taskKey(sessionId, turn) {
+  return `${sessionId}:${turn}`;
+}
+
+function newestRunningTask(tasks) {
+  let selected;
+  for (const task of tasks.values()) {
+    if (selected === undefined || task.startOrder > selected.startOrder) selected = task;
+  }
+  return selected;
+}
+
+function latestSessionTask(tasks, sessionId, turn) {
+  if (Number.isSafeInteger(turn)) return tasks.get(taskKey(sessionId, turn));
+  let selected;
+  for (const task of tasks.values()) {
+    if (task.sessionID !== sessionId) continue;
+    if (selected === undefined || task.startOrder > selected.startOrder) selected = task;
+  }
+  return selected;
+}
+
+function toolDisplayName(name) {
+  const labels = {
+    exec_command: "命令行",
+    Bash: "Bash",
+    bash: "Bash",
+    apply_patch: "文件修改",
+    read: "文件读取",
+    write: "文件写入",
+    web: "网络查询",
+    request_user_input: "用户问答",
+  };
+  return labels[name] ?? name;
+}
+
+function findToolCall(session, callId) {
+  if (typeof callId !== "string") return undefined;
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    if (event.type === "tool/call" && event.data?.callId === callId) return event;
+  }
+  return undefined;
+}
+
+function updateLiveTasks(tasks, session, event) {
+  if (session.header?.origin === "subagent") return newestRunningTask(tasks);
+  if (event.type === "turn/start") {
+    const key = taskKey(session.id, event.data.turn);
+    if (!tasks.has(key)) {
+      const eventTime = Number(event.time);
+      tasks.set(key, {
+        sessionID: session.id,
+        turn: event.data.turn,
+        startOrder: ++nextTaskStartOrder,
+        startedAtMilliseconds: Number.isFinite(eventTime) && eventTime > 0 ? Math.trunc(eventTime) : Date.now(),
+        title: sessionTitle(session) ?? "未命名会话",
+        phase: "正在开始",
+        detail: "正在准备本轮任务",
+        step: 0,
+        completedItems: 0,
+        totalItems: 0,
+        waitingForUser: false,
+      });
+    }
+    return newestRunningTask(tasks);
+  }
+  if (event.type === "turn/end") {
+    tasks.delete(taskKey(session.id, event.data.turn));
+    return newestRunningTask(tasks);
+  }
+  if (event.type === "session/title") {
+    const title = compactText(event.data?.title);
+    if (title !== "") {
+      for (const task of tasks.values()) {
+        if (task.sessionID === session.id) task.title = title;
+      }
+    }
+    return newestRunningTask(tasks);
+  }
+
+  const task = latestSessionTask(tasks, session.id, event.data?.turn);
+  if (task === undefined) return newestRunningTask(tasks);
+  switch (event.type) {
+    case "step/start":
+      task.step = Math.max(0, event.data.step);
+      task.phase = "思考中";
+      task.detail = "正在生成下一步操作";
+      task.waitingForUser = false;
+      break;
+    case "assistant/chunk":
+      if (!task.waitingForUser) {
+        task.phase = "正在生成回复";
+        task.detail = "模型正在输出内容";
+      }
+      break;
+    case "assistant/message":
+      if (!task.waitingForUser) {
+        task.phase = "正在处理";
+        task.detail = "正在整理模型输出";
+      }
+      break;
+    case "tool/call":
+      if (event.data.name === "ask_user_question") {
+        task.phase = "等待你的回答";
+        task.detail = firstQuestion(event.data.arguments) ?? "会话提出了一个问题";
+        task.waitingForUser = true;
+      } else if (event.data.name === "exit_plan_mode") {
+        task.phase = "等待计划确认";
+        task.detail = firstPlanLine(event.data.arguments) ?? "计划已经准备完成";
+        task.waitingForUser = true;
+      } else {
+        const toolName = toolDisplayName(event.data.name);
+        task.phase = `正在执行 ${toolName}`;
+        task.detail = `工具“${toolName}”正在运行`;
+        task.waitingForUser = false;
+      }
+      break;
+    case "approval/asked": {
+      const toolName = toolDisplayName(event.data.toolName);
+      task.phase = "等待操作授权";
+      task.detail = compactText(event.data.reason) || `“${toolName}”需要一次性权限`;
+      task.waitingForUser = true;
+      break;
+    }
+    case "approval/decided":
+      task.phase = event.data.outcome === "allowed-once" ? "授权完成，继续执行" : "授权未通过";
+      task.detail = event.data.outcome === "allowed-once" ? "正在恢复任务" : "正在处理拒绝结果";
+      task.waitingForUser = false;
+      break;
+    case "tool/result": {
+      const call = findToolCall(session, event.data.message?.source?.callId ?? event.data.callId);
+      const toolName = toolDisplayName(call?.data?.name ?? "工具");
+      task.phase = event.data.error === undefined ? "正在处理结果" : "工具执行失败";
+      task.detail = event.data.error === undefined ? `“${toolName}”已经返回` : `“${toolName}”返回错误`;
+      task.waitingForUser = false;
+      break;
+    }
+    case "todo/write": {
+      const todos = Array.isArray(event.data.todos) ? event.data.todos : [];
+      task.totalItems = todos.length;
+      task.completedItems = todos.filter((item) => item?.status === "completed").length;
+      const current = todos.find((item) => item?.status === "in_progress");
+      if (current !== undefined) task.detail = compactText(current.content) || task.detail;
+      break;
+    }
+    case "step/end":
+      task.phase = "正在整理结果";
+      task.detail = "本步骤已完成，正在决定下一步";
+      task.waitingForUser = false;
+      break;
+    default:
+      break;
+  }
+  return newestRunningTask(tasks);
+}
+
+function activityCommand(tasks) {
+  const task = newestRunningTask(tasks);
+  if (task === undefined) return { version: 1, operation: "end" };
+  return {
+    version: 1,
+    operation: "update",
+    task: {
+      sessionID: task.sessionID,
+      title: truncate(task.title, 120),
+      phase: truncate(task.phase, 80),
+      detail: truncate(task.detail, 240),
+      startedAtMilliseconds: task.startedAtMilliseconds,
+      step: task.step,
+      completedItems: task.completedItems,
+      totalItems: task.totalItems,
+      waitingForUser: task.waitingForUser,
+    },
+  };
+}
+
+function socketError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function sendSocketJson(socketPath, payload, timeoutMs = DEFAULT_SOCKET_TIMEOUT_MS) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let response = "";
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      if (error === undefined) resolvePromise(response.trim());
+      else rejectPromise(error);
+    };
+    const socket = createConnection({ path: socketPath });
+    socket.setEncoding("utf8");
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => socket.end(`${JSON.stringify(payload)}\n`));
+    socket.on("data", (chunk) => {
+      response += chunk;
+      if (response.length > 4_096) {
+        socket.destroy();
+        finish(socketError("Unix socket returned an oversized response", "OVERSIZED_RESPONSE"));
+      }
+    });
+    socket.once("end", () => {
+      const reply = response.trim();
+      if (reply === "OK" || reply.startsWith("OK ")) finish();
+      else finish(socketError(`Unix socket request rejected${reply === "" ? "" : `: ${reply}`}`, "HOST_REJECTED"));
+    });
+    socket.once("timeout", () => {
+      socket.destroy();
+      finish(socketError(`Unix socket timed out after ${timeoutMs} ms`, "ETIMEDOUT"));
+    });
+    socket.once("error", (error) => finish(socketError(error.message, error.code)));
+  });
+}
+
+function waitMilliseconds(milliseconds, signal) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    if (signal?.aborted) {
+      rejectPromise(signal.reason);
+      return;
+    }
+    const finish = () => {
+      signal?.removeEventListener("abort", onAbort);
+      resolvePromise();
+    };
+    const timer = setTimeout(finish, milliseconds);
+    const onAbort = () => {
+      clearTimeout(timer);
+      rejectPromise(signal.reason);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function sendActivityCommand(_ctx, _bundleId, command) {
+  return sendSocketJson(ACTIVITY_SOCKET_PATH, command, ACTIVITY_SOCKET_TIMEOUT_MS);
+}
+
+function safeUnlinkSocket(path) {
+  try {
+    unlinkSync(path);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+function startActionServer(onToken, logger) {
+  mkdirSync(dirname(ACTION_SOCKET_PATH), { recursive: true, mode: 0o700 });
+  safeUnlinkSocket(ACTION_SOCKET_PATH);
+  const server = createServer((socket) => {
+    let request = "";
+    let handled = false;
+    socket.setEncoding("utf8");
+    socket.setTimeout(DEFAULT_SOCKET_TIMEOUT_MS);
+    const reply = (message) => {
+      if (socket.destroyed) return;
+      socket.end(`${message}\n`);
+    };
+    socket.on("data", (chunk) => {
+      if (handled) return;
+      request += chunk;
+      if (request.length > 64 * 1024) {
+        handled = true;
+        reply("ERR oversized request");
+        return;
+      }
+      const newline = request.indexOf("\n");
+      if (newline < 0) return;
+      handled = true;
+      let payload;
+      try {
+        payload = JSON.parse(request.slice(0, newline));
+      } catch {
+        reply("ERR invalid JSON");
+        return;
+      }
+      if (payload?.version !== 1 || typeof payload.token !== "string") {
+        reply("ERR invalid request");
+        return;
+      }
+      void Promise.resolve(onToken(payload.token)).then(
+        (message) => reply(message.startsWith("OK") ? message : `ERR ${message}`),
+        (error) => reply(`ERR ${error instanceof Error ? error.message : String(error)}`),
+      );
+    });
+    socket.once("timeout", () => socket.destroy());
+  });
+  let readySettled = false;
+  let resolveReady;
+  let rejectReady;
+  const ready = new Promise((resolvePromise, rejectPromise) => {
+    resolveReady = resolvePromise;
+    rejectReady = rejectPromise;
+  });
+  server.on("error", (error) => {
+    logger.warn(`ios-notifier: action socket failed: ${error.message}`);
+    if (!readySettled) {
+      readySettled = true;
+      rejectReady(error);
+    }
+  });
+  server.listen(ACTION_SOCKET_PATH, () => {
+    try {
+      const directory = statSync(dirname(ACTION_SOCKET_PATH));
+      chownSync(ACTION_SOCKET_PATH, directory.uid, directory.gid);
+      chmodSync(ACTION_SOCKET_PATH, 0o600);
+    } catch (error) {
+      logger.warn(`ios-notifier: could not secure action socket: ${String(error)}`);
+    }
+    if (!readySettled) {
+      readySettled = true;
+      resolveReady();
+    }
+  });
+  return {
+    ready,
+    stop: async () => {
+      if (!readySettled) {
+        readySettled = true;
+        rejectReady(new Error("action socket stopped before becoming ready"));
+      }
+      if (server.listening) {
+        await new Promise((resolvePromise) => server.close(resolvePromise));
+      }
+      safeUnlinkSocket(ACTION_SOCKET_PATH);
+    },
+  };
+}
+
+function nativeRequest(url, options, onResponse) {
+  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  return request(url, options, onResponse);
+}
+
+function openHttpResponse(url, options = {}, body) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const request = nativeRequest(url, options, resolvePromise);
+    request.once("error", rejectPromise);
+    if (body === undefined) request.end();
+    else request.end(body);
+  });
+}
+
+async function readHttpBody(response, maximumBytes = 64 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.length;
+    if (size > maximumBytes) throw new Error("HTTP response body is too large");
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function postJson(url, payload, signal) {
+  const body = Buffer.from(JSON.stringify(payload));
+  const response = await openHttpResponse(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-length": String(body.length),
+    },
+    signal,
+  }, body);
+  const text = await readHttpBody(response);
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(`HTTP request returned ${response.statusCode}`);
+  }
+  return JSON.parse(text);
+}
+
+async function runMuxObserver(config, onEnvelope, signal, logger) {
+  const url = new URL("/api/events.mux", config.browserBaseUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  let announcedFailure = false;
+  let announcedConnection = false;
+  while (!signal.aborted) {
+    try {
+      await new Promise((resolvePromise, rejectPromise) => {
+        const socket = new WebSocket(url);
+        let opened = false;
+        let settled = false;
+        const finish = (error) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener("abort", onAbort);
+          socket.removeAllListeners();
+          if (error === undefined) resolvePromise();
+          else rejectPromise(error);
+        };
+        const onAbort = () => {
+          socket.terminate();
+          finish();
+        };
+        socket.once("open", () => {
+          opened = true;
+          announcedFailure = false;
+          if (config.logSuccess && !announcedConnection) {
+            logger.info("ios-notifier: connected to the official DSH approval mux");
+            announcedConnection = true;
+          }
+        });
+        socket.on("message", (data, isBinary) => {
+          try {
+            if (isBinary) throw new Error("binary mux frame");
+            onEnvelope(JSON.parse(data.toString("utf8")));
+          } catch (error) {
+            logger.warn(`ios-notifier: dropped malformed approval mux frame: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        });
+        socket.once("close", () => finish(opened ? undefined : new Error("approval mux closed before opening")));
+        socket.once("error", (error) => {
+          socket.terminate();
+          finish(error);
+        });
+        signal.addEventListener("abort", onAbort, { once: true });
+        if (signal.aborted) onAbort();
+      });
+    } catch (error) {
+      if (signal.aborted) return;
+      if (!announcedFailure) {
+        logger.warn(`ios-notifier: approval mux disconnected: ${error instanceof Error ? error.message : String(error)}`);
+        announcedFailure = true;
+      }
+    }
+    try {
+      await waitMilliseconds(1_000, signal);
+    } catch {
+      return;
+    }
+  }
+}
+
 function apply(ctx, config = {}) {
   const resolved = resolveConfig(config);
   let stopped = false;
   let queue = Promise.resolve();
+  let activityQueue = Promise.resolve();
+  let lastActivitySignature;
   const pendingGoalTurns = new Map();
+  const sessionsById = new Map();
+  const liveTasks = new Map();
+  const pendingApprovals = new Map();
+  const actionTokens = new Map();
+  const nativeFeaturesAvailable = existsSync(HELPER_PATH) && existsSync(UIOPEN_PATH);
+  const muxAbort = new AbortController();
+  let muxPromise = Promise.resolve();
+  let stopActionServer = async () => {};
+  let approvalExpiryTimer;
 
   const enqueue = (kind, session, notification, detail) => {
     if (notification === undefined || stopped) return;
@@ -447,6 +971,162 @@ function apply(ctx, config = {}) {
       }
     });
   };
+
+  const enqueueDismiss = (notificationId) => {
+    if (stopped) return;
+    queue = queue.then(async () => {
+      if (stopped) return;
+      try {
+        await dismissNotifier(ctx, notificationId);
+      } catch (error) {
+        ctx.logger.warn(`ios-notifier: failed to dismiss notification "${notificationId}": ${error instanceof Error ? error.message : String(error)}`);
+      }
+    });
+  };
+
+  const syncLiveActivity = () => {
+    if (!resolved.liveActivity || !nativeFeaturesAvailable || stopped) return;
+    const command = activityCommand(liveTasks);
+    const signature = JSON.stringify(command);
+    if (signature === lastActivitySignature) return;
+    lastActivitySignature = signature;
+    activityQueue = activityQueue.then(async () => {
+      if (stopped) return;
+      try {
+        await sendActivityCommand(ctx, resolved.bundleId, command);
+      } catch (error) {
+        ctx.logger.warn(`ios-notifier: Live Activity update failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    });
+  };
+
+  const settleApproval = (pending) => {
+    if (pendingApprovals.get(pending.key) !== pending) return;
+    pendingApprovals.delete(pending.key);
+    actionTokens.delete(pending.tokens.allow);
+    actionTokens.delete(pending.tokens.reject);
+  };
+
+  const onActionToken = async (token) => {
+    const binding = actionTokens.get(token);
+    if (binding === undefined) return "stale or already resolved action";
+    const { pending, outcome } = binding;
+    if (Date.now() >= pending.expiresAt) {
+      settleApproval(pending);
+      enqueueDismiss(pending.notificationId);
+      return "action expired; open DSH to decide";
+    }
+    if (pending.claimed) return "approval is already being answered";
+    pending.claimed = true;
+    const responseAbort = new AbortController();
+    const responseTimer = setTimeout(() => {
+      responseAbort.abort(new Error("approval response timed out"));
+    }, DEFAULT_SOCKET_TIMEOUT_MS);
+    try {
+      const receipt = await postJson(new URL("/api/respond", resolved.browserBaseUrl), {
+        type: "client-response",
+        rpcId: pending.rpcId,
+        result: {
+          ok: true,
+          value: {
+            sessionId: pending.sessionId,
+            approvalId: pending.approvalId,
+            outcome,
+          },
+        },
+      }, responseAbort.signal);
+      if (receipt?.accepted === true || receipt?.reason === "not-pending") {
+        settleApproval(pending);
+        enqueueDismiss(pending.notificationId);
+        return `OK ${outcome}`;
+      }
+      throw new Error(`approval response was rejected: ${String(receipt?.reason ?? "unknown")}`);
+    } catch (error) {
+      pending.claimed = false;
+      throw error;
+    } finally {
+      clearTimeout(responseTimer);
+    }
+  };
+
+  const handleMuxEnvelope = (envelope) => {
+    const frame = envelope?.payload;
+    if (envelope?.type !== "server-request" || frame === null || typeof frame !== "object") return;
+    if (frame.type === "approval/requested") {
+      if (!resolved.enabled || !resolved.notifyConfirm) return;
+      const key = `${frame.sessionId}:${frame.approvalId}`;
+      const previous = pendingApprovals.get(key);
+      if (previous?.rpcId === envelope.rpcId) return;
+      if (previous !== undefined) {
+        settleApproval(previous);
+        enqueueDismiss(previous.notificationId);
+      }
+      const tokens = { allow: randomActionToken(), reject: randomActionToken() };
+      const pending = {
+        key,
+        rpcId: envelope.rpcId,
+        sessionId: frame.sessionId,
+        approvalId: frame.approvalId,
+        notificationId: notificationIdForApproval(frame.approvalId),
+        tokens,
+        expiresAt: Date.now() + APPROVAL_ACTION_TTL_MS,
+        claimed: false,
+      };
+      pendingApprovals.set(key, pending);
+      actionTokens.set(tokens.allow, { pending, outcome: "allowed-once" });
+      actionTokens.set(tokens.reject, { pending, outcome: "rejected" });
+      const session = sessionsById.get(frame.sessionId) ?? {
+        id: frame.sessionId,
+        header: {},
+        events: [],
+      };
+      enqueue(
+        "approval",
+        session,
+        renderApprovalNotification(frame, resolved, session, tokens),
+        `approval "${frame.approvalId}"`,
+      );
+      return;
+    }
+    if (frame.type === "approval/resolved") {
+      const key = `${frame.sessionId}:${frame.approvalId}`;
+      const pending = pendingApprovals.get(key);
+      if (pending === undefined) return;
+      settleApproval(pending);
+      enqueueDismiss(pending.notificationId);
+    }
+  };
+
+  let actionableApprovalsActive = false;
+  if (resolved.actionableApprovals && nativeFeaturesAvailable) {
+    try {
+      const actionServer = startActionServer(onActionToken, ctx.logger);
+      stopActionServer = actionServer.stop;
+      muxPromise = (async () => {
+        await actionServer.ready;
+        if (stopped) return;
+        actionableApprovalsActive = true;
+        await runMuxObserver(resolved, handleMuxEnvelope, muxAbort.signal, ctx.logger);
+      })().catch((error) => {
+        if (!stopped) {
+          ctx.logger.warn(`ios-notifier: actionable approvals unavailable: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+      approvalExpiryTimer = setInterval(() => {
+        const now = Date.now();
+        for (const pending of pendingApprovals.values()) {
+          if (now < pending.expiresAt) continue;
+          settleApproval(pending);
+          enqueueDismiss(pending.notificationId);
+        }
+      }, 60_000);
+      approvalExpiryTimer.unref?.();
+    } catch (error) {
+      ctx.logger.warn(`ios-notifier: actionable approvals unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  syncLiveActivity();
 
   const stopGoals = ctx.on("goal/changed", ({ agent, change }) => {
     const notification = renderGoalNotification(change, resolved, agent.session);
@@ -469,6 +1149,9 @@ function apply(ctx, config = {}) {
     enqueue(change.operation, agent.session, notification, `goal "${change.ref.id}"`);
   }, { global: true });
   const stopSessionEvents = ctx.on("session/event", (session, event) => {
+    sessionsById.set(session.id, session);
+    updateLiveTasks(liveTasks, session, event);
+    syncLiveActivity();
     if (event.type === "turn/end") {
       const key = turnNotificationKey(session, event.data.turn);
       const pendingGoal = pendingGoalTurns.get(key);
@@ -486,6 +1169,7 @@ function apply(ctx, config = {}) {
       // numerous; their explicit goal and confirmation notifications remain.
       if (session.header?.origin === "subagent") return;
     }
+    if (event.type === "approval/asked" && actionableApprovalsActive) return;
     enqueue(
       sessionEventNotificationKind(event),
       session,
@@ -494,30 +1178,54 @@ function apply(ctx, config = {}) {
     );
   }, { global: true });
 
-  ctx.effect(() => () => {
+  ctx.effect(() => async () => {
     stopped = true;
     stopGoals();
     stopSessionEvents();
-    return queue;
+    if (approvalExpiryTimer !== undefined) clearInterval(approvalExpiryTimer);
+    muxAbort.abort(new Error("ios-notifier stopped"));
+    const pendingNotificationIds = [...pendingApprovals.values()].map((pending) => pending.notificationId);
+    pendingApprovals.clear();
+    actionTokens.clear();
+    await Promise.allSettled([
+      muxPromise,
+      stopActionServer(),
+      queue,
+      activityQueue,
+      ...pendingNotificationIds.map((notificationId) => dismissNotifier(ctx, notificationId)),
+      resolved.liveActivity && nativeFeaturesAvailable
+        ? sendActivityCommand(ctx, resolved.bundleId, { version: 1, operation: "end" })
+        : Promise.resolve(),
+    ]);
   }, "ios-notifier lifecycle");
 }
 
 export {
   Config,
   DEFAULTS,
+  ACTION_SOCKET_PATH,
+  ACTIVITY_SOCKET_PATH,
   apply,
   activeTurn,
+  activityCommand,
+  dismissNotifier,
   inject,
   name,
   navigationUrl,
+  newestRunningTask,
+  notificationIdForApproval,
   renderGoalNotification,
+  renderApprovalNotification,
   renderSessionNotification,
   resolveConfig,
   runNotifier,
+  sendActivityCommand,
+  sendSocketJson,
   assistantSummary,
   notificationBody,
   sessionEventNotificationKind,
   sessionTitle,
   subagentMode,
   truncate,
+  updateLiveTasks,
 };

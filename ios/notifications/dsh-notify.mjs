@@ -14,10 +14,14 @@ class UsageError extends Error {}
 function usage() {
   return [
     "Usage: dsh-notify [options] <title> <body>",
+    "       dsh-notify --dismiss-id <id> [--timeout <ms>]",
     "",
     "Options:",
     `  --bundle-id <id>   Existing app bundle id used for the notification icon (default: ${DEFAULT_BUNDLE_ID})`,
+    "  --id <id>          Stable notification id used for replacement and withdrawal",
     "  --url <url>        HTTP(S) address opened by the notification's default action",
+    "  --actions-json <j> Supplementary action array for an actionable notification",
+    "  --dismiss-id <id>  Withdraw a previously published stable notification",
     "  --sound-id <id>    Optional integer iOS system sound id",
     "  --timeout <ms>     Notification bridge timeout in milliseconds (default: 15000)",
     "  --verbose          Reserved for compatibility",
@@ -27,7 +31,10 @@ function usage() {
 
 function parseArgs(argv) {
   let bundleId = DEFAULT_BUNDLE_ID;
+  let notificationId;
   let launchUrl;
+  let actions;
+  let dismissId;
   let soundId;
   let timeoutMs = DEFAULT_TIMEOUT_MS;
   let verbose = false;
@@ -40,12 +47,17 @@ function parseArgs(argv) {
       verbose = true;
       continue;
     }
-    if (arg === "--bundle-id" || arg === "--url" || arg === "--sound-id" || arg === "--timeout") {
+    if (arg === "--bundle-id" || arg === "--id" || arg === "--url"
+      || arg === "--actions-json" || arg === "--dismiss-id"
+      || arg === "--sound-id" || arg === "--timeout") {
       const value = argv[index + 1];
       if (value === undefined) throw new UsageError(`${arg} requires a value`);
       index += 1;
       if (arg === "--bundle-id") bundleId = value;
+      else if (arg === "--id") notificationId = validateNotificationId(value, "--id");
       else if (arg === "--url") launchUrl = validateLaunchUrl(value);
+      else if (arg === "--actions-json") actions = validateActionsJson(value);
+      else if (arg === "--dismiss-id") dismissId = validateNotificationId(value, "--dismiss-id");
       else if (arg === "--sound-id") {
         if (!/^-?\d+$/.test(value)) throw new UsageError("--sound-id must be an integer");
         soundId = Number(value);
@@ -65,13 +77,73 @@ function parseArgs(argv) {
     positional.push(arg);
   }
 
+  if (dismissId !== undefined) {
+    if (positional.length !== 0 || notificationId !== undefined || launchUrl !== undefined
+      || actions !== undefined || soundId !== undefined) {
+      throw new UsageError("--dismiss-id cannot be combined with publish options or positional arguments");
+    }
+    return { help: false, operation: "dismiss", dismissId, timeoutMs, verbose };
+  }
   if (positional.length !== 2) throw new UsageError("expected exactly <title> and <body>");
   const [title, body] = positional;
   if (title.length === 0) throw new UsageError("title must not be empty");
   if (body.length === 0) throw new UsageError("body must not be empty");
   if (bundleId.length === 0) throw new UsageError("bundle id must not be empty");
 
-  return { help: false, title, body, bundleId, launchUrl, soundId, timeoutMs, verbose };
+  return {
+    help: false,
+    operation: "publish",
+    title,
+    body,
+    bundleId,
+    notificationId,
+    launchUrl,
+    actions,
+    soundId,
+    timeoutMs,
+    verbose,
+  };
+}
+
+function validateNotificationId(value, option = "notification id") {
+  if (!/^[A-Za-z0-9._:-]{1,256}$/.test(value)) {
+    throw new UsageError(`${option} must use 1-256 safe identifier characters`);
+  }
+  return value;
+}
+
+function validateActionsJson(value) {
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new UsageError("--actions-json must be valid JSON");
+  }
+  if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 4) {
+    throw new UsageError("--actions-json must contain 1-4 actions");
+  }
+  return parsed.map((action, index) => {
+    if (action === null || typeof action !== "object" || Array.isArray(action)) {
+      throw new UsageError(`action ${index + 1} must be an object`);
+    }
+    const title = action.title;
+    const token = action.token;
+    if (typeof title !== "string" || title.length < 1 || title.length > 128) {
+      throw new UsageError(`action ${index + 1} has an invalid title`);
+    }
+    if (typeof token !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(token)) {
+      throw new UsageError(`action ${index + 1} has an invalid token`);
+    }
+    if (action.authenticationRequired !== undefined
+      && typeof action.authenticationRequired !== "boolean") {
+      throw new UsageError(`action ${index + 1} has an invalid authenticationRequired value`);
+    }
+    return {
+      title,
+      token,
+      authenticationRequired: action.authenticationRequired === true,
+    };
+  });
 }
 
 function validateLaunchUrl(value) {
@@ -88,12 +160,18 @@ function validateLaunchUrl(value) {
 }
 
 function notificationPayload(options) {
+  if (options.operation === "dismiss") {
+    return { version: 2, operation: "dismiss", id: options.dismissId };
+  }
   return {
-    version: 1,
+    version: 2,
+    operation: "publish",
     title: options.title,
     body: options.body,
     bundleId: options.bundleId,
+    ...(options.notificationId === undefined ? {} : { id: options.notificationId }),
     ...(options.launchUrl === undefined ? {} : { url: options.launchUrl }),
+    ...(options.actions === undefined ? {} : { actions: options.actions }),
     ...(options.soundId === undefined ? {} : { soundId: options.soundId }),
   };
 }
@@ -183,5 +261,7 @@ export {
   parseArgs,
   sendNotification,
   usage,
+  validateActionsJson,
   validateLaunchUrl,
+  validateNotificationId,
 };

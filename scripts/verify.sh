@@ -23,9 +23,14 @@ done < <(rg --files scripts shims tests ios -g '*.mjs')
 
 plutil -lint \
   "$ROOT/launchd/ai.deepseek.dsh.plist" \
+  "$ROOT/launchd/ai.deepseek.dsh-activity.plist" \
   "$ROOT/launchd/ai.deepseek.dsh-vless.plist" \
   "$ROOT/packaging/node/entitlements.xml" \
-  "$ROOT/packaging/xray/entitlements.xml" >/dev/null
+  "$ROOT/packaging/xray/entitlements.xml" \
+  "$ROOT/ios/activity/DSHActivityHost-Info.plist" \
+  "$ROOT/ios/activity/DSHLiveActivity-Info.plist" \
+  "$ROOT/ios/activity/DSHActivity.entitlements" \
+  "$ROOT/ios/activity/DSHActivityWorker.entitlements" >/dev/null
 
 node "$ROOT/tests/test-lockfile.mjs"
 node "$ROOT/tests/test-shims.mjs"
@@ -78,6 +83,8 @@ fi
 actual_upstream=$(git -C "$ROOT/upstream/deepseek-harness" rev-parse HEAD)
 [ "$actual_upstream" = "$DSH_UPSTREAM_COMMIT" ] || \
   die "upstream submodule is $actual_upstream, expected $DSH_UPSTREAM_COMMIT"
+[ -z "$(git -C "$ROOT/upstream/deepseek-harness" status --porcelain)" ] || \
+  die "upstream submodule has local changes; iOS compatibility must stay outside official DSH"
 upstream_version=$(node -p "require('$ROOT/upstream/deepseek-harness/package.json').version")
 [ "$upstream_version" = "$DSH_VERSION" ] || \
   die "upstream package version is $upstream_version, expected $DSH_VERSION"

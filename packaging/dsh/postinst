@@ -2,21 +2,40 @@
 set -eu
 
 dsh_root=/var/jb/usr/local/lib/dsh
+dsh_plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist
 pty_root="$dsh_root/node_modules/node-pty/prebuilds/ios-arm64"
 notifier_bridge=/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib
 notifier_state=/var/mobile/Library/DSHNotifier
 notifier_app=/var/jb/Applications/DSH.app
+activity_entitlements=/var/jb/usr/local/lib/dsh/ios/DSHActivity.entitlements
+activity_worker_entitlements=/var/jb/usr/local/lib/dsh/ios/DSHActivityWorker.entitlements
+activity_broker=/var/jb/usr/local/lib/dsh/ios/DSHActivityD
+activity_worker=/var/jb/usr/local/lib/dsh/ios/DSHActivityOp
+activity_plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-activity.plist
+activity_host="$notifier_app/DSHActivityHost"
+activity_extension="$notifier_app/PlugIns/DSHLiveActivity.appex/DSHLiveActivity"
 
 chmod 0755 /var/jb/usr/local/bin/dsh22
 chmod 0755 /var/jb/usr/local/lib/dsh/ios/dsh-notify.mjs
-chmod 0755 "$notifier_bridge"
-ldid -S "$notifier_bridge"
-chmod 0755 "$notifier_app/DSHIconHost"
-ldid -S "$notifier_app/DSHIconHost"
-/var/jb/usr/bin/uicache -p "$notifier_app"
+chmod 0755 /var/jb/usr/local/lib/dsh/ios/dsh-activity.mjs
+/var/jb/usr/local/lib/nodejs22/node \
+  /var/jb/usr/local/lib/dsh/ios/dsh-activity.mjs shutdown >/dev/null 2>&1 || true
+launchctl bootout user/foreground/ai.deepseek.dsh-activity >/dev/null 2>&1 || \
+  launchctl bootout system/ai.deepseek.dsh-activity >/dev/null 2>&1 || true
 mkdir -p "$notifier_state"
 chown mobile:mobile "$notifier_state"
 chmod 0700 "$notifier_state"
+chmod 0755 "$notifier_bridge"
+ldid -S "$notifier_bridge"
+chmod 0755 "$activity_broker" "$activity_worker"
+ldid -Iai.deepseek.dsh.activity-broker -S"$activity_worker_entitlements" "$activity_broker"
+ldid -Iai.deepseek.dsh.activity-worker -S"$activity_worker_entitlements" "$activity_worker"
+chmod 0755 "$activity_host" "$activity_extension"
+ldid -S"$activity_entitlements" "$activity_extension"
+ldid -S"$activity_entitlements" "$activity_host"
+rm -f "$notifier_state/activity.sock"
+launchctl bootstrap system "$activity_plist"
+/var/jb/usr/bin/uicache -p "$notifier_app"
 if [ -f "$pty_root/pty.node" ]; then
   ldid -S "$pty_root/pty.node"
 fi
@@ -24,5 +43,8 @@ if [ -f "$pty_root/spawn-helper" ]; then
   chmod 0755 "$pty_root/spawn-helper"
   ldid -S "$pty_root/spawn-helper"
 fi
+launchctl bootout system/ai.deepseek.dsh >/dev/null 2>&1 || \
+  launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true
+launchctl bootstrap system "$dsh_plist"
 
 exit 0
