@@ -8,6 +8,7 @@ notifier_bridge=/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBrid
 notifier_state=/var/mobile/Library/DSHNotifier
 notifier_app=/var/jb/Applications/DSH.app
 activity_entitlements=/var/jb/usr/local/lib/dsh/ios/DSHActivity.entitlements
+activity_extension_entitlements=/var/jb/usr/local/lib/dsh/ios/DSHActivityExtension.entitlements
 activity_worker_entitlements=/var/jb/usr/local/lib/dsh/ios/DSHActivityWorker.entitlements
 activity_broker=/var/jb/usr/local/lib/dsh/ios/DSHActivityD
 activity_worker=/var/jb/usr/local/lib/dsh/ios/DSHActivityOp
@@ -31,8 +32,14 @@ chmod 0755 "$activity_broker" "$activity_worker"
 ldid -Iai.deepseek.dsh.activity-broker -S"$activity_worker_entitlements" "$activity_broker"
 ldid -Iai.deepseek.dsh.activity-worker -S"$activity_worker_entitlements" "$activity_worker"
 chmod 0755 "$activity_host" "$activity_extension"
-ldid -S"$activity_entitlements" "$activity_extension"
-ldid -S"$activity_entitlements" "$activity_host"
+ldid -Cadhoc -Iai.deepseek.dsh.live-activity \
+  -S"$activity_extension_entitlements" "$activity_extension"
+ldid -Cadhoc -Iai.deepseek.dsh -S"$activity_entitlements" "$activity_host"
+# A suspended WidgetKit extension can retain the previous ContentState schema
+# across an in-place package upgrade. Let chronod launch the newly signed
+# binary for the next activity instead of asking it to decode new state in the
+# old process. killall is optional on minimal installations.
+/var/jb/usr/bin/killall DSHLiveActivity >/dev/null 2>&1 || true
 rm -f "$notifier_state/activity.sock"
 launchctl bootstrap system "$activity_plist"
 /var/jb/usr/bin/uicache -p "$notifier_app"

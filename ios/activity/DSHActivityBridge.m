@@ -110,6 +110,11 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
   NSString *title = task[@"title"];
   NSString *phase = task[@"phase"];
   NSString *detail = task[@"detail"];
+  // Keep accepting the pre-split payload during a rolling deployment. The
+  // broker always emits the complete new state so WidgetKit never has to
+  // decode an ActivityKit payload with missing non-optional fields.
+  NSString *assistantDetail = task[@"assistantDetail"] ?: phase;
+  NSString *toolDetail = task[@"toolDetail"] ?: detail;
   if (!DSHActivityValidString(sessionID, 512, NO)) {
     if (errorMessage != NULL) *errorMessage = @"invalid sessionID";
     return nil;
@@ -126,13 +131,24 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
     if (errorMessage != NULL) *errorMessage = @"detail is too long";
     return nil;
   }
+  if (!DSHActivityValidString(assistantDetail, 2048, YES)) {
+    if (errorMessage != NULL) *errorMessage = @"assistantDetail is too long";
+    return nil;
+  }
+  if (!DSHActivityValidString(toolDetail, 2048, YES)) {
+    if (errorMessage != NULL) *errorMessage = @"toolDetail is too long";
+    return nil;
+  }
 
   int64_t startedAt = 0;
   int64_t step = 0;
+  int64_t agentCount = 1;
   int64_t completedItems = 0;
   int64_t totalItems = 0;
   if (!DSHActivityInteger(task[@"startedAtMilliseconds"], 1, &startedAt) ||
       !DSHActivityInteger(task[@"step"], 0, &step) ||
+      (task[@"agentCount"] != nil &&
+       !DSHActivityInteger(task[@"agentCount"], 1, &agentCount)) ||
       !DSHActivityInteger(task[@"completedItems"], 0, &completedItems) ||
       !DSHActivityInteger(task[@"totalItems"], 0, &totalItems) ||
       (totalItems != 0 && completedItems > totalItems)) {
@@ -151,8 +167,11 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
     @"title": title,
     @"phase": phase,
     @"detail": detail,
+    @"assistantDetail": assistantDetail,
+    @"toolDetail": toolDetail,
     @"startedAtMilliseconds": @(startedAt),
     @"step": @(step),
+    @"agentCount": @(agentCount),
     @"completedItems": @(completedItems),
     @"totalItems": @(totalItems),
     @"waitingForUser": @([(NSNumber *)waitingValue boolValue]),

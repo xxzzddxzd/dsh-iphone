@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
   <key>application-identifier</key>
-  <string>ai.deepseek.dsh</string>
-  <key>platform-application</key>
-  <true/>
+  <string>ai.deepseek.dsh.live-activity</string>
   <key>com.apple.private.security.no-sandbox</key>
+  <true/>
+  <key>platform-application</key>
   <true/>
 </dict>
 </plist>

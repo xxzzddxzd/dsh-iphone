@@ -88,8 +88,11 @@ const activityTask = {
   title: "测试会话",
   phase: "思考中",
   detail: "正在生成下一步",
+  assistantDetail: "我正在检查当前状态",
+  toolDetail: "Bash · 正在运行",
   startedAtMilliseconds: 1_700_000_000_000,
   step: 2,
+  agentCount: 1,
   completedItems: 1,
   totalItems: 3,
   waitingForUser: false,
@@ -154,6 +157,7 @@ assert.match(
 assert.match(packageScript, /build\/ios-notifier\/DSH\.app/);
 assert.match(packageScript, /dsh-activity\.mjs/);
 assert.match(packageScript, /DSHActivity\.entitlements/);
+assert.match(packageScript, /DSHActivityExtension\.entitlements/);
 assert.match(packageScript, /build\/ios-notifier\/DSHActivityOp/);
 assert.match(packageScript, /build\/ios-notifier\/DSHActivityD/);
 assert.match(packageScript, /DSHActivityWorker\.entitlements/);
@@ -163,6 +167,9 @@ const postInstall = await readFile(new URL("../packaging/dsh/postinst", import.m
 assert.match(postInstall, /uicache -p "\$notifier_app"/);
 assert.match(postInstall, /ldid -Iai\.deepseek\.dsh\.activity-worker/);
 assert.match(postInstall, /ldid -Iai\.deepseek\.dsh\.activity-broker/);
+assert.match(postInstall, /ldid -Cadhoc -Iai\.deepseek\.dsh\.live-activity/);
+assert.match(postInstall, /ldid -Cadhoc -Iai\.deepseek\.dsh -S/);
+assert.match(postInstall, /killall DSHLiveActivity/);
 assert.match(postInstall, /launchctl bootstrap system "\$activity_plist"/);
 assert.match(postInstall, /launchctl bootstrap system "\$dsh_plist"/);
 const preRemove = await readFile(new URL("../packaging/dsh/prerm", import.meta.url), "utf8");
@@ -248,6 +255,12 @@ assert.match(bridgeSource, /setAuthenticationRequired:/);
 assert.match(bridgeSource, /DSHActionSocketPath/);
 assert.match(bridgeSource, /DSHDismissPayload/);
 
+const notifierPluginSource = await readFile(
+  new URL("../ios/notifications/dsh-ios-notifier.mjs", import.meta.url),
+  "utf8",
+);
+assert.match(notifierPluginSource, /createServer\(\{ allowHalfOpen: true \}/);
+
 const activityBridgeSource = await readFile(
   new URL("../ios/activity/DSHActivityBridge.m", import.meta.url),
   "utf8",
@@ -256,6 +269,9 @@ assert.match(activityBridgeSource, /posix_spawn/);
 assert.match(activityBridgeSource, /DSHActivityOp/);
 assert.match(activityBridgeSource, /launchd worker broker listening/);
 assert.match(activityBridgeSource, /activity\.id/);
+assert.match(activityBridgeSource, /agentCount/);
+assert.match(activityBridgeSource, /assistantDetail/);
+assert.match(activityBridgeSource, /toolDetail/);
 assert.match(activityBridgeSource, /int main\(int argc/);
 assert.doesNotMatch(activityBridgeSource, /__attribute__\(\(constructor\)\)/);
 assert.doesNotMatch(activityBridgeSource, /ActivityKit\.framework/);
@@ -285,6 +301,7 @@ assert.match(bridgeBuildScript, /DSHActivityWorker\.m/);
 assert.match(bridgeBuildScript, /DSHActivityOp/);
 assert.match(bridgeBuildScript, /DSHActivityD/);
 assert.match(bridgeBuildScript, /DSHLiveActivity/);
+assert.match(bridgeBuildScript, /_NSExtensionMain/);
 assert.match(bridgeBuildScript, /actool/);
 assert.match(bridgeBuildScript, /favicon\.svg/);
 
@@ -310,6 +327,11 @@ const activityHostSource = await readFile(
   "utf8",
 );
 assert.match(activityHostSource, /Darwin\.exit\(0\)/);
+assert.match(activityHostSource, /application\.open\(url/);
+assert.match(activityHostSource, /launchOptions\?\[\.url\]/);
+assert.match(activityHostSource, /open url: URL/);
+assert.match(activityHostSource, /userActivity\.webpageURL/);
+assert.match(activityHostSource, /host == "127\.0\.0\.1" \|\| host == "localhost"/);
 assert.doesNotMatch(activityHostSource, /activity\.sock|Activity<|import ActivityKit/);
 
 const liveActivitySource = await readFile(
@@ -317,8 +339,21 @@ const liveActivitySource = await readFile(
   "utf8",
 );
 assert.match(liveActivitySource, /ActivityConfiguration/);
-assert.match(liveActivitySource, /timerInterval:/);
-assert.match(liveActivitySource, /ProgressView/);
+assert.match(liveActivitySource, /style: \.timer/);
+assert.match(liveActivitySource, /DSHAgentDotsRing/);
+assert.match(liveActivitySource, /state\.agentCount/);
+assert.match(liveActivitySource, /ForEach\(0\.\.<visibleAgentCount/);
+assert.match(liveActivitySource, /Text\(startedAt, style: \.timer\)/);
+assert.match(liveActivitySource, /multilineTextAlignment\(\.center\)/);
+assert.match(liveActivitySource, /frame\(width: 40, height: 40, alignment: \.center\)/);
+assert.doesNotMatch(liveActivitySource, /Text\("\\\(state\.step\)"\)/);
+assert.match(liveActivitySource, /label: "ASSISTANT"/);
+assert.match(liveActivitySource, /label: "TOOL"/);
+assert.match(liveActivitySource, /context\.state\.assistantDetail/);
+assert.match(liveActivitySource, /context\.state\.toolDetail/);
+assert.doesNotMatch(liveActivitySource, /fixedSize\(|firstTextBaseline/);
+assert.doesNotMatch(liveActivitySource, /agentCount, 1\)\)A/);
+assert.doesNotMatch(liveActivitySource, /ProgressView/);
 
 const pluginPath = new URL(
   "../build/dsh-runtime/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs",
@@ -343,6 +378,7 @@ if (pluginAvailable) {
     renderSessionNotification,
     resolveConfig,
     runNotifier,
+    toolActionDetail,
     updateLiveTasks,
   } = await import(`${pluginPath.href}?test=${Date.now()}`);
   const config = resolveConfig();
@@ -497,6 +533,21 @@ if (pluginAvailable) {
     ],
   }), undefined);
   assert.equal(navigationUrl(rootSession, config), "http://127.0.0.1:3080/?session=session-root");
+  assert.equal(
+    toolActionDetail("bash", JSON.stringify({
+      command: "sleep 45",
+      description: "等待四十五秒完成通知测试",
+    })),
+    "等待四十五秒完成通知测试",
+  );
+  assert.equal(
+    toolActionDetail("read", JSON.stringify({ file_path: "/private/var/root/config.json" })),
+    "文件读取：/private/var/root/config.json",
+  );
+  assert.equal(
+    toolActionDetail("bash", JSON.stringify({ command: "token=private-value curl example.test" })),
+    "工具“Bash”正在运行",
+  );
 
   const runningTasks = new Map();
   const firstRunningSession = {
@@ -525,10 +576,13 @@ if (pluginAvailable) {
     task: {
       sessionID: "running-a",
       title: "较早任务",
-      phase: "思考中",
+      phase: "正在执行计划",
       detail: "验证 Live Activity",
+      assistantDetail: "等待 Assistant 回复",
+      toolDetail: "任务计划 · 验证 Live Activity",
       startedAtMilliseconds: 1_700_000_000_000,
       step: 2,
+      agentCount: 1,
       completedItems: 1,
       totalItems: 2,
       waitingForUser: false,
@@ -544,11 +598,81 @@ if (pluginAvailable) {
     type: "turn/start", time: 1_700_000_001_000, data: { turn: 4 },
   });
   assert.equal(newestRunningTask(runningTasks).sessionID, "running-b");
+  const bashCall = {
+    type: "tool/call",
+    data: {
+      turn: 4,
+      callId: "call-live-action",
+      name: "bash",
+      arguments: JSON.stringify({
+        command: "sleep 45",
+        description: "等待四十五秒完成通知测试",
+      }),
+    },
+  };
+  secondRunningSession.events.push(bashCall);
+  updateLiveTasks(runningTasks, secondRunningSession, bashCall);
+  assert.equal(activityCommand(runningTasks).task.phase, "正在执行 Bash");
+  assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
+  assert.equal(
+    activityCommand(runningTasks).task.toolDetail,
+    "Bash · 等待四十五秒完成通知测试",
+  );
   updateLiveTasks(runningTasks, secondRunningSession, {
-    type: "approval/asked", data: { toolName: "Bash", reason: "需要安装权限" },
+    type: "assistant/chunk",
+    data: { turn: 4, text: "正在流式输出" },
+  });
+  assert.equal(activityCommand(runningTasks).task.phase, "正在执行 Bash");
+  assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "approval/asked",
+    data: {
+      toolName: "Bash",
+      callId: "call-live-action",
+      reason: "需要安装权限",
+    },
   });
   assert.equal(activityCommand(runningTasks).task.phase, "等待操作授权");
+  assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
   assert.equal(activityCommand(runningTasks).task.waitingForUser, true);
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "approval/decided", data: { outcome: "allowed-once" },
+  });
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "assistant/message",
+    data: {
+      turn: 4,
+      message: { content: [{ type: "text", text: "权限已确认，继续等待测试完成。" }] },
+    },
+  });
+  assert.equal(activityCommand(runningTasks).task.phase, "继续执行");
+  assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
+  assert.equal(
+    activityCommand(runningTasks).task.assistantDetail,
+    "权限已确认，继续等待测试完成。",
+  );
+  const childRunningSession = {
+    id: "running-b-child",
+    header: { origin: "subagent", parentSession: "running-b" },
+    events: [],
+  };
+  updateLiveTasks(runningTasks, childRunningSession, {
+    type: "turn/start", data: { turn: 1 },
+  });
+  assert.equal(activityCommand(runningTasks).task.agentCount, 2);
+  const nestedRunningSession = {
+    id: "running-b-grandchild",
+    header: { origin: "subagent", parentSession: "running-b-child" },
+    events: [],
+  };
+  updateLiveTasks(runningTasks, nestedRunningSession, {
+    type: "turn/start", data: { turn: 1 },
+  });
+  assert.equal(activityCommand(runningTasks).task.agentCount, 3);
+  updateLiveTasks(runningTasks, childRunningSession, {
+    type: "step/start", data: { turn: 1, step: 2 },
+  });
+  assert.equal(activityCommand(runningTasks).task.agentCount, 3);
   updateLiveTasks(runningTasks, secondRunningSession, {
     type: "turn/end", data: { turn: 4, reason: { kind: "completed" } },
   });

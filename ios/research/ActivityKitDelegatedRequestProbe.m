@@ -36,6 +36,7 @@ static NSDictionary *DSHRequestPropertyList(NSString *targetBundleIdentifier, NS
     @"detail": @"Explicit private platter target",
     @"startedAtMilliseconds": @(startedAt),
     @"step": @1,
+    @"agentCount": @1,
     @"completedItems": @0,
     @"totalItems": @1,
     @"waitingForUser": @NO,
