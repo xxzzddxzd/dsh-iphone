@@ -88,9 +88,11 @@ const activityTask = {
   title: "测试会话",
   phase: "思考中",
   detail: "正在生成下一步",
+  goalDetail: "完成 iPhone 通知链路",
   assistantDetail: "我正在检查当前状态",
   toolDetail: "Bash · 正在运行",
   startedAtMilliseconds: 1_700_000_000_000,
+  finishedAtMilliseconds: 0,
   step: 2,
   agentCount: 1,
   completedItems: 1,
@@ -270,8 +272,10 @@ assert.match(activityBridgeSource, /DSHActivityOp/);
 assert.match(activityBridgeSource, /launchd worker broker listening/);
 assert.match(activityBridgeSource, /activity\.id/);
 assert.match(activityBridgeSource, /agentCount/);
+assert.match(activityBridgeSource, /goalDetail/);
 assert.match(activityBridgeSource, /assistantDetail/);
 assert.match(activityBridgeSource, /toolDetail/);
+assert.match(activityBridgeSource, /finishedAtMilliseconds/);
 assert.match(activityBridgeSource, /int main\(int argc/);
 assert.doesNotMatch(activityBridgeSource, /__attribute__\(\(constructor\)\)/);
 assert.doesNotMatch(activityBridgeSource, /ActivityKit\.framework/);
@@ -347,10 +351,13 @@ assert.match(liveActivitySource, /Text\(startedAt, style: \.timer\)/);
 assert.match(liveActivitySource, /multilineTextAlignment\(\.center\)/);
 assert.match(liveActivitySource, /frame\(width: 40, height: 40, alignment: \.center\)/);
 assert.doesNotMatch(liveActivitySource, /Text\("\\\(state\.step\)"\)/);
-assert.match(liveActivitySource, /label: "ASSISTANT"/);
-assert.match(liveActivitySource, /label: "TOOL"/);
+assert.match(liveActivitySource, /Text\("GOAL"\)/);
+assert.match(liveActivitySource, /Text\("ASSISTANT"\)/);
+assert.match(liveActivitySource, /Text\("TOOL"\)/);
+assert.match(liveActivitySource, /context\.state\.goalDetail/);
 assert.match(liveActivitySource, /context\.state\.assistantDetail/);
 assert.match(liveActivitySource, /context\.state\.toolDetail/);
+assert.match(liveActivitySource, /finishedAtMilliseconds/);
 assert.doesNotMatch(liveActivitySource, /fixedSize\(|firstTextBaseline/);
 assert.doesNotMatch(liveActivitySource, /agentCount, 1\)\)A/);
 assert.doesNotMatch(liveActivitySource, /ProgressView/);
@@ -369,6 +376,7 @@ try {
 if (pluginAvailable) {
   const {
     apply,
+    activeGoalDetail,
     activeTurn,
     activityCommand,
     navigationUrl,
@@ -379,6 +387,7 @@ if (pluginAvailable) {
     resolveConfig,
     runNotifier,
     toolActionDetail,
+    updateLiveGoal,
     updateLiveTasks,
   } = await import(`${pluginPath.href}?test=${Date.now()}`);
   const config = resolveConfig();
@@ -549,11 +558,38 @@ if (pluginAvailable) {
     "工具“Bash”正在运行",
   );
 
+  const activeGoalEvent = {
+    type: "goal/change",
+    data: {
+      kind: "goal/change",
+      version: 1,
+      operation: "create",
+      goal: { objective: "交付完整的 Live Activity", phase: "active" },
+    },
+  };
+  assert.equal(activeGoalDetail({ events: [activeGoalEvent] }), "交付完整的 Live Activity");
+  assert.equal(activeGoalDetail({ events: [activeGoalEvent, {
+    type: "goal/change",
+    data: {
+      kind: "goal/change",
+      version: 1,
+      operation: "pause",
+      goal: { objective: "交付完整的 Live Activity", phase: "paused" },
+    },
+  }] }), "");
+  assert.equal(activeGoalDetail({ events: [activeGoalEvent, {
+    type: "goal/change",
+    data: { kind: "goal/change", version: 1, operation: "clear" },
+  }] }), "");
+
   const runningTasks = new Map();
   const firstRunningSession = {
     id: "running-a",
     header: {},
-    events: [{ type: "session/title", data: { title: "较早任务" } }],
+    events: [
+      { type: "session/title", data: { title: "较早任务" } },
+      activeGoalEvent,
+    ],
   };
   updateLiveTasks(runningTasks, firstRunningSession, {
     type: "turn/start", time: 1_700_000_000_000, data: { turn: 1 },
@@ -578,9 +614,11 @@ if (pluginAvailable) {
       title: "较早任务",
       phase: "正在执行计划",
       detail: "验证 Live Activity",
+      goalDetail: "交付完整的 Live Activity",
       assistantDetail: "等待 Assistant 回复",
       toolDetail: "任务计划 · 验证 Live Activity",
       startedAtMilliseconds: 1_700_000_000_000,
+      finishedAtMilliseconds: 0,
       step: 2,
       agentCount: 1,
       completedItems: 1,
@@ -598,6 +636,16 @@ if (pluginAvailable) {
     type: "turn/start", time: 1_700_000_001_000, data: { turn: 4 },
   });
   assert.equal(newestRunningTask(runningTasks).sessionID, "running-b");
+  assert.equal(updateLiveGoal(runningTasks, secondRunningSession, {
+    operation: "create",
+    goal: { objective: "验证目标实时变化", phase: "active" },
+  }), true);
+  assert.equal(activityCommand(runningTasks).task.goalDetail, "验证目标实时变化");
+  assert.equal(updateLiveGoal(runningTasks, secondRunningSession, {
+    operation: "pause",
+    goal: { objective: "验证目标实时变化", phase: "paused" },
+  }), true);
+  assert.equal(activityCommand(runningTasks).task.goalDetail, "");
   const bashCall = {
     type: "tool/call",
     data: {
@@ -674,13 +722,31 @@ if (pluginAvailable) {
   });
   assert.equal(activityCommand(runningTasks).task.agentCount, 3);
   updateLiveTasks(runningTasks, secondRunningSession, {
-    type: "turn/end", data: { turn: 4, reason: { kind: "completed" } },
+    type: "turn/end", time: 1_700_000_006_000,
+    data: { turn: 4, reason: { kind: "completed" } },
   });
   assert.equal(newestRunningTask(runningTasks).sessionID, "running-a");
   updateLiveTasks(runningTasks, firstRunningSession, {
-    type: "turn/end", data: { turn: 1, reason: { kind: "completed" } },
+    type: "turn/end", time: 1_700_000_010_000,
+    data: { turn: 1, reason: { kind: "completed" } },
   });
-  assert.deepEqual(activityCommand(runningTasks), { version: 1, operation: "end" });
+  const finishedActivity = activityCommand(runningTasks);
+  assert.equal(finishedActivity.operation, "update");
+  assert.equal(finishedActivity.task.phase, "已完成");
+  assert.equal(finishedActivity.task.finishedAtMilliseconds, 1_700_000_010_000);
+  assert.equal(finishedActivity.task.goalDetail, "交付完整的 Live Activity");
+  assert.equal(finishedActivity.task.assistantDetail, "回复已完成，点击查看完整结果");
+
+  const nextSession = {
+    id: "running-c",
+    header: {},
+    events: [{ type: "session/title", data: { title: "后续任务" } }],
+  };
+  updateLiveTasks(runningTasks, nextSession, {
+    type: "turn/start", time: 1_700_000_020_000, data: { turn: 1 },
+  });
+  assert.equal(activityCommand(runningTasks).task.sessionID, "running-c");
+  assert.equal(activityCommand(runningTasks).task.finishedAtMilliseconds, 0);
 
   const childSession = {
     id: "child-1",

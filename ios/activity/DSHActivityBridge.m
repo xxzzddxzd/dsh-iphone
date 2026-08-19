@@ -19,6 +19,8 @@ static NSString *const DSHActivitySocketPath =
     @"/var/mobile/Library/DSHNotifier/activity.sock";
 static NSString *const DSHActivityIdentifierPath =
     @"/var/mobile/Library/DSHNotifier/activity.id";
+static NSString *const DSHActivityFinishedPath =
+    @"/var/mobile/Library/DSHNotifier/activity.finished";
 static NSString *const DSHActivityWorkerPath =
     @"/var/jb/usr/local/lib/dsh/ios/DSHActivityOp";
 static const NSUInteger DSHActivityMaximumRequestBytes = 64 * 1024;
@@ -26,6 +28,7 @@ static const NSUInteger DSHActivityMaximumWorkerOutputBytes = 4 * 1024;
 static const int64_t DSHActivityWorkerTimeoutMilliseconds = 7 * 1000;
 
 static NSString *DSHActivityIdentifier;
+static BOOL DSHActivityFinished;
 
 static BOOL DSHActivityValidString(id value, NSUInteger maximumBytes, BOOL mayBeEmpty) {
   if (![value isKindOfClass:[NSString class]]) return NO;
@@ -113,6 +116,7 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
   // Keep accepting the pre-split payload during a rolling deployment. The
   // broker always emits the complete new state so WidgetKit never has to
   // decode an ActivityKit payload with missing non-optional fields.
+  NSString *goalDetail = task[@"goalDetail"] ?: @"";
   NSString *assistantDetail = task[@"assistantDetail"] ?: phase;
   NSString *toolDetail = task[@"toolDetail"] ?: detail;
   if (!DSHActivityValidString(sessionID, 512, NO)) {
@@ -131,6 +135,10 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
     if (errorMessage != NULL) *errorMessage = @"detail is too long";
     return nil;
   }
+  if (!DSHActivityValidString(goalDetail, 2048, YES)) {
+    if (errorMessage != NULL) *errorMessage = @"goalDetail is too long";
+    return nil;
+  }
   if (!DSHActivityValidString(assistantDetail, 2048, YES)) {
     if (errorMessage != NULL) *errorMessage = @"assistantDetail is too long";
     return nil;
@@ -141,11 +149,14 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
   }
 
   int64_t startedAt = 0;
+  int64_t finishedAt = 0;
   int64_t step = 0;
   int64_t agentCount = 1;
   int64_t completedItems = 0;
   int64_t totalItems = 0;
   if (!DSHActivityInteger(task[@"startedAtMilliseconds"], 1, &startedAt) ||
+      (task[@"finishedAtMilliseconds"] != nil &&
+       !DSHActivityInteger(task[@"finishedAtMilliseconds"], 0, &finishedAt)) ||
       !DSHActivityInteger(task[@"step"], 0, &step) ||
       (task[@"agentCount"] != nil &&
        !DSHActivityInteger(task[@"agentCount"], 1, &agentCount)) ||
@@ -161,15 +172,22 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
     if (errorMessage != NULL) *errorMessage = @"invalid waitingForUser";
     return nil;
   }
+  if ((finishedAt > 0 && finishedAt < startedAt) ||
+      (finishedAt > 0 && [(NSNumber *)waitingValue boolValue])) {
+    if (errorMessage != NULL) *errorMessage = @"invalid finished task state";
+    return nil;
+  }
 
   return @{
     @"sessionID": sessionID,
     @"title": title,
     @"phase": phase,
     @"detail": detail,
+    @"goalDetail": goalDetail,
     @"assistantDetail": assistantDetail,
     @"toolDetail": toolDetail,
     @"startedAtMilliseconds": @(startedAt),
+    @"finishedAtMilliseconds": @(finishedAt),
     @"step": @(step),
     @"agentCount": @(agentCount),
     @"completedItems": @(completedItems),
@@ -368,6 +386,23 @@ static NSString *DSHActivityStateJSON(NSDictionary *state, NSString **errorMessa
   return json;
 }
 
+static void DSHActivityStoreFinished(BOOL finished) {
+  DSHActivityFinished = finished;
+  if (!finished) {
+    unlink(DSHActivityFinishedPath.fileSystemRepresentation);
+    return;
+  }
+  NSError *error = nil;
+  if (![@"1" writeToFile:DSHActivityFinishedPath
+               atomically:YES
+                 encoding:NSUTF8StringEncoding
+                    error:&error]) {
+    NSLog(@"[DSHActivity] could not persist finished state: %@", error);
+    return;
+  }
+  chmod(DSHActivityFinishedPath.fileSystemRepresentation, 0600);
+}
+
 static void DSHActivityStoreIdentifier(NSString *identifier) {
   DSHActivityIdentifier = [identifier copy];
   if (identifier == nil) {
@@ -394,9 +429,13 @@ static void DSHActivityLoadIdentifier(void) {
       NSCharacterSet.whitespaceAndNewlineCharacterSet];
   if (identifier.length > 0 && [[NSUUID alloc] initWithUUIDString:identifier] != nil) {
     DSHActivityIdentifier = identifier;
+    DSHActivityFinished = access(DSHActivityFinishedPath.fileSystemRepresentation, F_OK) == 0;
     NSLog(@"[DSHActivity] recovered activity %@", identifier);
-  } else if (identifier != nil || error.code != NSFileReadNoSuchFileError) {
-    unlink(DSHActivityIdentifierPath.fileSystemRepresentation);
+  } else {
+    if (identifier != nil || error.code != NSFileReadNoSuchFileError) {
+      unlink(DSHActivityIdentifierPath.fileSystemRepresentation);
+    }
+    unlink(DSHActivityFinishedPath.fileSystemRepresentation);
   }
 }
 
@@ -428,10 +467,29 @@ static BOOL DSHActivityUpdate(NSDictionary *state, NSString **errorMessage) {
 
 static BOOL DSHActivityEnd(NSString **errorMessage) {
   NSString *identifier = DSHActivityIdentifier;
-  if (identifier == nil) return YES;
+  if (identifier == nil) {
+    DSHActivityStoreFinished(NO);
+    return YES;
+  }
   if (!DSHActivityRunWorker(@[@"end", identifier], NULL, errorMessage)) return NO;
   DSHActivityStoreIdentifier(nil);
+  DSHActivityStoreFinished(NO);
   NSLog(@"[DSHActivity] worker ended %@", identifier);
+  return YES;
+}
+
+static BOOL DSHActivityApplyState(NSDictionary *state, NSString **errorMessage) {
+  BOOL nextFinished = [state[@"finishedAtMilliseconds"] longLongValue] > 0;
+  // A completed card intentionally stays active so the user can read or
+  // dismiss it. The first state of a later task must get a fresh Activity ID:
+  // an activity the user already dismissed may silently ignore further
+  // updates, and reusing an ended-looking card makes task boundaries unclear.
+  if (DSHActivityIdentifier != nil && DSHActivityFinished && !nextFinished &&
+      !DSHActivityEnd(errorMessage)) {
+    return NO;
+  }
+  if (!DSHActivityUpdate(state, errorMessage)) return NO;
+  DSHActivityStoreFinished(nextFinished);
   return YES;
 }
 
@@ -454,7 +512,7 @@ static void DSHActivityHandleClient(int client) {
     }
     if ([operation isEqualToString:@"update"]) {
       NSDictionary *state = DSHActivityValidatedState(command[@"task"], &errorMessage);
-      if (state != nil && DSHActivityUpdate(state, &errorMessage)) {
+      if (state != nil && DSHActivityApplyState(state, &errorMessage)) {
         DSHActivityReply(client, @"OK", @"updated");
       } else {
         DSHActivityReply(client, @"ERR", errorMessage);
