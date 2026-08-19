@@ -11,10 +11,10 @@ git -C upstream/deepseek-harness fetch --tags origin
 git -C upstream/deepseek-harness log --oneline --decorate -20 origin/main
 ```
 
-选择已发布提交后，以 detached HEAD 更新子模块。例如检查 rc.6 的当前基线：
+选择已发布提交后，以 detached HEAD 更新子模块。例如检查 rc.7 的当前基线：
 
 ```bash
-./scripts/update-upstream.sh fb82698709c39f1860b0ab0ed147e1fa30c1d5d0
+./scripts/update-upstream.sh 99f6f02fecdb7dff40c3fbc9470f5907c29f74ca
 git submodule status
 ```
 
@@ -29,7 +29,7 @@ git submodule status
 生成 lock 的命令形式如下；日期应取新版本发布之后、下一版本发布之前的 UTC 时间：
 
 ```bash
-DSH_RELEASE_CUTOFF=2026-08-14T00:00:00Z
+DSH_RELEASE_CUTOFF=2026-08-18T00:00:00Z
 npm install --prefix dsh-runtime --package-lock-only --ignore-scripts --no-audit --no-fund --before="$DSH_RELEASE_CUTOFF"
 npm ci --prefix dsh-runtime --ignore-scripts --no-audit --no-fund
 ```

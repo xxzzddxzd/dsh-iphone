@@ -29,8 +29,10 @@ rg -q "elif options\.dest_os == 'ios':" "$NODE_SOURCE/configure.py"
 rg -q 'IosJitWriteState' "$NODE_SOURCE/deps/v8/src/common/code-memory-access.cc"
 
 if [ -d "$ROOT/dsh-runtime/node_modules/node-pty" ]; then
-  patch -d "$ROOT/dsh-runtime/node_modules/node-pty" -p1 --forward --force --dry-run \
-    < "$ROOT/patches/node-pty-$NODE_PTY_VERSION-ios.patch" >/dev/null
+  rg -Fq 'pty_posix_spawn(argv, env, term, &winp, &master, &pid, &err);' \
+    "$ROOT/dsh-runtime/node_modules/node-pty/src/unix/pty.cc"
+  rg -Fq "var helperPath = native.dir + '/spawn-helper';" \
+    "$ROOT/dsh-runtime/node_modules/node-pty/lib/unixTerminal.js"
 fi
 
-printf 'Node and node-pty source patch checks passed\n'
+printf 'Node source patch and node-pty iOS backend checks passed\n'

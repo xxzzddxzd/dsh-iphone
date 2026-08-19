@@ -1,6 +1,6 @@
 # DSH 与 Safari 16 兼容层
 
-DSH 0.1.0-rc.6 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向桌面系统及更新浏览器。本项目只修改发布包，不修改或伪装官方 Git 子模块。
+DSH 0.1.0-rc.7 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向桌面系统及更新浏览器。本项目只修改发布包，不修改或伪装官方 Git 子模块。
 
 ## 服务端兼容
 
@@ -9,7 +9,7 @@ DSH 0.1.0-rc.6 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向�
 | `sharp` | 官方 native/libvips 产物不能在 iPhoneOS 加载 | 用 [`ios-sharp-shim.mjs`](../shims/ios-sharp-shim.mjs) 实现 DSH 使用的 metadata/validation 接口 |
 | `koffi` | Win32 FFI 模块没有 iOS native binding | Win32-only 路径改用 fail-closed 的 [`ios-koffi-stub.mjs`](../shims/ios-koffi-stub.mjs) |
 | profile HMR | 部分 iOS 启动组合没有 `ctx.loader.internal` | 未挂载 internal loader 时跳过 HMR watcher 初始化 |
-| node-pty | macOS 分支依赖 `posix_spawn` helper 语义 | iOS 改用 `forkpty`，并为 iPhoneOS 编译 `pty.node` 和 `spawn-helper` |
+| node-pty | npm 未提供 iPhoneOS native 产物，SDK 未声明 `openpty` | 使用上游 Apple `posix_spawn` 后端，为 iPhoneOS 编译 `pty.node` 和 `spawn-helper`，并补充缺失的 SDK 声明 |
 | HTML 缓存 | Safari 会继续使用旧入口或旧 module graph | index 与 SPA fallback 返回 no-cache header，并给 bundle 增加 compatibility 查询参数 |
 | 通知深链接 | 通知 URL 只知道 session，Web 默认恢复上次选择 | compatibility 5 在 module 启动前把 URL 参数写入 `dsh.sessions.current` |
 
@@ -56,12 +56,12 @@ http://127.0.0.1:3082/?ioscompat=5
 [`scripts/patch-dsh.mjs`](../scripts/patch-dsh.mjs) 先验证以下版本，再对每个预像执行“一次且仅一次”替换：
 
 ```text
-@deepseek-ai/dsh 0.1.0-rc.6
-node-pty 1.1.0
+@deepseek-ai/dsh 0.1.0-rc.7
+node-pty 1.2.0-beta.15
 node-addon-api 7.1.1
 ```
 
-它还锁定 rc.6 的 hashed bundle 文件名和原始 `index.html` SHA-256。脚本可以重复运行；已修改文件只会被验证，不会重复插入。验证现有 staging tree：
+它还锁定 rc.7 的 hashed bundle 文件名和原始 `index.html` SHA-256。脚本可以重复运行；已修改文件只会被验证，不会重复插入。验证现有 staging tree：
 
 ```bash
 node scripts/patch-dsh.mjs --root build/dsh-runtime --check

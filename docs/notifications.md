@@ -56,7 +56,7 @@ uikittools
 
 ## 配置与开关
 
-当前 rc.6 的 Plugins Inventory 页面只读。通知开关由 Web profile 的 Cordis patch 控制；修改 `$DSH_HOME/cordis.patch.yml` 后，DSH 的配置 watcher 会热重载该行。关闭全部通知：
+rc.7 的插件设置页可以呈现由浏览器侧插件注册的设置卡片，但当前 iOS 通知插件只有 Host 侧，因此不会自动获得 Web 表单。通知开关仍由 Web profile 的 Cordis patch 控制；修改 `$DSH_HOME/cordis.patch.yml` 后，DSH 的配置 watcher 会热重载该行。关闭全部通知：
 
 ```yaml
 - id: ios-notifier
@@ -111,4 +111,4 @@ grep 'ios-notifier' /var/root/dsh.log
 ls -l /var/mobile/Library/DSHNotifier/notify.sock
 ```
 
-如果通知能显示但点击仍打开 Settings，说明运行的仍是旧 Libbulletin 事后改 action 方案；重新安装 `0.1.0~rc.6-4` 或更高版本并 respring。如果浏览器打开 DSH 但没有选中会话，确认入口是 compatibility 5，且 session 仍存在于 `/var/root/.dsh/sessions`。
+如果通知能显示但点击仍打开 Settings，说明运行的仍是旧 Libbulletin 事后改 action 方案；重新安装当前 DSH 包并 respring。如果浏览器打开 DSH 但没有选中会话，确认入口是 compatibility 5，且 session 仍存在于 `/var/root/.dsh/sessions`。

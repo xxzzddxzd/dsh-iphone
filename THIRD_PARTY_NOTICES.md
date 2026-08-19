@@ -28,12 +28,13 @@ the complete notices.
 ## node-pty
 
 - Project: <https://github.com/microsoft/node-pty>
-- Version: 1.1.0
+- Version: 1.2.0-beta.15
 - License: MIT
 - Copyright: Microsoft Corporation
 
-`patches/node-pty-1.1.0-ios.patch` adapts the Unix backend to the iOS
-`forkpty` path. The npm package retains its upstream license.
+The build uses node-pty's upstream Apple `posix_spawn` backend, supplies the
+`openpty` declaration omitted by the iPhoneOS SDK, and compiles the native
+module and helper for iPhoneOS. The npm package retains its upstream license.
 
 ## pnpm
 
