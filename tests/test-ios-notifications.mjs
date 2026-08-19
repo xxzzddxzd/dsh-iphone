@@ -14,6 +14,10 @@ import {
   sendNotification,
   validateLaunchUrl,
 } from "../ios/notifications/dsh-notify.mjs";
+import {
+  parseArgs as parseActivityArgs,
+  sendActivityCommand as sendActivityHelperCommand,
+} from "../ios/activity/dsh-activity.mjs";
 
 assert.equal(validateLaunchUrl("http://127.0.0.1:3080/?session=s1"), "http://127.0.0.1:3080/?session=s1");
 assert.throws(() => validateLaunchUrl("dsh://session/s1"), /HTTP\(S\)/);
@@ -30,10 +34,12 @@ const options = parseArgs([
   "完成", "目标已完成",
 ]);
 assert.equal(options.help, false);
+assert.equal(options.operation, "publish");
 assert.equal(options.soundId, 1007);
 assert.equal(options.timeoutMs, 9000);
 assert.deepEqual(notificationPayload(options), {
-  version: 1,
+  version: 2,
+  operation: "publish",
   title: "完成",
   body: "目标已完成",
   bundleId: "ai.deepseek.dsh",
@@ -41,11 +47,100 @@ assert.deepEqual(notificationPayload(options), {
   soundId: 1007,
 });
 
+const allowToken = "allow_token_12345678901234567890";
+const rejectToken = "reject_token_1234567890123456789";
+const actionableOptions = parseArgs([
+  "--id", "approval-a1",
+  "--url", "http://127.0.0.1:3080/?session=session-1",
+  "--actions-json", JSON.stringify([
+    { title: "拒绝", token: rejectToken, authenticationRequired: false },
+    { title: "允许一次", token: allowToken, authenticationRequired: true },
+  ]),
+  "需要授权", "展开通知后作答",
+]);
+assert.deepEqual(notificationPayload(actionableOptions), {
+  version: 2,
+  operation: "publish",
+  id: "approval-a1",
+  title: "需要授权",
+  body: "展开通知后作答",
+  bundleId: "ai.deepseek.dsh",
+  url: "http://127.0.0.1:3080/?session=session-1",
+  actions: [
+    { title: "拒绝", token: rejectToken, authenticationRequired: false },
+    { title: "允许一次", token: allowToken, authenticationRequired: true },
+  ],
+});
+assert.deepEqual(notificationPayload(parseArgs(["--dismiss-id", "approval-a1"])), {
+  version: 2,
+  operation: "dismiss",
+  id: "approval-a1",
+});
+assert.throws(() => parseArgs(["--dismiss-id", "../bad"]), /safe identifier/);
+assert.throws(() => parseArgs([
+  "--actions-json", '[{"title":"允许","token":"short"}]', "标题", "正文",
+]), /invalid token/);
+
+assert.deepEqual(parseActivityArgs(["status"]).command, { version: 1, operation: "status" });
+assert.deepEqual(parseActivityArgs(["shutdown"]).command, { version: 1, operation: "shutdown" });
+const activityTask = {
+  sessionID: "s1",
+  title: "测试会话",
+  phase: "思考中",
+  detail: "正在生成下一步",
+  startedAtMilliseconds: 1_700_000_000_000,
+  step: 2,
+  completedItems: 1,
+  totalItems: 3,
+  waitingForUser: false,
+};
+assert.deepEqual(parseActivityArgs(["update", JSON.stringify(activityTask)]).command, {
+  version: 1,
+  operation: "update",
+  task: activityTask,
+});
+
 const helperSource = await readFile(
   helperUrl,
   "utf8",
 );
 assert.match(helperSource, /^#!\/var\/jb\/usr\/local\/lib\/nodejs22\/node\n/);
+
+const pluginSource = await readFile(
+  new URL("../ios/notifications/dsh-ios-notifier.mjs", import.meta.url),
+  "utf8",
+);
+assert.match(pluginSource, /import WebSocket from "ws"/);
+assert.match(pluginSource, /new URL\("\/api\/events\.mux"/);
+assert.match(pluginSource, /new URL\("\/api\/respond"/);
+assert.doesNotMatch(pluginSource, /\bfetch\s*\(/);
+assert.doesNotMatch(pluginSource, /consumeMuxEvents/);
+assert.doesNotMatch(pluginSource, /launchActivityHost/);
+
+const upstreamPackage = JSON.parse(await readFile(
+  new URL("../upstream/deepseek-harness/package.json", import.meta.url),
+  "utf8",
+));
+assert.equal(upstreamPackage.version, "0.1.0-rc.7");
+const officialConnectionContract = await readFile(
+  new URL(
+    "../upstream/deepseek-harness/packages/client/connection/README.md",
+    import.meta.url,
+  ),
+  "utf8",
+);
+assert.match(officialConnectionContract, /\/api\/events\.mux/);
+assert.match(officialConnectionContract, /WebSocket upgrade/);
+assert.match(officialConnectionContract, /return 426 with no SSE fallback/);
+const officialApprovalSchema = await readFile(
+  new URL(
+    "../upstream/deepseek-harness/packages/host/apiproxy/src/api/approvals.schema.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+assert.match(officialApprovalSchema, /allowed-once/);
+assert.match(officialApprovalSchema, /rejected/);
 
 const packageScript = await readFile(
   new URL("../scripts/package-dsh.sh", import.meta.url),
@@ -57,9 +152,19 @@ assert.match(
   /ln -s \.\.\/lib\/dsh\/ios\/dsh-notify\.mjs "\$STAGE\/var\/jb\/usr\/local\/bin\/dsh-notify"/,
 );
 assert.match(packageScript, /build\/ios-notifier\/DSH\.app/);
+assert.match(packageScript, /dsh-activity\.mjs/);
+assert.match(packageScript, /DSHActivity\.entitlements/);
+assert.match(packageScript, /build\/ios-notifier\/DSHActivityOp/);
+assert.match(packageScript, /build\/ios-notifier\/DSHActivityD/);
+assert.match(packageScript, /DSHActivityWorker\.entitlements/);
+assert.match(packageScript, /ai\.deepseek\.dsh-activity\.plist/);
 
 const postInstall = await readFile(new URL("../packaging/dsh/postinst", import.meta.url), "utf8");
 assert.match(postInstall, /uicache -p "\$notifier_app"/);
+assert.match(postInstall, /ldid -Iai\.deepseek\.dsh\.activity-worker/);
+assert.match(postInstall, /ldid -Iai\.deepseek\.dsh\.activity-broker/);
+assert.match(postInstall, /launchctl bootstrap system "\$activity_plist"/);
+assert.match(postInstall, /launchctl bootstrap system "\$dsh_plist"/);
 const preRemove = await readFile(new URL("../packaging/dsh/prerm", import.meta.url), "utf8");
 assert.match(
   preRemove,
@@ -94,6 +199,33 @@ try {
   await rm(socketDirectory, { recursive: true, force: true });
 }
 
+const activitySocketDirectory = await mkdtemp(join(tmpdir(), "dsh-activity-test-"));
+const activitySocketPath = join(activitySocketDirectory, "activity.sock");
+let receivedActivityCommand;
+const activityServer = createServer((socket) => {
+  let request = "";
+  socket.setEncoding("utf8");
+  socket.on("data", (chunk) => {
+    request += chunk;
+    const newline = request.indexOf("\n");
+    if (newline < 0) return;
+    receivedActivityCommand = JSON.parse(request.slice(0, newline));
+    socket.end("OK updated\n");
+  });
+});
+try {
+  await new Promise((resolvePromise, rejectPromise) => {
+    activityServer.once("error", rejectPromise);
+    activityServer.listen(activitySocketPath, resolvePromise);
+  });
+  const command = { version: 1, operation: "update", task: activityTask };
+  assert.equal(await sendActivityHelperCommand(command, { socketPath: activitySocketPath }), "OK updated");
+  assert.deepEqual(receivedActivityCommand, command);
+} finally {
+  await new Promise((resolvePromise) => activityServer.close(resolvePromise));
+  await rm(activitySocketDirectory, { recursive: true, force: true });
+}
+
 const bridgeSource = await readFile(
   new URL("../ios/notifications/DSHNotifierBridge.m", import.meta.url),
   "utf8",
@@ -111,21 +243,82 @@ assert.match(bridgeSource, /\/var\/jb\/usr\/bin\/uiopen/);
 assert.match(bridgeSource, /method_setImplementation/);
 assert.match(bridgeSource, /if \(handled\) return nil/);
 assert.match(bridgeSource, /DSHRemoveBulletin\(bulletin\)/);
+assert.match(bridgeSource, /setSupplementaryActionsByLayout:/);
+assert.match(bridgeSource, /setAuthenticationRequired:/);
+assert.match(bridgeSource, /DSHActionSocketPath/);
+assert.match(bridgeSource, /DSHDismissPayload/);
+
+const activityBridgeSource = await readFile(
+  new URL("../ios/activity/DSHActivityBridge.m", import.meta.url),
+  "utf8",
+);
+assert.match(activityBridgeSource, /posix_spawn/);
+assert.match(activityBridgeSource, /DSHActivityOp/);
+assert.match(activityBridgeSource, /launchd worker broker listening/);
+assert.match(activityBridgeSource, /activity\.id/);
+assert.match(activityBridgeSource, /int main\(int argc/);
+assert.doesNotMatch(activityBridgeSource, /__attribute__\(\(constructor\)\)/);
+assert.doesNotMatch(activityBridgeSource, /ActivityKit\.framework/);
+assert.doesNotMatch(activityBridgeSource, /_TtC11ActivityKit19ActivityInputClient/);
+
+const activityWorkerSource = await readFile(
+  new URL("../ios/activity/DSHActivityWorker.m", import.meta.url),
+  "utf8",
+);
+assert.match(activityWorkerSource, /_TtC11ActivityKit19ActivityInputClient/);
+assert.match(activityWorkerSource, /requestActivityWithRequest:error:/);
+assert.match(activityWorkerSource, /updateActivityWithIdentifier:payload:/);
+assert.match(activityWorkerSource, /endActivityWithIdentifier:payload:options:/);
+assert.match(activityWorkerSource, /processIdentifier/);
+assert.match(activityWorkerSource, /DSHActivityTargetBundleIdentifier = @"ai\.deepseek\.dsh"/);
+assert.match(activityWorkerSource, /NSDate\.distantPast/);
+assert.match(activityWorkerSource, /ActivityKit's 4 KB limit/);
 
 const bridgeBuildScript = await readFile(
   new URL("../scripts/build-ios-notifier.sh", import.meta.url),
   "utf8",
 );
 assert.match(bridgeBuildScript, /-arch arm64e/);
-assert.match(bridgeBuildScript, /DSHIconHost/);
+assert.match(bridgeBuildScript, /DSHActivityHost/);
+assert.match(bridgeBuildScript, /DSHActivityBridge\.m/);
+assert.match(bridgeBuildScript, /DSHActivityWorker\.m/);
+assert.match(bridgeBuildScript, /DSHActivityOp/);
+assert.match(bridgeBuildScript, /DSHActivityD/);
+assert.match(bridgeBuildScript, /DSHLiveActivity/);
+assert.match(bridgeBuildScript, /actool/);
 assert.match(bridgeBuildScript, /favicon\.svg/);
 
+const activityLaunchdPlist = await readFile(
+  new URL("../launchd/ai.deepseek.dsh-activity.plist", import.meta.url),
+  "utf8",
+);
+assert.match(activityLaunchdPlist, /<string>ai\.deepseek\.dsh-activity<\/string>/);
+assert.match(activityLaunchdPlist, /<string>mobile<\/string>/);
+assert.match(activityLaunchdPlist, /<string>\/var\/jb\/usr\/local\/lib\/dsh\/ios\/DSHActivityD<\/string>/);
+assert.match(activityLaunchdPlist, /<key>KeepAlive<\/key>\s*<true\/>/);
+
 const iconHostInfo = await readFile(
-  new URL("../ios/notifications/DSHIconHost-Info.plist", import.meta.url),
+  new URL("../ios/activity/DSHActivityHost-Info.plist", import.meta.url),
   "utf8",
 );
 assert.match(iconHostInfo, /<string>ai\.deepseek\.dsh<\/string>/);
 assert.match(iconHostInfo, /<string>hidden<\/string>/);
+assert.match(iconHostInfo, /NSSupportsLiveActivities/);
+
+const activityHostSource = await readFile(
+  new URL("../ios/activity/DSHActivityHost.swift", import.meta.url),
+  "utf8",
+);
+assert.match(activityHostSource, /Darwin\.exit\(0\)/);
+assert.doesNotMatch(activityHostSource, /activity\.sock|Activity<|import ActivityKit/);
+
+const liveActivitySource = await readFile(
+  new URL("../ios/activity/DSHLiveActivityWidget.swift", import.meta.url),
+  "utf8",
+);
+assert.match(liveActivitySource, /ActivityConfiguration/);
+assert.match(liveActivitySource, /timerInterval:/);
+assert.match(liveActivitySource, /ProgressView/);
 
 const pluginPath = new URL(
   "../build/dsh-runtime/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs",
@@ -142,15 +335,21 @@ if (pluginAvailable) {
   const {
     apply,
     activeTurn,
+    activityCommand,
     navigationUrl,
+    newestRunningTask,
+    renderApprovalNotification,
     renderGoalNotification,
     renderSessionNotification,
     resolveConfig,
     runNotifier,
+    updateLiveTasks,
   } = await import(`${pluginPath.href}?test=${Date.now()}`);
   const config = resolveConfig();
   assert.equal(config.browserBaseUrl, "http://127.0.0.1:3080/");
   assert.equal(config.notifyFailure, true);
+  assert.equal(config.actionableApprovals, true);
+  assert.equal(config.liveActivity, true);
   assert.throws(() => resolveConfig({ browserBaseUrl: "file:///tmp/dsh" }), /HTTP\(S\)/);
 
   const detailedSession = {
@@ -245,6 +444,20 @@ if (pluginAvailable) {
     title: "DSH 等待确认",
     body: "会话：通知链路测试\n状态：等待工具授权\n工具：bash\n原因：需要允许部署",
   });
+  assert.deepEqual(renderApprovalNotification({
+    sessionId: "session-detailed",
+    approvalId: "approval-1",
+    toolName: "Bash",
+    reason: "需要部署到手机",
+  }, config, detailedSession, { allow: allowToken, reject: rejectToken }), {
+    id: "approval-approval-1",
+    title: "DSH 等待确认",
+    body: "会话：通知链路测试\n状态：任务暂停，等待操作授权\n权限：允许“Bash”执行当前请求一次\n原因：需要部署到手机\n操作：展开通知后选择“允许一次”或“拒绝”",
+    actions: [
+      { title: "拒绝", token: rejectToken, authenticationRequired: false },
+      { title: "允许一次", token: allowToken, authenticationRequired: true },
+    ],
+  });
   assert.deepEqual(renderSessionNotification({
     type: "tool/call",
     data: {
@@ -284,6 +497,67 @@ if (pluginAvailable) {
     ],
   }), undefined);
   assert.equal(navigationUrl(rootSession, config), "http://127.0.0.1:3080/?session=session-root");
+
+  const runningTasks = new Map();
+  const firstRunningSession = {
+    id: "running-a",
+    header: {},
+    events: [{ type: "session/title", data: { title: "较早任务" } }],
+  };
+  updateLiveTasks(runningTasks, firstRunningSession, {
+    type: "turn/start", time: 1_700_000_000_000, data: { turn: 1 },
+  });
+  updateLiveTasks(runningTasks, firstRunningSession, {
+    type: "step/start", data: { turn: 1, step: 2 },
+  });
+  updateLiveTasks(runningTasks, firstRunningSession, {
+    type: "todo/write",
+    data: {
+      todos: [
+        { content: "完成通知按钮", status: "completed" },
+        { content: "验证 Live Activity", status: "in_progress" },
+      ],
+    },
+  });
+  assert.deepEqual(activityCommand(runningTasks), {
+    version: 1,
+    operation: "update",
+    task: {
+      sessionID: "running-a",
+      title: "较早任务",
+      phase: "思考中",
+      detail: "验证 Live Activity",
+      startedAtMilliseconds: 1_700_000_000_000,
+      step: 2,
+      completedItems: 1,
+      totalItems: 2,
+      waitingForUser: false,
+    },
+  });
+
+  const secondRunningSession = {
+    id: "running-b",
+    header: {},
+    events: [{ type: "session/title", data: { title: "最后启动任务" } }],
+  };
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "turn/start", time: 1_700_000_001_000, data: { turn: 4 },
+  });
+  assert.equal(newestRunningTask(runningTasks).sessionID, "running-b");
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "approval/asked", data: { toolName: "Bash", reason: "需要安装权限" },
+  });
+  assert.equal(activityCommand(runningTasks).task.phase, "等待操作授权");
+  assert.equal(activityCommand(runningTasks).task.waitingForUser, true);
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "turn/end", data: { turn: 4, reason: { kind: "completed" } },
+  });
+  assert.equal(newestRunningTask(runningTasks).sessionID, "running-a");
+  updateLiveTasks(runningTasks, firstRunningSession, {
+    type: "turn/end", data: { turn: 1, reason: { kind: "completed" } },
+  });
+  assert.deepEqual(activityCommand(runningTasks), { version: 1, operation: "end" });
+
   const childSession = {
     id: "child-1",
     header: { origin: "subagent", parentSession: "parent-1", seedLength: 2 },
@@ -314,6 +588,17 @@ if (pluginAvailable) {
   const urlIndex = request.argv.indexOf("--url");
   assert.ok(urlIndex > 0);
   assert.equal(request.argv[urlIndex + 1], "http://127.0.0.1:3080/?session=session-root");
+  await runNotifier(ctx, config, {
+    id: "approval-a1",
+    title: "授权",
+    body: "请选择",
+    actions: [{ title: "允许一次", token: allowToken, authenticationRequired: true }],
+  }, rootSession);
+  assert.equal(request.argv[request.argv.indexOf("--id") + 1], "approval-a1");
+  assert.deepEqual(
+    JSON.parse(request.argv[request.argv.indexOf("--actions-json") + 1]),
+    [{ title: "允许一次", token: allowToken, authenticationRequired: true }],
+  );
 
   const handlers = new Map();
   const notifierRequests = [];

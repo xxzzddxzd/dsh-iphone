@@ -1,15 +1,25 @@
 #!/var/jb/bin/sh
 
 plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist
+activity_plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-activity.plist
+/var/jb/usr/local/lib/nodejs22/node \
+  /var/jb/usr/local/lib/dsh/ios/dsh-activity.mjs shutdown >/dev/null 2>&1 || true
+if [ -f "$activity_plist" ]; then
+  launchctl bootout user/foreground/ai.deepseek.dsh-activity >/dev/null 2>&1 || \
+    launchctl bootout system/ai.deepseek.dsh-activity >/dev/null 2>&1 || true
+fi
 if [ -f "$plist" ]; then
-  launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true
+  launchctl bootout system/ai.deepseek.dsh >/dev/null 2>&1 || \
+    launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true
 fi
 case "${1:-remove}" in
   remove | deconfigure)
     if [ -d /var/jb/Applications/DSH.app ]; then
       /var/jb/usr/bin/uicache -u /var/jb/Applications/DSH.app >/dev/null 2>&1 || true
     fi
-    rm -f /var/mobile/Library/DSHNotifier/notify.sock
+    rm -f /var/mobile/Library/DSHNotifier/notify.sock \
+      /var/mobile/Library/DSHNotifier/action.sock \
+      /var/mobile/Library/DSHNotifier/activity.sock
     ;;
 esac
 

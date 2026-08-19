@@ -14,11 +14,14 @@
 extern char **environ;
 
 static NSString *const DSHSocketPath = @"/var/mobile/Library/DSHNotifier/notify.sock";
+static NSString *const DSHActionSocketPath = @"/var/mobile/Library/DSHNotifier/action.sock";
 static NSString *const DSHDefaultActionIdentifier = @"com.apple.UNNotificationDefaultActionIdentifier";
+static NSString *const DSHActionIdentifierPrefix = @"dsh-action:";
 static NSString *const DSHPublisherPrefix = @"dsh-notifier-";
 static const NSUInteger DSHDefaultFeed = 27;
 static const NSUInteger DSHMaximumRequestBytes = 64 * 1024;
 static id (*DSHOriginalResponseForAction)(id, SEL, id) = NULL;
+static NSMutableDictionary<NSString *, id> *DSHBulletinsByIdentifier;
 
 static id DSHSendId(id target, SEL selector) {
   return ((id (*)(id, SEL))objc_msgSend)(target, selector);
@@ -80,6 +83,20 @@ static BOOL DSHValidString(id value, NSUInteger maximumLength) {
          [(NSString *)value length] <= maximumLength;
 }
 
+static BOOL DSHValidIdentifier(id value) {
+  if (!DSHValidString(value, 256)) return NO;
+  NSCharacterSet *invalid = [[NSCharacterSet characterSetWithCharactersInString:
+      @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-"] invertedSet];
+  return [(NSString *)value rangeOfCharacterFromSet:invalid].location == NSNotFound;
+}
+
+static BOOL DSHValidActionToken(id value) {
+  if (!DSHValidString(value, 128) || [(NSString *)value length] < 20) return NO;
+  NSCharacterSet *invalid = [[NSCharacterSet characterSetWithCharactersInString:
+      @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"] invertedSet];
+  return [(NSString *)value rangeOfCharacterFromSet:invalid].location == NSNotFound;
+}
+
 static NSURL *DSHLaunchURL(id value) {
   NSURL *url = nil;
   if ([value isKindOfClass:[NSURL class]]) {
@@ -95,12 +112,101 @@ static NSURL *DSHLaunchURL(id value) {
 }
 
 static NSURL *DSHActionLaunchURL(id bulletin, id action) {
-  id candidate = action;
-  if (candidate == nil || ![candidate respondsToSelector:sel_registerName("launchURL")]) {
-    candidate = DSHSendId(bulletin, sel_registerName("defaultAction"));
+  if (action != nil && [action respondsToSelector:sel_registerName("launchURL")]) {
+    NSURL *url = DSHLaunchURL(DSHSendId(action, sel_registerName("launchURL")));
+    if (url != nil) return url;
   }
+  id candidate = DSHSendId(bulletin, sel_registerName("defaultAction"));
   if (candidate == nil || ![candidate respondsToSelector:sel_registerName("launchURL")]) return nil;
   return DSHLaunchURL(DSHSendId(candidate, sel_registerName("launchURL")));
+}
+
+static NSString *DSHActionToken(id action) {
+  if (action == nil || ![action respondsToSelector:sel_registerName("identifier")]) return nil;
+  id identifier = DSHSendId(action, sel_registerName("identifier"));
+  if (![identifier isKindOfClass:[NSString class]] ||
+      ![(NSString *)identifier hasPrefix:DSHActionIdentifierPrefix]) return nil;
+  NSString *token = [(NSString *)identifier substringFromIndex:DSHActionIdentifierPrefix.length];
+  return DSHValidActionToken(token) ? token : nil;
+}
+
+static void DSHSendActionCallback(NSString *token) {
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    NSDictionary *payload = @{ @"version": @1, @"token": token };
+    NSError *jsonError = nil;
+    NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:&jsonError];
+    if (json == nil) {
+      NSLog(@"[DSHNotifier] action callback JSON failed: %@", jsonError);
+      return;
+    }
+    NSMutableData *line = [json mutableCopy];
+    const uint8_t newline = '\n';
+    [line appendBytes:&newline length:1];
+
+    int client = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (client < 0) {
+      NSLog(@"[DSHNotifier] action callback socket failed: %d", errno);
+      return;
+    }
+    struct timeval timeout = { .tv_sec = 6, .tv_usec = 0 };
+    setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    int noSigPipe = 1;
+    setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, sizeof(noSigPipe));
+
+    struct sockaddr_un address = {0};
+    address.sun_family = AF_UNIX;
+    const char *path = DSHActionSocketPath.fileSystemRepresentation;
+    strlcpy(address.sun_path, path, sizeof(address.sun_path));
+    if (connect(client, (const struct sockaddr *)&address, sizeof(address)) != 0) {
+      NSLog(@"[DSHNotifier] action callback connect failed: %d", errno);
+      close(client);
+      return;
+    }
+
+    const uint8_t *bytes = line.bytes;
+    NSUInteger remaining = line.length;
+    while (remaining > 0) {
+      ssize_t count = send(client, bytes, remaining, 0);
+      if (count < 0 && errno == EINTR) continue;
+      if (count <= 0) break;
+      bytes += count;
+      remaining -= (NSUInteger)count;
+    }
+    shutdown(client, SHUT_WR);
+    char response[256] = {0};
+    ssize_t received = recv(client, response, sizeof(response) - 1, 0);
+    close(client);
+    if (remaining == 0 && received > 0 && strncmp(response, "OK", 2) == 0) {
+      NSLog(@"[DSHNotifier] action callback accepted");
+    } else {
+      NSLog(@"[DSHNotifier] action callback rejected: %s", received > 0 ? response : "no response");
+    }
+  });
+}
+
+static void DSHRememberBulletin(NSString *identifier, id bulletin) {
+  if (identifier == nil || bulletin == nil) return;
+  @synchronized (DSHBulletinsByIdentifier) {
+    DSHBulletinsByIdentifier[identifier] = bulletin;
+  }
+}
+
+static id DSHTakeBulletin(NSString *identifier) {
+  if (identifier == nil) return nil;
+  @synchronized (DSHBulletinsByIdentifier) {
+    id bulletin = DSHBulletinsByIdentifier[identifier];
+    [DSHBulletinsByIdentifier removeObjectForKey:identifier];
+    return bulletin;
+  }
+}
+
+static void DSHForgetBulletin(id bulletin) {
+  if (bulletin == nil) return;
+  @synchronized (DSHBulletinsByIdentifier) {
+    NSArray<NSString *> *keys = [DSHBulletinsByIdentifier allKeysForObject:bulletin];
+    [DSHBulletinsByIdentifier removeObjectsForKeys:keys];
+  }
 }
 
 static void DSHOpenURLInDefaultBrowser(NSURL *url) {
@@ -161,10 +267,14 @@ static id DSHResponseForAction(id bulletin, SEL selector, id action) {
     if ([publisherID isKindOfClass:[NSString class]] &&
         [(NSString *)publisherID hasPrefix:DSHPublisherPrefix]) {
       handled = YES;
-      NSURL *url = DSHActionLaunchURL(bulletin, action);
-      NSLog(@"[DSHNotifier] received notification action for %@: %@", publisherID, url);
+      NSString *token = DSHActionToken(action);
+      NSURL *url = token == nil ? DSHActionLaunchURL(bulletin, action) : nil;
+      NSLog(@"[DSHNotifier] received notification action for %@: %@",
+            publisherID, token == nil ? url : @"approval callback");
+      DSHForgetBulletin(bulletin);
       DSHRemoveBulletin(bulletin);
-      if (url != nil) DSHOpenURLInDefaultBrowser(url);
+      if (token != nil) DSHSendActionCallback(token);
+      else if (url != nil) DSHOpenURLInDefaultBrowser(url);
     }
   } @catch (NSException *exception) {
     NSLog(@"[DSHNotifier] notification action failed: %@", exception);
@@ -198,6 +308,10 @@ static void DSHPublishPayload(NSDictionary *payload) {
   NSString *body = payload[@"body"];
   NSString *bundleID = payload[@"bundleId"];
   NSURL *launchURL = DSHLaunchURL(payload[@"url"]);
+  NSString *notificationID = DSHValidIdentifier(payload[@"id"]) ? payload[@"id"] : nil;
+  NSArray *actionPayloads = [payload[@"actions"] isKindOfClass:[NSArray class]]
+      ? payload[@"actions"]
+      : nil;
   if (!DSHValidString(title, 2048) || !DSHValidString(body, 8192) ||
       !DSHValidString(bundleID, 512)) {
     NSLog(@"[DSHNotifier] rejected invalid notification payload");
@@ -229,7 +343,8 @@ static void DSHPublishPayload(NSDictionary *payload) {
       // "-bulletin-manager" and launches the bulletin section for default
       // actions, ignoring BBAction.launchURL. Use a distinct publisher ID so
       // BulletinBoard's native response path handles the URL action.
-      NSString *publisherID = [DSHPublisherPrefix stringByAppendingString:NSUUID.UUID.UUIDString];
+      NSString *publisherSuffix = notificationID ?: NSUUID.UUID.UUIDString;
+      NSString *publisherID = [DSHPublisherPrefix stringByAppendingString:publisherSuffix];
       DSHSendVoid1(bulletin, sel_registerName("setPublisherBulletinID:"), publisherID);
       DSHSendVoidBool(bulletin, sel_registerName("setClearable:"), YES);
 
@@ -243,6 +358,36 @@ static void DSHPublishPayload(NSDictionary *payload) {
         DSHSendVoidInteger(action, sel_registerName("setActionType:"), 1);
         DSHSendVoidBool(action, sel_registerName("setShouldDismissBulletin:"), YES);
         DSHSendVoid1(bulletin, sel_registerName("setDefaultAction:"), action);
+      }
+
+      if (actionPayloads.count > 0 && actionPayloads.count <= 4) {
+        NSMutableArray *actions = [NSMutableArray arrayWithCapacity:actionPayloads.count];
+        for (id value in actionPayloads) {
+          if (![value isKindOfClass:[NSDictionary class]]) continue;
+          NSDictionary *spec = (NSDictionary *)value;
+          NSString *actionTitle = spec[@"title"];
+          NSString *token = spec[@"token"];
+          if (!DSHValidString(actionTitle, 128) || !DSHValidActionToken(token)) continue;
+          NSString *actionIdentifier = [DSHActionIdentifierPrefix stringByAppendingString:token];
+          id action = DSHSendId2(
+              actionClass,
+              sel_registerName("actionWithIdentifier:title:"),
+              actionIdentifier,
+              actionTitle);
+          if (action == nil) continue;
+          BOOL authenticationRequired = [spec[@"authenticationRequired"] isEqual:@YES];
+          DSHSendVoidInteger(action, sel_registerName("setActionType:"), 1);
+          DSHSendVoidBool(action, sel_registerName("setAuthenticationRequired:"), authenticationRequired);
+          DSHSendVoidBool(action, sel_registerName("setCanBypassPinLock:"), !authenticationRequired);
+          DSHSendVoidBool(action, sel_registerName("setLaunchCanBypassPinLock:"), !authenticationRequired);
+          DSHSendVoidBool(action, sel_registerName("setShouldDismissBulletin:"), YES);
+          [actions addObject:action];
+        }
+        if (actions.count > 0) {
+          NSDictionary *layouts = @{ @0: actions, @1: actions, @2: actions, @3: actions };
+          DSHSendVoid1(bulletin, sel_registerName("setSupplementaryActionsByLayout:"), layouts);
+          DSHSendVoidBool(bulletin, sel_registerName("setDisplaysActionsInline:"), YES);
+        }
       }
 
       NSNumber *soundID = payload[@"soundId"];
@@ -262,6 +407,12 @@ static void DSHPublishPayload(NSDictionary *payload) {
         return;
       }
 
+      if (notificationID != nil) {
+        id previous = DSHTakeBulletin(notificationID);
+        if (previous != nil) DSHRemoveBulletin(previous);
+        DSHRememberBulletin(notificationID, bulletin);
+      }
+
       dispatch_async(queue, ^{
         @try {
           DSHPublishOnController(controller, observer, bulletin, DSHDefaultFeed);
@@ -272,6 +423,18 @@ static void DSHPublishPayload(NSDictionary *payload) {
     } @catch (NSException *exception) {
       NSLog(@"[DSHNotifier] request failed: %@", exception);
     }
+  });
+}
+
+static void DSHDismissPayload(NSDictionary *payload) {
+  NSString *notificationID = payload[@"id"];
+  if (!DSHValidIdentifier(notificationID)) {
+    NSLog(@"[DSHNotifier] rejected invalid dismiss payload");
+    return;
+  }
+  dispatch_async(dispatch_get_main_queue(), ^{
+    id bulletin = DSHTakeBulletin(notificationID);
+    if (bulletin != nil) DSHRemoveBulletin(bulletin);
   });
 }
 
@@ -313,12 +476,26 @@ static void DSHHandleClient(int client) {
     }
 
     NSDictionary *payload = (NSDictionary *)object;
-    if (![payload[@"version"] isEqual:@1]) {
+    NSNumber *version = payload[@"version"];
+    if ([version isEqual:@1]) {
+      DSHPublishPayload(payload);
+      DSHReply(client, "OK queued\n");
+      return;
+    }
+    if (![version isEqual:@2]) {
       DSHReply(client, "ERR unsupported protocol\n");
       return;
     }
-    DSHPublishPayload(payload);
-    DSHReply(client, "OK queued\n");
+    NSString *operation = payload[@"operation"];
+    if ([operation isEqualToString:@"publish"]) {
+      DSHPublishPayload(payload);
+      DSHReply(client, "OK queued\n");
+    } else if ([operation isEqualToString:@"dismiss"]) {
+      DSHDismissPayload(payload);
+      DSHReply(client, "OK dismissed\n");
+    } else {
+      DSHReply(client, "ERR invalid operation\n");
+    }
   }
 }
 
@@ -378,6 +555,7 @@ static void DSHRunServer(void) {
 }
 
 __attribute__((constructor)) static void DSHNotifierStart(void) {
+  DSHBulletinsByIdentifier = [NSMutableDictionary dictionary];
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
     DSHRunServer();
   });

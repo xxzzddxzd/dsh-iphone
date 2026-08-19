@@ -7,19 +7,15 @@
   <key>CFBundleDisplayName</key>
   <string>DSH</string>
   <key>CFBundleExecutable</key>
-  <string>DSHIconHost</string>
+  <string>DSHActivityHost</string>
   <key>CFBundleIconFiles</key>
-  <array>
-    <string>Icon-60</string>
-  </array>
+  <array><string>Icon-60</string></array>
   <key>CFBundleIcons</key>
   <dict>
     <key>CFBundlePrimaryIcon</key>
     <dict>
       <key>CFBundleIconFiles</key>
-      <array>
-        <string>Icon-60</string>
-      </array>
+      <array><string>Icon-60</string></array>
     </dict>
   </dict>
   <key>CFBundleIdentifier</key>
@@ -33,22 +29,18 @@
   <key>CFBundleShortVersionString</key>
   <string>0.1.0</string>
   <key>CFBundleSupportedPlatforms</key>
-  <array>
-    <string>iPhoneOS</string>
-  </array>
+  <array><string>iPhoneOS</string></array>
   <key>CFBundleVersion</key>
-  <string>4</string>
+  <string>5</string>
   <key>LSRequiresIPhoneOS</key>
   <true/>
   <key>MinimumOSVersion</key>
-  <string>16.0</string>
+  <string>16.1</string>
+  <key>NSSupportsLiveActivities</key>
+  <true/>
   <key>SBAppTags</key>
-  <array>
-    <string>hidden</string>
-  </array>
+  <array><string>hidden</string></array>
   <key>UIDeviceFamily</key>
-  <array>
-    <integer>1</integer>
-  </array>
+  <array><integer>1</integer></array>
 </dict>
 </plist>

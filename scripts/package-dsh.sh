@@ -32,6 +32,17 @@ install -m 0755 "$ROOT/packaging/dsh/dsh22" "$STAGE/var/jb/usr/local/bin/dsh22"
 install -m 0755 "$ROOT/ios/notifications/dsh-notify.mjs" \
   "$STAGE/var/jb/usr/local/lib/dsh/ios/dsh-notify.mjs"
 ln -s ../lib/dsh/ios/dsh-notify.mjs "$STAGE/var/jb/usr/local/bin/dsh-notify"
+install -m 0755 "$ROOT/ios/activity/dsh-activity.mjs" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/dsh-activity.mjs"
+ln -s ../lib/dsh/ios/dsh-activity.mjs "$STAGE/var/jb/usr/local/bin/dsh-activity"
+install -m 0644 "$ROOT/ios/activity/DSHActivity.entitlements" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivity.entitlements"
+install -m 0755 "$ROOT/build/ios-notifier/DSHActivityOp" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivityOp"
+install -m 0755 "$ROOT/build/ios-notifier/DSHActivityD" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivityD"
+install -m 0644 "$ROOT/ios/activity/DSHActivityWorker.entitlements" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivityWorker.entitlements"
 install -m 0755 "$ROOT/build/ios-notifier/DSHNotifierBridge.dylib" \
   "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib"
 install -m 0644 "$ROOT/ios/notifications/DSHNotifierBridge.plist" \
@@ -39,6 +50,8 @@ install -m 0644 "$ROOT/ios/notifications/DSHNotifierBridge.plist" \
 cp -R "$ROOT/build/ios-notifier/DSH.app" "$STAGE/var/jb/Applications/DSH.app"
 install -m 0644 "$ROOT/launchd/ai.deepseek.dsh.plist" \
   "$STAGE/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist"
+install -m 0644 "$ROOT/launchd/ai.deepseek.dsh-activity.plist" \
+  "$STAGE/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-activity.plist"
 install -m 0755 "$ROOT/packaging/dsh/postinst" "$STAGE/DEBIAN/postinst"
 install -m 0755 "$ROOT/packaging/dsh/prerm" "$STAGE/DEBIAN/prerm"
 
