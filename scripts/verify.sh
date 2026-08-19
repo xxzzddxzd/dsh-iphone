@@ -30,6 +30,7 @@ plutil -lint \
   "$ROOT/ios/activity/DSHActivityHost-Info.plist" \
   "$ROOT/ios/activity/DSHLiveActivity-Info.plist" \
   "$ROOT/ios/activity/DSHActivity.entitlements" \
+  "$ROOT/ios/activity/DSHActivityExtension.entitlements" \
   "$ROOT/ios/activity/DSHActivityWorker.entitlements" >/dev/null
 
 node "$ROOT/tests/test-lockfile.mjs"

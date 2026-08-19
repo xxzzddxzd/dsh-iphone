@@ -176,19 +176,25 @@ function notificationBody(session, lines, config) {
   return truncate(content.join("\n"), config.maxBodyChars);
 }
 
+function assistantMessageDetail(event) {
+  if (event?.type !== "assistant/message") return undefined;
+  const blocks = event.data?.message?.content ?? event.data?.content;
+  if (!Array.isArray(blocks)) return undefined;
+  const text = compactText(blocks
+    .filter((block) => block?.type === "text")
+    .map((block) => block.text)
+    .filter((value) => typeof value === "string")
+    .join("\n"));
+  return text === "" ? undefined : text;
+}
+
 function assistantSummary(session, turn) {
   if (session === undefined) return undefined;
   for (let index = session.events.length - 1; index >= 0; index -= 1) {
     const event = session.events[index];
     if (event.type !== "assistant/message" || event.data?.turn !== turn) continue;
-    const blocks = event.data.message?.content ?? event.data.content;
-    if (!Array.isArray(blocks)) continue;
-    const text = compactText(blocks
-      .filter((block) => block?.type === "text")
-      .map((block) => block.text)
-      .filter((value) => typeof value === "string")
-      .join("\n"));
-    if (text !== "") return text;
+    const detail = assistantMessageDetail(event);
+    if (detail !== undefined) return detail;
   }
   return undefined;
 }
@@ -525,6 +531,22 @@ function latestSessionTask(tasks, sessionId, turn) {
   return selected;
 }
 
+function taskForAgentSession(tasks, sessionId) {
+  const direct = latestSessionTask(tasks, sessionId);
+  if (direct !== undefined) return direct;
+  for (const task of tasks.values()) {
+    if (task.agentSessionIDs?.has(sessionId)) return task;
+  }
+  return undefined;
+}
+
+function registerSubagentSession(tasks, session) {
+  const parentSessionId = session.header?.parentSession;
+  if (typeof parentSessionId !== "string") return;
+  const task = taskForAgentSession(tasks, parentSessionId);
+  if (task !== undefined) task.agentSessionIDs.add(session.id);
+}
+
 function toolDisplayName(name) {
   const labels = {
     exec_command: "命令行",
@@ -539,6 +561,53 @@ function toolDisplayName(name) {
   return labels[name] ?? name;
 }
 
+function parseToolArguments(value) {
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value !== "string" || value.trim() === "") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function compactArgument(value) {
+  return typeof value === "string" ? compactText(value) : "";
+}
+
+function toolActionDetail(name, rawArguments) {
+  const args = parseToolArguments(rawArguments);
+  const description = compactArgument(args.description);
+  if (description !== "") return truncate(description, 160);
+
+  const label = toolDisplayName(name);
+  const filePath = compactArgument(args.file_path ?? args.path);
+  if (filePath !== "") return truncate(`${label}：${filePath}`, 160);
+
+  const query = compactArgument(args.query ?? args.q);
+  if (query !== "") return truncate(`${label}：${query}`, 160);
+
+  const url = compactArgument(args.url);
+  if (url !== "") return truncate(`${label}：${url}`, 160);
+
+  const pattern = compactArgument(args.pattern);
+  if (pattern !== "") return truncate(`${label}：${pattern}`, 160);
+
+  // Shell commands can contain credentials or other private values. DSH's
+  // Bash tool normally supplies a user-facing description; without one, keep
+  // the lock-screen text useful without copying the raw command verbatim.
+  return `工具“${label}”正在运行`;
+}
+
+function toolActivityDetail(name, rawArguments) {
+  const label = toolDisplayName(name);
+  const action = toolActionDetail(name, rawArguments);
+  if (action === `工具“${label}”正在运行`) return `${label} · 正在运行`;
+  if (action.startsWith(`${label}：`)) return `${label} · ${action.slice(label.length + 1)}`;
+  return `${label} · ${action}`;
+}
+
 function findToolCall(session, callId) {
   if (typeof callId !== "string") return undefined;
   for (let index = session.events.length - 1; index >= 0; index -= 1) {
@@ -549,7 +618,12 @@ function findToolCall(session, callId) {
 }
 
 function updateLiveTasks(tasks, session, event) {
-  if (session.header?.origin === "subagent") return newestRunningTask(tasks);
+  if (session.header?.origin === "subagent") {
+    // Count each session-backed child once for the root task. Looking up a
+    // parent in the already-recorded child set also covers nested delegation.
+    registerSubagentSession(tasks, session);
+    return newestRunningTask(tasks);
+  }
   if (event.type === "turn/start") {
     const key = taskKey(session.id, event.data.turn);
     if (!tasks.has(key)) {
@@ -562,10 +636,14 @@ function updateLiveTasks(tasks, session, event) {
         title: sessionTitle(session) ?? "未命名会话",
         phase: "正在开始",
         detail: "正在准备本轮任务",
+        assistantDetail: "等待 Assistant 回复",
+        toolDetail: "尚未调用 Tool",
         step: 0,
         completedItems: 0,
         totalItems: 0,
         waitingForUser: false,
+        hasMeaningfulAction: false,
+        agentSessionIDs: new Set(),
       });
     }
     return newestRunningTask(tasks);
@@ -587,58 +665,90 @@ function updateLiveTasks(tasks, session, event) {
   const task = latestSessionTask(tasks, session.id, event.data?.turn);
   if (task === undefined) return newestRunningTask(tasks);
   switch (event.type) {
-    case "step/start":
+    case "step/start": {
+      const resumedAfterUserInput = task.waitingForUser;
       task.step = Math.max(0, event.data.step);
-      task.phase = "思考中";
-      task.detail = "正在生成下一步操作";
       task.waitingForUser = false;
+      if (!task.hasMeaningfulAction) {
+        task.phase = "思考中";
+        task.detail = "正在分析任务";
+      } else if (resumedAfterUserInput) {
+        task.phase = "继续执行";
+      }
       break;
+    }
     case "assistant/chunk":
-      if (!task.waitingForUser) {
-        task.phase = "正在生成回复";
-        task.detail = "模型正在输出内容";
+      // Token streaming is transport activity, not a useful task action. Keep
+      // the last tool, plan, approval, or todo visible. Before the first such
+      // event, use a quiet analysis placeholder instead of "model output".
+      if (!task.waitingForUser && !task.hasMeaningfulAction) {
+        task.phase = "思考中";
+        task.detail = "正在分析任务";
       }
       break;
-    case "assistant/message":
-      if (!task.waitingForUser) {
-        task.phase = "正在处理";
-        task.detail = "正在整理模型输出";
+    case "assistant/message": {
+      const assistantDetail = assistantMessageDetail(event);
+      if (assistantDetail !== undefined) task.assistantDetail = assistantDetail;
+      if (!task.waitingForUser && !task.hasMeaningfulAction) {
+        task.phase = "思考中";
+        task.detail = "正在分析任务";
       }
       break;
+    }
     case "tool/call":
       if (event.data.name === "ask_user_question") {
         task.phase = "等待你的回答";
         task.detail = firstQuestion(event.data.arguments) ?? "会话提出了一个问题";
+        task.toolDetail = `用户问答 · ${task.detail}`;
         task.waitingForUser = true;
       } else if (event.data.name === "exit_plan_mode") {
         task.phase = "等待计划确认";
         task.detail = firstPlanLine(event.data.arguments) ?? "计划已经准备完成";
+        task.toolDetail = `计划确认 · ${task.detail}`;
         task.waitingForUser = true;
       } else {
         const toolName = toolDisplayName(event.data.name);
         task.phase = `正在执行 ${toolName}`;
-        task.detail = `工具“${toolName}”正在运行`;
+        task.detail = toolActionDetail(event.data.name, event.data.arguments);
+        task.toolDetail = toolActivityDetail(event.data.name, event.data.arguments);
         task.waitingForUser = false;
       }
+      task.hasMeaningfulAction = true;
       break;
     case "approval/asked": {
       const toolName = toolDisplayName(event.data.toolName);
+      const call = findToolCall(session, event.data.callId);
       task.phase = "等待操作授权";
-      task.detail = compactText(event.data.reason) || `“${toolName}”需要一次性权限`;
+      task.detail = call === undefined
+        ? compactText(event.data.reason) || `“${toolName}”需要一次性权限`
+        : toolActionDetail(call.data.name, call.data.arguments);
+      task.toolDetail = call === undefined
+        ? `${toolName} · ${task.detail}`
+        : toolActivityDetail(call.data.name, call.data.arguments);
       task.waitingForUser = true;
+      task.hasMeaningfulAction = true;
       break;
     }
     case "approval/decided":
-      task.phase = event.data.outcome === "allowed-once" ? "授权完成，继续执行" : "授权未通过";
-      task.detail = event.data.outcome === "allowed-once" ? "正在恢复任务" : "正在处理拒绝结果";
+      task.phase = event.data.outcome === "allowed-once" ? "继续执行" : "授权未通过";
       task.waitingForUser = false;
       break;
     case "tool/result": {
       const call = findToolCall(session, event.data.message?.source?.callId ?? event.data.callId);
       const toolName = toolDisplayName(call?.data?.name ?? "工具");
+      const action = call === undefined
+        ? `工具“${toolName}”`
+        : toolActionDetail(call.data.name, call.data.arguments);
       task.phase = event.data.error === undefined ? "正在处理结果" : "工具执行失败";
-      task.detail = event.data.error === undefined ? `“${toolName}”已经返回` : `“${toolName}”返回错误`;
+      task.detail = event.data.error === undefined ? `${action} · 已完成` : `${action} · 执行失败`;
+      const liveAction = call === undefined
+        ? toolName
+        : toolActivityDetail(call.data.name, call.data.arguments);
+      task.toolDetail = event.data.error === undefined
+        ? `${liveAction} · 已完成`
+        : `${liveAction} · 执行失败`;
       task.waitingForUser = false;
+      task.hasMeaningfulAction = true;
       break;
     }
     case "todo/write": {
@@ -646,13 +756,20 @@ function updateLiveTasks(tasks, session, event) {
       task.totalItems = todos.length;
       task.completedItems = todos.filter((item) => item?.status === "completed").length;
       const current = todos.find((item) => item?.status === "in_progress");
-      if (current !== undefined) task.detail = compactText(current.content) || task.detail;
+      if (current !== undefined) {
+        task.phase = "正在执行计划";
+        task.detail = compactText(current.content) || task.detail;
+        task.toolDetail = `任务计划 · ${task.detail}`;
+        task.hasMeaningfulAction = true;
+      }
       break;
     }
     case "step/end":
-      task.phase = "正在整理结果";
-      task.detail = "本步骤已完成，正在决定下一步";
       task.waitingForUser = false;
+      if (!task.hasMeaningfulAction) {
+        task.phase = "思考中";
+        task.detail = "正在分析任务";
+      }
       break;
     default:
       break;
@@ -671,8 +788,11 @@ function activityCommand(tasks) {
       title: truncate(task.title, 120),
       phase: truncate(task.phase, 80),
       detail: truncate(task.detail, 240),
+      assistantDetail: truncate(task.assistantDetail, 240),
+      toolDetail: truncate(task.toolDetail, 240),
       startedAtMilliseconds: task.startedAtMilliseconds,
       step: task.step,
+      agentCount: 1 + (task.agentSessionIDs?.size ?? 0),
       completedItems: task.completedItems,
       totalItems: task.totalItems,
       waitingForUser: task.waitingForUser,
@@ -754,7 +874,10 @@ function safeUnlinkSocket(path) {
 function startActionServer(onToken, logger) {
   mkdirSync(dirname(ACTION_SOCKET_PATH), { recursive: true, mode: 0o700 });
   safeUnlinkSocket(ACTION_SOCKET_PATH);
-  const server = createServer((socket) => {
+  // SpringBoard half-closes its write side after sending the token, then waits
+  // for our acknowledgement. Keep the writable side open until onToken has
+  // settled; Node's default allowHalfOpen=false would otherwise emit EOF first.
+  const server = createServer({ allowHalfOpen: true }, (socket) => {
     let request = "";
     let handled = false;
     socket.setEncoding("utf8");
@@ -1226,6 +1349,7 @@ export {
   sessionEventNotificationKind,
   sessionTitle,
   subagentMode,
+  toolActionDetail,
   truncate,
   updateLiveTasks,
 };

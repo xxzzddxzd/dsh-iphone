@@ -82,6 +82,8 @@ for arch in arm64 arm64e; do
     -application-extension \
     -O \
     -module-name DSHLiveActivity \
+    -Xlinker -e \
+    -Xlinker _NSExtensionMain \
     "$ROOT/ios/activity/DSHActivityAttributes.swift" \
     "$ROOT/ios/activity/DSHLiveActivityWidget.swift" \
     -o "$OUTPUT_DIR/swift/DSHLiveActivity-$arch"

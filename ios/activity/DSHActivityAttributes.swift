@@ -8,8 +8,11 @@ struct DSHActivityAttributes: ActivityAttributes {
     var title: String
     var phase: String
     var detail: String
+    var assistantDetail: String
+    var toolDetail: String
     var startedAtMilliseconds: Int64
     var step: Int
+    var agentCount: Int
     var completedItems: Int
     var totalItems: Int
     var waitingForUser: Bool

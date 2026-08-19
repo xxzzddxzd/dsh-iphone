@@ -35,6 +35,7 @@ static NSDictionary *DSHState(NSString *phase) {
     @"detail": @"Cross-process ActivityKit identity probe",
     @"startedAtMilliseconds": @1787129800000,
     @"step": [phase isEqualToString:@"created"] ? @1 : @2,
+    @"agentCount": @1,
     @"completedItems": [phase isEqualToString:@"created"] ? @0 : @1,
     @"totalItems": @2,
     @"waitingForUser": @NO,

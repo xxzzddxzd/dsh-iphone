@@ -36,6 +36,7 @@ private struct ActivityKitRequestProbe {
           detail: "SpringBoard-targeted request assertion",
           startedAtMilliseconds: Int64(Date().timeIntervalSince1970 * 1_000),
           step: 1,
+          agentCount: 1,
           completedItems: 0,
           totalItems: 1,
           waitingForUser: false),

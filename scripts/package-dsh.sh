@@ -37,6 +37,8 @@ install -m 0755 "$ROOT/ios/activity/dsh-activity.mjs" \
 ln -s ../lib/dsh/ios/dsh-activity.mjs "$STAGE/var/jb/usr/local/bin/dsh-activity"
 install -m 0644 "$ROOT/ios/activity/DSHActivity.entitlements" \
   "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivity.entitlements"
+install -m 0644 "$ROOT/ios/activity/DSHActivityExtension.entitlements" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivityExtension.entitlements"
 install -m 0755 "$ROOT/build/ios-notifier/DSHActivityOp" \
   "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHActivityOp"
 install -m 0755 "$ROOT/build/ios-notifier/DSHActivityD" \
