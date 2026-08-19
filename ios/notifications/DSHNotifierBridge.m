@@ -67,6 +67,14 @@ static void DSHPublishOnController(id controller, id observer, id bulletin, NSUI
       feed);
 }
 
+static void DSHRemoveOnController(id controller, id observer, id bulletin) {
+  ((void (*)(id, SEL, id, id))objc_msgSend)(
+      controller,
+      sel_registerName("observer:removeBulletin:"),
+      observer,
+      bulletin);
+}
+
 static BOOL DSHValidString(id value, NSUInteger maximumLength) {
   return [value isKindOfClass:[NSString class]] && [(NSString *)value length] > 0 &&
          [(NSString *)value length] <= maximumLength;
@@ -118,6 +126,34 @@ static void DSHOpenURLInDefaultBrowser(NSURL *url) {
   });
 }
 
+static void DSHRemoveBulletin(id bulletin) {
+  Class managerClass = objc_getClass("JBBulletinManager");
+  if (managerClass == Nil) {
+    NSLog(@"[DSHNotifier] cannot remove bulletin: Libbulletin is unavailable");
+    return;
+  }
+
+  id manager = DSHSendId(managerClass, sel_registerName("sharedInstance"));
+  id controller = DSHSendId(manager, sel_registerName("notificationController"));
+  id observer = DSHSendId1(controller, sel_registerName("valueForKey:"), @"observer");
+  id queueObject = DSHSendId1(controller, sel_registerName("valueForKey:"), @"_queue");
+  dispatch_queue_t queue = (dispatch_queue_t)queueObject;
+  if (controller == nil || observer == nil || queue == nil) {
+    NSLog(@"[DSHNotifier] cannot remove bulletin: notification controller is not ready");
+    return;
+  }
+
+  dispatch_async(queue, ^{
+    @try {
+      DSHRemoveOnController(controller, observer, bulletin);
+      NSLog(@"[DSHNotifier] removed opened bulletin %@",
+            DSHSendId(bulletin, sel_registerName("publisherBulletinID")));
+    } @catch (NSException *exception) {
+      NSLog(@"[DSHNotifier] bulletin removal failed: %@", exception);
+    }
+  });
+}
+
 static id DSHResponseForAction(id bulletin, SEL selector, id action) {
   BOOL handled = NO;
   @try {
@@ -127,6 +163,7 @@ static id DSHResponseForAction(id bulletin, SEL selector, id action) {
       handled = YES;
       NSURL *url = DSHActionLaunchURL(bulletin, action);
       NSLog(@"[DSHNotifier] received notification action for %@: %@", publisherID, url);
+      DSHRemoveBulletin(bulletin);
       if (url != nil) DSHOpenURLInDefaultBrowser(url);
     }
   } @catch (NSException *exception) {
@@ -194,6 +231,7 @@ static void DSHPublishPayload(NSDictionary *payload) {
       // BulletinBoard's native response path handles the URL action.
       NSString *publisherID = [DSHPublisherPrefix stringByAppendingString:NSUUID.UUID.UUIDString];
       DSHSendVoid1(bulletin, sel_registerName("setPublisherBulletinID:"), publisherID);
+      DSHSendVoidBool(bulletin, sel_registerName("setClearable:"), YES);
 
       if (launchURL != nil) {
         id action = DSHSendId2(
