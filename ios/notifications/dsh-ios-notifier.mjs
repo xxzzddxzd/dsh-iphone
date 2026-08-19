@@ -15,9 +15,14 @@ const DEFAULTS = Object.freeze({
   completeTitle: "DSH 回复已完成",
   blockedTitle: "DSH 会话被阻塞",
   confirmTitle: "DSH 等待确认",
+  errorTitle: "DSH 运行失败",
+  maxTokensTitle: "DSH 输出已截断",
+  interruptedTitle: "DSH 会话异常中断",
+  stoppedTitle: "DSH 会话已停止",
   notifyComplete: true,
   notifyBlocked: true,
   notifyConfirm: true,
+  notifyFailure: true,
   soundId: undefined,
   maxBodyChars: 800,
   logSuccess: true,
@@ -30,9 +35,14 @@ const Config = z.object({
   completeTitle: z.string().default(DEFAULTS.completeTitle),
   blockedTitle: z.string().default(DEFAULTS.blockedTitle),
   confirmTitle: z.string().default(DEFAULTS.confirmTitle),
+  errorTitle: z.string().default(DEFAULTS.errorTitle),
+  maxTokensTitle: z.string().default(DEFAULTS.maxTokensTitle),
+  interruptedTitle: z.string().default(DEFAULTS.interruptedTitle),
+  stoppedTitle: z.string().default(DEFAULTS.stoppedTitle),
   notifyComplete: z.boolean().default(DEFAULTS.notifyComplete),
   notifyBlocked: z.boolean().default(DEFAULTS.notifyBlocked),
   notifyConfirm: z.boolean().default(DEFAULTS.notifyConfirm),
+  notifyFailure: z.boolean().default(DEFAULTS.notifyFailure),
   soundId: z.number(),
   maxBodyChars: z.number().default(DEFAULTS.maxBodyChars),
   logSuccess: z.boolean().default(DEFAULTS.logSuccess),
@@ -90,9 +100,18 @@ function resolveConfig(config = {}) {
     completeTitle: nonEmptyString(config.completeTitle, DEFAULTS.completeTitle, "completeTitle"),
     blockedTitle: nonEmptyString(config.blockedTitle, DEFAULTS.blockedTitle, "blockedTitle"),
     confirmTitle: nonEmptyString(config.confirmTitle, DEFAULTS.confirmTitle, "confirmTitle"),
+    errorTitle: nonEmptyString(config.errorTitle, DEFAULTS.errorTitle, "errorTitle"),
+    maxTokensTitle: nonEmptyString(config.maxTokensTitle, DEFAULTS.maxTokensTitle, "maxTokensTitle"),
+    interruptedTitle: nonEmptyString(
+      config.interruptedTitle,
+      DEFAULTS.interruptedTitle,
+      "interruptedTitle",
+    ),
+    stoppedTitle: nonEmptyString(config.stoppedTitle, DEFAULTS.stoppedTitle, "stoppedTitle"),
     notifyComplete: booleanValue(config.notifyComplete, DEFAULTS.notifyComplete, "notifyComplete"),
     notifyBlocked: booleanValue(config.notifyBlocked, DEFAULTS.notifyBlocked, "notifyBlocked"),
     notifyConfirm: booleanValue(config.notifyConfirm, DEFAULTS.notifyConfirm, "notifyConfirm"),
+    notifyFailure: booleanValue(config.notifyFailure, DEFAULTS.notifyFailure, "notifyFailure"),
     soundId,
     maxBodyChars: positiveInteger(config.maxBodyChars, DEFAULTS.maxBodyChars, "maxBodyChars"),
     logSuccess: booleanValue(config.logSuccess, DEFAULTS.logSuccess, "logSuccess"),
@@ -105,19 +124,67 @@ function truncate(value, maxChars) {
   return `${chars.slice(0, Math.max(1, maxChars - 1)).join("")}…`;
 }
 
-function renderGoalNotification(change, config) {
+function sessionTitle(session) {
+  if (session === undefined) return undefined;
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    if (event.type !== "session/title") continue;
+    const title = event.data?.title;
+    if (typeof title === "string" && title.trim() !== "") return title.trim();
+  }
+  return undefined;
+}
+
+function compactText(value) {
+  return typeof value === "string" ? value.replace(/\s+/gu, " ").trim() : "";
+}
+
+function notificationBody(session, lines, config) {
+  const content = [];
+  if (session !== undefined) content.push(`会话：${sessionTitle(session) ?? "未命名会话"}`);
+  content.push(...lines.filter((line) => typeof line === "string" && line.trim() !== ""));
+  return truncate(content.join("\n"), config.maxBodyChars);
+}
+
+function assistantSummary(session, turn) {
+  if (session === undefined) return undefined;
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    if (event.type !== "assistant/message" || event.data?.turn !== turn) continue;
+    const blocks = event.data.message?.content ?? event.data.content;
+    if (!Array.isArray(blocks)) continue;
+    const text = compactText(blocks
+      .filter((block) => block?.type === "text")
+      .map((block) => block.text)
+      .filter((value) => typeof value === "string")
+      .join("\n"));
+    if (text !== "") return text;
+  }
+  return undefined;
+}
+
+function renderGoalNotification(change, config, session) {
   if (!config.enabled) return undefined;
   if (change.operation === "complete") {
     if (!config.notifyComplete) return undefined;
     const objective = change.goal?.objective ?? `Goal ${change.ref.id}`;
-    return { title: config.completeTitle, body: truncate(objective, config.maxBodyChars) };
+    return {
+      title: config.completeTitle,
+      body: notificationBody(session, ["状态：目标已完成", `目标：${objective}`], config),
+    };
   }
   if (change.operation === "block") {
     if (!config.notifyBlocked) return undefined;
     const objective = change.goal?.objective ?? `Goal ${change.ref.id}`;
     const reason = change.goal?.blockedReason?.message;
-    const body = reason === undefined ? objective : `${objective}\n\n阻塞原因：${reason}`;
-    return { title: config.blockedTitle, body: truncate(body, config.maxBodyChars) };
+    return {
+      title: config.blockedTitle,
+      body: notificationBody(session, [
+        "状态：目标被阻塞",
+        `目标：${objective}`,
+        reason === undefined ? "原因：未提供，点击查看会话" : `原因：${reason}`,
+      ], config),
+    };
   }
   return undefined;
 }
@@ -137,29 +204,116 @@ function firstQuestion(argumentsJson) {
   return undefined;
 }
 
-function renderSessionNotification(event, config) {
-  if (!config.enabled) return undefined;
-  if (event.type === "turn/end" && event.data.reason.kind === "completed") {
-    if (!config.notifyComplete) return undefined;
-    return { title: config.completeTitle, body: "回复已完成，点击查看" };
+function firstPlanLine(argumentsJson) {
+  try {
+    const parsed = JSON.parse(argumentsJson);
+    const plan = compactText(parsed?.plan);
+    if (plan === "") return undefined;
+    return plan.replace(/^#+\s*/u, "");
+  } catch {
+    return undefined;
   }
-  if (event.type === "turn/end" && event.data.reason.kind === "blocked") {
-    if (!config.notifyBlocked) return undefined;
-    return { title: config.blockedTitle, body: "本轮处理被阻塞，点击查看" };
+}
+
+function renderSessionNotification(event, config, session) {
+  if (!config.enabled) return undefined;
+  if (event.type === "turn/end") {
+    const { reason, turn } = event.data;
+    const summary = assistantSummary(session, turn);
+    if (reason.kind === "completed") {
+      if (!config.notifyComplete) return undefined;
+      return {
+        title: config.completeTitle,
+        body: notificationBody(session, [
+          "状态：回复已完成",
+          summary === undefined ? "说明：点击查看完整回复" : `回复摘要：${summary}`,
+        ], config),
+      };
+    }
+    if (reason.kind === "blocked") {
+      if (!config.notifyBlocked) return undefined;
+      return {
+        title: config.blockedTitle,
+        body: notificationBody(session, [
+          "状态：本轮处理被阻塞",
+          summary === undefined ? "说明：点击查看阻塞原因" : `最后说明：${summary}`,
+        ], config),
+      };
+    }
+    if (reason.kind === "error") {
+      if (!config.notifyFailure) return undefined;
+      const code = compactText(reason.error?.code);
+      const message = compactText(reason.error?.message) || "未知错误";
+      return {
+        title: config.errorTitle,
+        body: notificationBody(session, [
+          "状态：运行失败",
+          `错误：${code === "" ? "" : `[${code}] `}${message}`,
+        ], config),
+      };
+    }
+    if (reason.kind === "max-tokens") {
+      if (!config.notifyFailure) return undefined;
+      return {
+        title: config.maxTokensTitle,
+        body: notificationBody(session, [
+          "状态：输出达到 token 上限，回复可能不完整",
+          summary === undefined ? "说明：点击查看并继续会话" : `最后内容：${summary}`,
+        ], config),
+      };
+    }
+    if (reason.kind === "interrupted") {
+      if (!config.notifyFailure) return undefined;
+      return {
+        title: config.interruptedTitle,
+        body: notificationBody(session, [
+          "状态：上一轮未正常结束",
+          "说明：DSH 恢复会话时发现异常中断，请点击查看",
+        ], config),
+      };
+    }
+    if (reason.kind === "aborted" && reason.reason?.kind === "hook") {
+      if (!config.notifyFailure) return undefined;
+      return {
+        title: config.stoppedTitle,
+        body: notificationBody(session, [
+          "状态：会话被系统停止",
+          `原因：${compactText(reason.reason.reason) || "未提供"}`,
+        ], config),
+      };
+    }
+    return undefined;
   }
   if (!config.notifyConfirm) return undefined;
   if (event.type === "approval/asked") {
     const detail = typeof event.data.reason === "string" && event.data.reason.trim() !== ""
       ? event.data.reason.trim()
-      : `工具 ${event.data.toolName} 正在等待确认`;
-    return { title: config.confirmTitle, body: truncate(detail, config.maxBodyChars) };
+      : "该操作需要你授权后才能继续";
+    return {
+      title: config.confirmTitle,
+      body: notificationBody(session, [
+        "状态：等待工具授权",
+        `工具：${event.data.toolName}`,
+        `原因：${detail}`,
+      ], config),
+    };
   }
   if (event.type === "tool/call" && event.data.name === "ask_user_question") {
     const detail = firstQuestion(event.data.arguments) ?? "会话正在等待你的回答";
-    return { title: config.confirmTitle, body: truncate(detail, config.maxBodyChars) };
+    return {
+      title: config.confirmTitle,
+      body: notificationBody(session, ["状态：等待你回答", `问题：${detail}`], config),
+    };
   }
   if (event.type === "tool/call" && event.data.name === "exit_plan_mode") {
-    return { title: config.confirmTitle, body: "计划已准备好，等待你确认" };
+    const summary = firstPlanLine(event.data.arguments);
+    return {
+      title: config.confirmTitle,
+      body: notificationBody(session, [
+        "状态：计划已准备好，等待你确认",
+        summary === undefined ? undefined : `计划摘要：${summary}`,
+      ], config),
+    };
   }
   return undefined;
 }
@@ -168,6 +322,10 @@ function sessionEventNotificationKind(event) {
   if (event.type === "turn/end") {
     if (event.data.reason.kind === "completed") return "complete";
     if (event.data.reason.kind === "blocked") return "block";
+    if (event.data.reason.kind === "max-tokens") return "max-tokens";
+    if (event.data.reason.kind === "interrupted") return "interrupted";
+    if (event.data.reason.kind === "aborted") return "stopped";
+    if (event.data.reason.kind === "error") return "error";
   }
   return "confirm";
 }
@@ -181,8 +339,8 @@ function activeTurn(session) {
   return undefined;
 }
 
-function turnNotificationKey(session, turn, kind) {
-  return `${session.id}:${turn}:${kind}`;
+function turnNotificationKey(session, turn) {
+  return `${session.id}:${turn}`;
 }
 
 function subagentMode(session) {
@@ -272,7 +430,7 @@ function apply(ctx, config = {}) {
   const resolved = resolveConfig(config);
   let stopped = false;
   let queue = Promise.resolve();
-  const notifiedGoalTurns = new Set();
+  const pendingGoalTurns = new Map();
 
   const enqueue = (kind, session, notification, detail) => {
     if (notification === undefined || stopped) return;
@@ -291,27 +449,39 @@ function apply(ctx, config = {}) {
   };
 
   const stopGoals = ctx.on("goal/changed", ({ agent, change }) => {
-    const notification = renderGoalNotification(change, resolved);
+    const notification = renderGoalNotification(change, resolved, agent.session);
     if (notification !== undefined) {
       const turn = activeTurn(agent.session);
-      const reasonKind = change.operation === "complete"
-        ? "completed"
-        : change.operation === "block" ? "blocked" : undefined;
-      if (turn !== undefined && reasonKind !== undefined) {
-        notifiedGoalTurns.add(turnNotificationKey(agent.session, turn, reasonKind));
+      if (turn !== undefined && (change.operation === "complete" || change.operation === "block")) {
+        const key = turnNotificationKey(agent.session, turn);
+        const previous = pendingGoalTurns.get(key);
+        // A blocked goal is more actionable than a completed sibling goal.
+        if (previous === undefined || change.operation === "block") {
+          pendingGoalTurns.set(key, {
+            kind: change.operation,
+            notification,
+            detail: `goal "${change.ref.id}"`,
+          });
+        }
+        return;
       }
     }
     enqueue(change.operation, agent.session, notification, `goal "${change.ref.id}"`);
   }, { global: true });
   const stopSessionEvents = ctx.on("session/event", (session, event) => {
     if (event.type === "turn/end") {
-      const key = turnNotificationKey(session, event.data.turn, event.data.reason.kind);
-      const alreadyNotified = notifiedGoalTurns.delete(key);
-      const prefix = `${session.id}:${event.data.turn}:`;
-      for (const pendingKey of notifiedGoalTurns) {
-        if (pendingKey.startsWith(prefix)) notifiedGoalTurns.delete(pendingKey);
+      const key = turnNotificationKey(session, event.data.turn);
+      const pendingGoal = pendingGoalTurns.get(key);
+      pendingGoalTurns.delete(key);
+      const reasonKind = event.data.reason.kind;
+      const pendingMatchesOutcome = pendingGoal !== undefined && (
+        (pendingGoal.kind === "complete" && reasonKind === "completed")
+        || (pendingGoal.kind === "block" && (reasonKind === "completed" || reasonKind === "blocked"))
+      );
+      if (pendingMatchesOutcome) {
+        enqueue(pendingGoal.kind, session, pendingGoal.notification, pendingGoal.detail);
+        return;
       }
-      if (alreadyNotified) return;
       // A root turn corresponds to a user-visible reply. Subagent turns can be
       // numerous; their explicit goal and confirmation notifications remain.
       if (session.header?.origin === "subagent") return;
@@ -319,7 +489,7 @@ function apply(ctx, config = {}) {
     enqueue(
       sessionEventNotificationKind(event),
       session,
-      renderSessionNotification(event, resolved),
+      renderSessionNotification(event, resolved, session),
       `event "${event.type}"`,
     );
   }, { global: true });
@@ -344,7 +514,10 @@ export {
   renderSessionNotification,
   resolveConfig,
   runNotifier,
+  assistantSummary,
+  notificationBody,
   sessionEventNotificationKind,
+  sessionTitle,
   subagentMode,
   truncate,
 };

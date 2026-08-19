@@ -6,15 +6,25 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 默认发送以下通知：
 
-- 根会话 `turn/end completed`：一轮普通回复已完成，无需创建 goal。
-- `goal/changed complete`：显式目标已完成；与同一 turn 的普通完成通知自动去重。
-- `goal/changed block`：目标被阻塞，并附带阻塞原因。
-- 根会话 `turn/end blocked`：未创建 goal 时的本轮处理被阻塞。
-- `approval/asked`：工具权限正在等待确认。
-- `ask_user_question`：会话正在等待回答。
-- `exit_plan_mode`：计划正在等待确认。
+| 情况 | 事件 | 通知内容 |
+| --- | --- | --- |
+| 普通回复完成 | 根会话 `turn/end completed` | 会话标题、完成状态、最后一条 assistant 可见文本摘要 |
+| 显式目标完成 | `goal/changed complete` | 会话标题和目标内容 |
+| 显式目标阻塞 | `goal/changed block` | 会话标题、目标和阻塞原因 |
+| 本轮阻塞 | 根会话 `turn/end blocked` | 会话标题、阻塞状态和最后可见说明 |
+| 等待工具授权 | `approval/asked` | 会话标题、工具名和授权原因 |
+| 等待用户回答 | `ask_user_question` | 会话标题和第一个问题 |
+| 等待计划确认 | `exit_plan_mode` | 会话标题和计划摘要 |
+| 运行失败 | `turn/end error` | 会话标题、错误代码和错误消息 |
+| 输出超限 | `turn/end max-tokens` | 会话标题、截断说明和最后可见内容 |
+| 异常中断 | `turn/end interrupted` | 会话标题和恢复时发现的中断说明 |
+| 系统钩子停止 | `turn/end aborted` + `hook` | 会话标题和停止原因 |
 
-普通完成通知只显示通用状态；其他通知正文只包含目标、阻塞原因或确认提示。通知 URL 只包含 session 标识；不会放入 API key、VLESS 凭据、设置或完整对话内容。
+用户主动取消、父代取消子代理、正常服务关闭不发通知。根会话的终止状态才发通用通知，避免多个 subagent 完成时刷屏；subagent 内真正需要用户处理的授权、问题、计划和显式 goal 通知仍保留。
+
+通知中的回复摘要只提取 assistant 最终可见的 `text` 块，不提取 reasoning、工具参数、API key、VLESS 凭据或设置。正文受 `maxBodyChars` 限制。通知 URL 只包含 session 标识。
+
+显式 goal 的完成或阻塞先缓存到当前 turn，等 `turn/end` 后再发送。同一 turn 只发一条结果通知；如果 turn 最终为错误、超限或中断，优先报告真实终止原因。
 
 ## 点击行为
 
@@ -62,11 +72,16 @@ uikittools
     notifyComplete: true
     notifyBlocked: true
     notifyConfirm: false
+    notifyFailure: true
     browserBaseUrl: http://127.0.0.1:3080/
     bundleId: ai.deepseek.dsh
     completeTitle: DSH 回复已完成
     blockedTitle: DSH 会话被阻塞
     confirmTitle: DSH 等待确认
+    errorTitle: DSH 运行失败
+    maxTokensTitle: DSH 输出已截断
+    interruptedTitle: DSH 会话异常中断
+    stoppedTitle: DSH 会话已停止
     maxBodyChars: 800
     logSuccess: true
 ```
