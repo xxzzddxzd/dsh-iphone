@@ -137,6 +137,8 @@ try {
 
 if (pluginAvailable) {
   const {
+    apply,
+    activeTurn,
     navigationUrl,
     renderGoalNotification,
     renderSessionNotification,
@@ -151,7 +153,26 @@ if (pluginAvailable) {
     operation: "complete",
     ref: { id: "g1" },
     goal: { objective: "完成通知链路" },
-  }, config), { title: "DSH 目标已完成", body: "完成通知链路" });
+  }, config), { title: "DSH 回复已完成", body: "完成通知链路" });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "completed" } },
+  }, config), { title: "DSH 回复已完成", body: "回复已完成，点击查看" });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "completed" } },
+  }, resolveConfig({ notifyConfirm: false })), {
+    title: "DSH 回复已完成",
+    body: "回复已完成，点击查看",
+  });
+  assert.deepEqual(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 2, reason: { kind: "blocked" } },
+  }, config), { title: "DSH 会话被阻塞", body: "本轮处理被阻塞，点击查看" });
+  assert.equal(renderSessionNotification({
+    type: "turn/end",
+    data: { turn: 3, reason: { kind: "aborted", reason: { kind: "user" } } },
+  }, config), undefined);
   assert.deepEqual(renderSessionNotification({
     type: "approval/asked",
     data: { toolName: "bash", reason: "需要允许部署" },
@@ -165,6 +186,22 @@ if (pluginAvailable) {
   }, config), { title: "DSH 等待确认", body: "使用哪个出口？" });
 
   const rootSession = { id: "session-root", header: {}, events: [] };
+  assert.equal(activeTurn(rootSession), undefined);
+  assert.equal(activeTurn({
+    ...rootSession,
+    events: [
+      { type: "turn/end", data: { turn: 3, reason: { kind: "completed" } } },
+      { type: "turn/start", data: { turn: 4 } },
+      { type: "assistant/message", data: {} },
+    ],
+  }), 4);
+  assert.equal(activeTurn({
+    ...rootSession,
+    events: [
+      { type: "turn/start", data: { turn: 4 } },
+      { type: "turn/end", data: { turn: 4, reason: { kind: "completed" } } },
+    ],
+  }), undefined);
   assert.equal(navigationUrl(rootSession, config), "http://127.0.0.1:3080/?session=session-root");
   const childSession = {
     id: "child-1",
@@ -196,6 +233,64 @@ if (pluginAvailable) {
   const urlIndex = request.argv.indexOf("--url");
   assert.ok(urlIndex > 0);
   assert.equal(request.argv[urlIndex + 1], "http://127.0.0.1:3080/?session=session-root");
+
+  const handlers = new Map();
+  const notifierRequests = [];
+  let disposeNotifier;
+  const notifierCtx = {
+    on(eventName, callback) {
+      handlers.set(eventName, callback);
+      return () => handlers.delete(eventName);
+    },
+    effect(register) {
+      disposeNotifier = register();
+    },
+    logger: { info() {}, warn() {} },
+    subprocess: {
+      spawn(value) {
+        notifierRequests.push(value);
+        return {
+          done: Promise.resolve({ exitCode: 0, signal: null }),
+          collected: { stdout: stream("notification sent"), stderr: stream("") },
+        };
+      },
+    },
+  };
+  apply(notifierCtx, { logSuccess: false });
+
+  handlers.get("session/event")(rootSession, {
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "completed" } },
+  });
+  handlers.get("session/event")(childSession, {
+    type: "turn/end",
+    data: { turn: 1, reason: { kind: "completed" } },
+  });
+
+  const goalSession = {
+    id: "session-goal",
+    header: {},
+    events: [{ type: "turn/start", data: { turn: 5 } }],
+  };
+  handlers.get("goal/changed")({
+    agent: { session: goalSession },
+    change: {
+      operation: "complete",
+      ref: { id: "g5" },
+      goal: { objective: "只应通知一次" },
+    },
+  });
+  handlers.get("session/event")(goalSession, {
+    type: "turn/end",
+    data: { turn: 5, reason: { kind: "completed" } },
+  });
+
+  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+  assert.equal(notifierRequests.length, 2);
+  assert.equal(notifierRequests[0].argv.at(-2), "DSH 回复已完成");
+  assert.equal(notifierRequests[0].argv.at(-1), "回复已完成，点击查看");
+  assert.equal(notifierRequests[1].argv.at(-1), "只应通知一次");
+  await disposeNotifier();
 } else {
   const source = await readFile(new URL("../ios/notifications/dsh-ios-notifier.mjs", import.meta.url), "utf8");
   assert.match(source, /action|navigationUrl/);

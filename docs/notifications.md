@@ -6,13 +6,15 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 默认发送以下通知：
 
-- `goal/changed complete`：目标已完成。
+- 根会话 `turn/end completed`：一轮普通回复已完成，无需创建 goal。
+- `goal/changed complete`：显式目标已完成；与同一 turn 的普通完成通知自动去重。
 - `goal/changed block`：目标被阻塞，并附带阻塞原因。
+- 根会话 `turn/end blocked`：未创建 goal 时的本轮处理被阻塞。
 - `approval/asked`：工具权限正在等待确认。
 - `ask_user_question`：会话正在等待回答。
 - `exit_plan_mode`：计划正在等待确认。
 
-通知正文只包含目标、阻塞原因或确认提示。通知 URL 只包含 session 标识；不会放入 API key、VLESS 凭据、设置或完整对话内容。
+普通完成通知只显示通用状态；其他通知正文只包含目标、阻塞原因或确认提示。通知 URL 只包含 session 标识；不会放入 API key、VLESS 凭据、设置或完整对话内容。
 
 ## 点击行为
 
@@ -62,8 +64,8 @@ uikittools
     notifyConfirm: false
     browserBaseUrl: http://127.0.0.1:3080/
     bundleId: ai.deepseek.dsh
-    completeTitle: DSH 目标已完成
-    blockedTitle: DSH 目标被阻塞
+    completeTitle: DSH 回复已完成
+    blockedTitle: DSH 会话被阻塞
     confirmTitle: DSH 等待确认
     maxBodyChars: 800
     logSuccess: true
