@@ -1,8 +1,15 @@
 diff --git a/packages/client/ui-layout/src/client/AppFrame.module.css b/packages/client/ui-layout/src/client/AppFrame.module.css
-index ae56780133..09041ea111 100644
+index ae56780133..857a5b31f1 100644
 --- a/packages/client/ui-layout/src/client/AppFrame.module.css
 +++ b/packages/client/ui-layout/src/client/AppFrame.module.css
-@@ -29,6 +29,10 @@
+@@ -23,13 +23,19 @@
+ }
+ 
+ .sidebarCol {
++  grid-column: 1;
+   min-width: 0;
+   overflow: hidden;
+   background: var(--dsw-specific-sidebar-fill);
    border-right: 1px solid var(--dsw-alias-border-l1);
  }
  
@@ -11,9 +18,19 @@ index ae56780133..09041ea111 100644
 +}
 +
  .centerCol {
++  grid-column: 2;
    min-width: 0;
    display: flex;
-@@ -117,3 +121,51 @@
+   flex-direction: column;
+@@ -37,6 +43,7 @@
+ }
+ 
+ .detailsCol {
++  grid-column: 3;
+   min-width: 0;
+   overflow: hidden;
+   border-left: 1px solid var(--dsw-alias-border-l2);
+@@ -117,3 +124,51 @@
  .overlayLayer > * {
    pointer-events: auto;
  }
@@ -908,3 +925,39 @@ index 19e7a54380..daa793df65 100644
 +    expect(css).toMatch(/\.collapsed \.settingsArea\s*\{\s*margin-top: auto;/)
 +  })
  })
+diff --git a/packages/client/ui-layout/tests/app-frame-styles.client.spec.ts b/packages/client/ui-layout/tests/app-frame-styles.client.spec.ts
+new file mode 100644
+index 0000000000..e47d21e986
+--- /dev/null
++++ b/packages/client/ui-layout/tests/app-frame-styles.client.spec.ts
+@@ -0,0 +1,30 @@
++/** Structural CSS contracts for the AppFrame grid and floating narrow shell. */
++import { readFileSync } from 'node:fs'
++import { fileURLToPath } from 'node:url'
++import { describe, expect, it } from 'vitest'
++
++const css = readFileSync(
++  fileURLToPath(new URL('../src/client/AppFrame.module.css', import.meta.url)),
++  'utf8',
++)
++
++function declaration(selector: string, property: string): string | undefined {
++  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, ' ')
++  for (const [, selectorList = '', body = ''] of withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
++    if (!selectorList.split(',').map(value => value.trim()).includes(selector)) continue
++    for (const part of body.split(';')) {
++      const colon = part.indexOf(':')
++      if (colon === -1) continue
++      if (part.slice(0, colon).trim() === property) return part.slice(colon + 1).trim()
++    }
++  }
++  return undefined
++}
++
++describe('AppFrame.module.css', () => {
++  it('pins all content columns so an absolute floating sidebar cannot shift the conversation', () => {
++    expect(declaration('.sidebarCol', 'grid-column')).toBe('1')
++    expect(declaration('.centerCol', 'grid-column')).toBe('2')
++    expect(declaration('.detailsCol', 'grid-column')).toBe('3')
++  })
++})

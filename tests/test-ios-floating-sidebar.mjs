@@ -23,6 +23,12 @@ assert.ok(layout.includes('event.key === "Escape"'), "Escape-to-close behavior i
 assert.ok(layout.includes("narrow ? 0 : cols.sidebar"), "narrow layout still reserves sidebar width");
 assert.ok(layout.includes("@media (width<=1023px)"), "narrow layout media query is missing");
 assert.ok(layout.includes("position:absolute"), "floating sidebar positioning is missing");
+for (const column of [1, 2, 3]) {
+  assert.ok(
+    layout.includes(`grid-column:${column}`),
+    `explicit grid placement for column ${column} is missing`,
+  );
+}
 
 assert.ok(sidebar.includes("primaryArea"), "upper function group is missing");
 assert.ok(sidebar.includes("settingsArea"), "independent Settings group is missing");
