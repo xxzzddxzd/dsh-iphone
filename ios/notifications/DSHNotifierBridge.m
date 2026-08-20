@@ -47,6 +47,10 @@ static void DSHSendVoidBool(id target, SEL selector, BOOL value) {
   ((void (*)(id, SEL, BOOL))objc_msgSend)(target, selector, value);
 }
 
+static void DSHSendVoidBoolIdBool(id target, SEL selector, BOOL first, id second, BOOL third) {
+  ((void (*)(id, SEL, BOOL, id, BOOL))objc_msgSend)(target, selector, first, second, third);
+}
+
 static void DSHSendVoidInteger(id target, SEL selector, NSInteger value) {
   ((void (*)(id, SEL, NSInteger))objc_msgSend)(target, selector, value);
 }
@@ -260,8 +264,68 @@ static void DSHRemoveBulletin(id bulletin) {
   });
 }
 
+static void DSHDismissPresentedBanner(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    @try {
+      Class applicationClass = objc_getClass("UIApplication");
+      SEL sharedApplicationSelector = sel_registerName("sharedApplication");
+      if (applicationClass == Nil ||
+          ![applicationClass respondsToSelector:sharedApplicationSelector]) {
+        NSLog(@"[DSHNotifier] cannot dismiss banner: UIApplication is unavailable");
+        return;
+      }
+
+      id application = DSHSendId(applicationClass, sharedApplicationSelector);
+      SEL dispatcherSelector = sel_registerName("notificationDispatcher");
+      if (application == nil || ![application respondsToSelector:dispatcherSelector]) {
+        NSLog(@"[DSHNotifier] cannot dismiss banner: notification dispatcher is unavailable");
+        return;
+      }
+
+      id dispatcher = DSHSendId(application, dispatcherSelector);
+      SEL destinationSelector = sel_registerName("bannerDestination");
+      if (dispatcher == nil || ![dispatcher respondsToSelector:destinationSelector]) {
+        NSLog(@"[DSHNotifier] cannot dismiss banner: banner destination is unavailable");
+        return;
+      }
+
+      id destination = DSHSendId(dispatcher, destinationSelector);
+      SEL presentedBannerSelector = sel_registerName("presentedBanner");
+      if (destination == nil || ![destination respondsToSelector:presentedBannerSelector]) return;
+      id presentedBanner = DSHSendId(destination, presentedBannerSelector);
+      SEL notificationRequestSelector = sel_registerName("notificationRequest");
+      if (presentedBanner == nil ||
+          ![presentedBanner respondsToSelector:notificationRequestSelector]) return;
+      id request = DSHSendId(presentedBanner, notificationRequestSelector);
+      SEL bulletinSelector = sel_registerName("bulletin");
+      if (request == nil || ![request respondsToSelector:bulletinSelector]) return;
+      id bulletin = DSHSendId(request, bulletinSelector);
+      id publisherID = DSHSendId(bulletin, sel_registerName("publisherBulletinID"));
+      if (![publisherID isKindOfClass:[NSString class]] ||
+          ![(NSString *)publisherID hasPrefix:DSHPublisherPrefix]) return;
+
+      SEL dismissSelector =
+          sel_registerName("_dismissPresentedBannerAnimated:reason:forceIfSticky:");
+      if (![destination respondsToSelector:dismissSelector]) {
+        NSLog(@"[DSHNotifier] cannot dismiss banner: dismissal selector is unavailable");
+        return;
+      }
+      DSHSendVoidBoolIdBool(
+          destination,
+          dismissSelector,
+          YES,
+          @"dsh-notifier-action",
+          YES);
+      NSLog(@"[DSHNotifier] requested immediate banner dismissal for %@", publisherID);
+    } @catch (NSException *exception) {
+      NSLog(@"[DSHNotifier] banner dismissal failed: %@", exception);
+    }
+  });
+}
+
 static id DSHResponseForAction(id bulletin, SEL selector, id action) {
   BOOL handled = NO;
+  BOOL useNativeResponse = NO;
   @try {
     id publisherID = DSHSendId(bulletin, sel_registerName("publisherBulletinID"));
     if ([publisherID isKindOfClass:[NSString class]] &&
@@ -271,18 +335,33 @@ static id DSHResponseForAction(id bulletin, SEL selector, id action) {
       NSURL *url = token == nil ? DSHActionLaunchURL(bulletin, action) : nil;
       NSLog(@"[DSHNotifier] received notification action for %@: %@",
             publisherID, token == nil ? url : @"approval callback");
-      DSHForgetBulletin(bulletin);
-      DSHRemoveBulletin(bulletin);
-      if (token != nil) DSHSendActionCallback(token);
-      else if (url != nil) DSHOpenURLInDefaultBrowser(url);
+      if (token != nil) {
+        // Keep the tracked bulletin until DSH has accepted the answer. The
+        // action server then sends a protocol-v2 dismiss for this stable ID.
+        // Forgetting it here makes that confirmed dismissal a no-op and leaves
+        // the card in Notification Center even though the tool is running.
+        // Return BulletinBoard's native response below so the action's
+        // shouldDismissBulletin flag handles the durable notification entry.
+        // SpringBoard's currently presented long-look banner has a separate
+        // lifecycle, so close that matching DSH presentation on the next main
+        // run-loop turn after returning the native response.
+        useNativeResponse = YES;
+        DSHSendActionCallback(token);
+        DSHDismissPresentedBanner();
+      } else if (url != nil) {
+        DSHForgetBulletin(bulletin);
+        DSHRemoveBulletin(bulletin);
+        DSHOpenURLInDefaultBrowser(url);
+      }
     }
   } @catch (NSException *exception) {
     NSLog(@"[DSHNotifier] notification action failed: %@", exception);
   }
-  // BulletinBoard's original response path waits roughly ten seconds before
-  // resolving launchURL for these synthetic bulletins. DSH has already handed
-  // its validated URL to the default handler, so do not enter that path.
-  if (handled) return nil;
+  // BulletinBoard's original URL response path waits roughly ten seconds for
+  // these synthetic bulletins. Bypass it only for the default URL action,
+  // which DSH has already handed to uiopen. Supplementary approval actions
+  // must return the native response so shouldDismissBulletin takes effect.
+  if (handled && !useNativeResponse) return nil;
   return DSHOriginalResponseForAction == NULL
       ? nil
       : DSHOriginalResponseForAction(bulletin, selector, action);
@@ -434,7 +513,12 @@ static void DSHDismissPayload(NSDictionary *payload) {
   }
   dispatch_async(dispatch_get_main_queue(), ^{
     id bulletin = DSHTakeBulletin(notificationID);
-    if (bulletin != nil) DSHRemoveBulletin(bulletin);
+    if (bulletin != nil) {
+      DSHRemoveBulletin(bulletin);
+      NSLog(@"[DSHNotifier] queued confirmed dismissal for %@", notificationID);
+    } else {
+      NSLog(@"[DSHNotifier] confirmed dismissal had no tracked bulletin for %@", notificationID);
+    }
   });
 }
 

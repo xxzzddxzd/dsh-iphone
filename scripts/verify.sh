@@ -47,7 +47,8 @@ if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios-floating-sidebar.mjs" \
     "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js" \
     "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/client.js" \
-    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js"
+    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js" \
+    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js"
   node "$ROOT/scripts/patch-dsh.mjs" --root "$ROOT/build/dsh-runtime" --check
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js')"
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-sandbox-windows-acl/lib/index.js')"

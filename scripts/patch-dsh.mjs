@@ -207,12 +207,14 @@ await replaceExactlyOnce(
 );
 
 const mimeTail = '\t".webmanifest": "application/manifest+json"\n};';
-const indexHeaders = `${mimeTail}\nconst INDEX_HEADERS = {\n\t"content-type": MIME[".html"],\n\t"cache-control": "no-store, no-cache, must-revalidate, max-age=0",\n\tpragma: "no-cache",\n\texpires: "0"\n};`;
+const mimeTailWithPng =
+  '\t".webmanifest": "application/manifest+json",\n\t".png": "image/png"\n};';
+const indexHeaders = `${mimeTailWithPng}\nconst INDEX_HEADERS = {\n\t"content-type": MIME[".html"],\n\t"cache-control": "no-store, no-cache, must-revalidate, max-age=0",\n\tpragma: "no-cache",\n\texpires: "0"\n};`;
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js",
   mimeTail,
   indexHeaders,
-  "frontend HTML cache headers",
+  "frontend HTML cache headers and PNG MIME",
 );
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js",
@@ -234,7 +236,7 @@ await replaceExactlyOnce(
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js",
   'from"./vendor-Cjbwl5VI.js"',
-  'from"./vendor-Cjbwl5VI.js?ioscompat=7"',
+  'from"./vendor-Cjbwl5VI.js?ioscompat=8"',
   "frontend vendor cache key",
 );
 await installExactFile(
@@ -254,6 +256,22 @@ await installExactFile(
   resolve(repositoryRoot, "web/plugins/ui-conversation-client.js"),
   "0980922f58332dea0ff18079d2da728f7a81136079babf0278776d6897a45d80",
   "iOS mobile conversation header plugin",
+);
+
+const settingsShellCssTail =
+  ".VOzbGW_hiddenLabel{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}";
+const narrowSettingsCss =
+  "@media (max-width:680px){.VOzbGW_overlay{box-sizing:border-box;align-items:stretch;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}.VOzbGW_panel{width:100%;max-width:none;height:100%;border-radius:18px;flex-direction:column}.VOzbGW_nav{width:100%;gap:10px;padding:12px 12px 10px;border-bottom:1px solid var(--dsw-alias-border-l2)}.VOzbGW_navTitle{padding:0 48px 0 4px;font-size:18px;line-height:28px}.VOzbGW_navList{flex-direction:row;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}.VOzbGW_navList::-webkit-scrollbar{display:none}.VOzbGW_navCell{flex:none;height:44px;padding:10px 12px;border-radius:10px}.VOzbGW_content{min-height:0}.VOzbGW_header{height:44px;align-items:center;padding:8px 12px 4px}.VOzbGW_actions{justify-content:flex-start;width:100%;margin-left:0}.VOzbGW_close{position:absolute;top:4px;right:6px;width:44px;height:44px}.VOzbGW_options{padding:4px 12px 16px;overscroll-behavior:contain}}@media (max-width:390px){.VOzbGW_options [data-slot='settings.general.item']>[class$='_row']{align-items:stretch;flex-direction:column;gap:10px}.VOzbGW_options [data-slot='settings.general.item']>[class$='_row']>[class$='_rowText']{padding-right:0}.VOzbGW_options [data-slot='settings.general.item']>[class$='_row']>:last-child{align-self:flex-start}}";
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js",
+  settingsShellCssTail,
+  `${settingsShellCssTail}${narrowSettingsCss}`,
+  "iOS narrow Settings layout",
+);
+await installNewFile(
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/apple-touch-icon.png",
+  resolve(repositoryRoot, "web/apple-touch-icon.png"),
+  "iOS Home Screen icon",
 );
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",

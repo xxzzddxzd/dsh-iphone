@@ -398,16 +398,9 @@ function renderSessionNotification(event, config, session) {
   }
   if (!config.notifyConfirm) return undefined;
   if (event.type === "approval/asked") {
-    const detail = typeof event.data.reason === "string" && event.data.reason.trim() !== ""
-      ? event.data.reason.trim()
-      : "该操作需要你授权后才能继续";
     return {
-      title: config.confirmTitle,
-      body: notificationBody(session, [
-        "状态：等待工具授权",
-        `工具：${event.data.toolName}`,
-        `原因：${detail}`,
-      ], config),
+      title: approvalNotificationTitle(session),
+      body: approvalNotificationBody(event.data, session, config),
     };
   }
   if (event.type === "tool/call" && event.data.name === "ask_user_question") {
@@ -560,18 +553,35 @@ function notificationIdForApproval(approvalId) {
   return `approval-${safe}`;
 }
 
+function approvalNotificationTitle(session) {
+  return `${sessionTitle(session) ?? "未命名会话"} · 请求确认`;
+}
+
+function approvalCommand(session, callId) {
+  if (!Array.isArray(session?.events)) return undefined;
+  const call = findToolCall(session, callId);
+  if (call === undefined) return undefined;
+  const args = parseToolArguments(call.data?.arguments);
+  const command = args.command ?? args.cmd;
+  if (typeof command !== "string") return undefined;
+  const normalized = command.replace(/\r\n?/gu, "\n").trim();
+  return normalized === "" ? undefined : normalized;
+}
+
+function approvalNotificationBody(approval, session, config) {
+  const command = approvalCommand(session, approval.callId);
+  const detail = command === undefined
+    ? `工具：${toolDisplayName(approval.toolName)}`
+    : `指令：${command}`;
+  return truncate(detail, config.maxBodyChars);
+}
+
 function renderApprovalNotification(frame, config, session, tokens) {
   if (!config.enabled || !config.notifyConfirm) return undefined;
-  const reason = compactText(frame.reason) || "该操作超出当前权限，需要你决定是否只放行这一次";
   return {
     id: notificationIdForApproval(frame.approvalId),
-    title: config.confirmTitle,
-    body: notificationBody(session, [
-      "状态：任务暂停，等待操作授权",
-      `权限：允许“${frame.toolName}”执行当前请求一次`,
-      `原因：${reason}`,
-      "操作：展开通知后选择“允许一次”或“拒绝”",
-    ], config),
+    title: approvalNotificationTitle(session),
+    body: approvalNotificationBody(frame, session, config),
     actions: [
       { title: "拒绝", token: tokens.reject, authenticationRequired: false },
       { title: "允许一次", token: tokens.allow, authenticationRequired: true },
@@ -734,7 +744,7 @@ function toolStatusDetail(name, status) {
 }
 
 function findToolCall(session, callId) {
-  if (typeof callId !== "string") return undefined;
+  if (typeof callId !== "string" || !Array.isArray(session?.events)) return undefined;
   for (let index = session.events.length - 1; index >= 0; index -= 1) {
     const event = session.events[index];
     if (event.type === "tool/call" && event.data?.callId === callId) return event;

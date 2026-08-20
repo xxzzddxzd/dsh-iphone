@@ -18,7 +18,7 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 | 情况 | 事件 | 通知内容与操作 |
 | --- | --- | --- |
-| 等待工具授权 | 官方 mux `approval/requested` | 会话、工具、原因，以及“拒绝”/“允许一次”按钮 |
+| 等待工具授权 | 官方 mux `approval/requested` | “会话标题 · 请求确认”、实际指令，以及“拒绝”/“允许一次”按钮 |
 | 普通回复完成 | 根会话 `turn/end completed` | 会话标题、完成状态、最后一条 assistant 可见文本摘要 |
 | 显式目标完成 | `goal/changed complete` | 会话标题和目标内容 |
 | 显式目标阻塞 | `goal/changed block` | 会话标题、目标和阻塞原因 |
@@ -32,7 +32,7 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 用户主动取消、父代取消子代理、正常服务关闭不发通知。根会话的终止状态才发通用通知，避免多个 subagent 完成时刷屏；subagent 内真正需要用户处理的问题、计划和显式 goal 通知仍保留。
 
-通知摘要只提取 assistant 最终可见的 `text` 块，不提取 reasoning、工具参数、API key、VLESS 凭据或设置。正文受 `maxBodyChars` 限制，点击 URL 只包含 session 标识。
+普通通知摘要只提取 assistant 最终可见的 `text` 块，不提取 reasoning、工具参数、API key、VLESS 凭据或设置。等待工具审批时是一个有意的例外：标题为“会话标题 · 请求确认”，正文按 `callId` 找到对应工具调用并显示 `指令：<command>`，让用户在允许或拒绝前看到实际命令；无法取得命令时只显示工具名，不再重复泛化的审批原因。正文仍受 `maxBodyChars` 限制，点击 URL 只包含 session 标识。若锁屏上不应显示命令，应在 iOS 通知设置中关闭锁屏预览。
 
 显式 goal 的完成或阻塞先缓存到当前 turn，等 `turn/end` 后再发送。同一 turn 只发一条结果通知；如果 turn 最终为错误、超限或中断，优先报告真实终止原因。
 
@@ -45,7 +45,7 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 每个按钮只携带独立生成的 24 字节随机令牌；session、approval id、rpcId 和结果只保存在 DSH 进程内，SpringBoard 不能用令牌自行选择其他结果。令牌只能使用一次、两小时后失效，重复、过期或未知令牌都 fail-closed。动作回调只通过权限为 `0600` 的本机 Unix socket `action.sock` 进入 DSH。
 
-收到官方 `approval/resolved`、按钮作答成功或令牌过期时，插件都会撤回对应通知。通知按钮不能代替其他交互：`ask_user_question` 和计划确认仍需点击通知进入会话完成。
+收到官方 `approval/resolved`、按钮作答成功或令牌过期时，插件都会撤回对应通知。点击“允许一次”或“拒绝”后，Bridge 把原生 `BBResponse` 交还 BulletinBoard，使 `shouldDismissBulletin` 处理持久通知记录；顶部展开横幅有独立生命周期，因此 Bridge 还会沿 SpringBoard 的 notification dispatcher 找到当前 banner，核对其 Bulletin 的 publisher ID 确实属于 DSH 后，只关闭这一张横幅。它不会调用关闭所有系统横幅的宽泛接口。同时保留对该 Bulletin 的追踪，直到 DSH 确认结果已被 `/api/respond` 接受，再按稳定通知 ID 清理通知中心记录。提交失败时不会执行确认后的记录清理。通知按钮不能代替其他交互：`ask_user_question` 和计划确认仍需点击通知进入会话完成。
 
 ## Live Activity
 

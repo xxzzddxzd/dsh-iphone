@@ -251,8 +251,28 @@ assert.match(bridgeSource, /responseForAction:/);
 assert.match(bridgeSource, /posix_spawn/);
 assert.match(bridgeSource, /\/var\/jb\/usr\/bin\/uiopen/);
 assert.match(bridgeSource, /method_setImplementation/);
-assert.match(bridgeSource, /if \(handled\) return nil/);
+assert.match(bridgeSource, /BOOL useNativeResponse = NO/);
+assert.match(bridgeSource, /useNativeResponse = YES;\s*DSHSendActionCallback\(token\)/);
+assert.match(bridgeSource, /DSHSendActionCallback\(token\);\s*DSHDismissPresentedBanner\(\)/);
+assert.match(bridgeSource, /if \(handled && !useNativeResponse\) return nil/);
 assert.match(bridgeSource, /DSHRemoveBulletin\(bulletin\)/);
+assert.match(bridgeSource, /sel_registerName\("notificationDispatcher"\)/);
+assert.match(bridgeSource, /sel_registerName\("bannerDestination"\)/);
+assert.match(bridgeSource, /sel_registerName\("presentedBanner"\)/);
+assert.match(bridgeSource, /sel_registerName\("notificationRequest"\)/);
+assert.match(bridgeSource, /sel_registerName\("bulletin"\)/);
+assert.match(bridgeSource, /_dismissPresentedBannerAnimated:reason:forceIfSticky:/);
+assert.match(bridgeSource, /publisherID hasPrefix:DSHPublisherPrefix/);
+assert.doesNotMatch(bridgeSource, /dismissAllBannersInAllWindowScenesAnimated/);
+assert.match(
+  bridgeSource,
+  /if \(token != nil\) \{[\s\S]*?DSHSendActionCallback\(token\);[\s\S]*?\} else if \(url != nil\) \{[\s\S]*?DSHForgetBulletin\(bulletin\);/,
+);
+assert.doesNotMatch(
+  bridgeSource,
+  /DSHForgetBulletin\(bulletin\);\s*DSHRemoveBulletin\(bulletin\);\s*if \(token != nil\)/,
+);
+assert.match(bridgeSource, /queued confirmed dismissal/);
 assert.match(bridgeSource, /setSupplementaryActionsByLayout:/);
 assert.match(bridgeSource, /setAuthenticationRequired:/);
 assert.match(bridgeSource, /DSHActionSocketPath/);
@@ -438,6 +458,17 @@ if (pluginAvailable) {
           },
         },
       },
+      {
+        type: "tool/call",
+        data: {
+          callId: "call-approval",
+          name: "bash",
+          arguments: JSON.stringify({
+            command: "neofetch --stdout",
+            description: "检查系统信息",
+          }),
+        },
+      },
     ],
   };
 
@@ -508,20 +539,36 @@ if (pluginAvailable) {
   }, config, detailedSession), undefined);
   assert.deepEqual(renderSessionNotification({
     type: "approval/asked",
-    data: { toolName: "bash", reason: "需要允许部署" },
+    data: { toolName: "bash", callId: "call-approval", reason: "需要允许部署" },
   }, config, detailedSession), {
-    title: "DSH 等待确认",
-    body: "会话：通知链路测试\n状态：等待工具授权\n工具：bash\n原因：需要允许部署",
+    title: "通知链路测试 · 请求确认",
+    body: "指令：neofetch --stdout",
   });
   assert.deepEqual(renderApprovalNotification({
     sessionId: "session-detailed",
     approvalId: "approval-1",
     toolName: "Bash",
+    callId: "call-approval",
     reason: "需要部署到手机",
   }, config, detailedSession, { allow: allowToken, reject: rejectToken }), {
     id: "approval-approval-1",
-    title: "DSH 等待确认",
-    body: "会话：通知链路测试\n状态：任务暂停，等待操作授权\n权限：允许“Bash”执行当前请求一次\n原因：需要部署到手机\n操作：展开通知后选择“允许一次”或“拒绝”",
+    title: "通知链路测试 · 请求确认",
+    body: "指令：neofetch --stdout",
+    actions: [
+      { title: "拒绝", token: rejectToken, authenticationRequired: false },
+      { title: "允许一次", token: allowToken, authenticationRequired: true },
+    ],
+  });
+  assert.deepEqual(renderApprovalNotification({
+    sessionId: "session-detailed",
+    approvalId: "approval-without-call",
+    toolName: "Bash",
+    callId: "call-missing",
+    reason: "这条原因不应显示",
+  }, config, detailedSession, { allow: allowToken, reject: rejectToken }), {
+    id: "approval-approval-without-call",
+    title: "通知链路测试 · 请求确认",
+    body: "工具：Bash",
     actions: [
       { title: "拒绝", token: rejectToken, authenticationRequired: false },
       { title: "允许一次", token: allowToken, authenticationRequired: true },
