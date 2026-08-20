@@ -234,7 +234,7 @@ await replaceExactlyOnce(
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js",
   'from"./vendor-Cjbwl5VI.js"',
-  'from"./vendor-Cjbwl5VI.js?ioscompat=6"',
+  'from"./vendor-Cjbwl5VI.js?ioscompat=7"',
   "frontend vendor cache key",
 );
 await installExactFile(

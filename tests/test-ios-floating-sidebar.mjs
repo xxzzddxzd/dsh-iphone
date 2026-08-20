@@ -27,7 +27,7 @@ assert.ok(layout.includes('"data-floating-sidebar"'), "floating layout marker is
 assert.ok(layout.includes("sidebarBackdrop"), "sidebar backdrop is missing");
 assert.ok(layout.includes('event.key === "Escape"'), "Escape-to-close behavior is missing");
 assert.ok(layout.includes("narrow ? 0 : cols.sidebar"), "narrow layout still reserves sidebar width");
-assert.ok(layout.includes("@media (width<=1023px)"), "narrow layout media query is missing");
+assert.ok(layout.includes("@media (max-width:1023px)"), "narrow layout media query is missing");
 assert.ok(layout.includes("position:absolute"), "floating sidebar positioning is missing");
 for (const column of [1, 2, 3]) {
   assert.ok(
@@ -44,11 +44,30 @@ assert.ok(
 );
 assert.equal(sidebar.includes("margin-top:auto"), false, "legacy bottom Settings floater remains");
 assert.ok(sidebar.includes("pointer-events:none"), "collapsed floating rail behavior is missing");
+assert.ok(
+  sidebar.includes("@media (max-width:1023px)"),
+  "mobile launcher media query is missing",
+);
 
-assert.ok(conversation.includes("@media (width<=1023px)"), "mobile header media query is missing");
+assert.ok(
+  conversation.includes("@media (max-width:1023px)"),
+  "mobile header media query is missing",
+);
 assert.ok(
   conversation.includes("padding-left:max(68px, calc(env(safe-area-inset-left) + 64px))"),
   "mobile header does not clear the whale launcher",
 );
+
+for (const [name, bundle] of [
+  ["layout", layout],
+  ["sidebar", sidebar],
+  ["conversation", conversation],
+]) {
+  assert.equal(
+    bundle.includes("@media (width<=1023px)"),
+    false,
+    `${name} bundle still uses Safari 16.4-only media range syntax`,
+  );
+}
 
 console.log("iOS floating sidebar checks passed");

@@ -3,6 +3,30 @@ import Foundation
 import SwiftUI
 import WidgetKit
 
+private let dshActivityLabelWidth: CGFloat = 30
+
+@available(iOS 16.1, *)
+private func dshMarkdownText(_ source: String) -> AttributedString {
+  let fallback = source
+    .replacingOccurrences(of: "**", with: "")
+    .replacingOccurrences(of: "__", with: "")
+    .replacingOccurrences(of: "~~", with: "")
+    .replacingOccurrences(of: "`", with: "")
+  return (try? AttributedString(
+    markdown: source,
+    options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+    ?? AttributedString(fallback)
+}
+
+@available(iOS 16.1, *)
+private struct DSHMarkdownText: View {
+  let text: String
+
+  var body: some View {
+    Text(dshMarkdownText(text.isEmpty ? "—" : text))
+  }
+}
+
 @available(iOS 16.1, *)
 private func dshStartedAt(_ state: DSHActivityAttributes.ContentState) -> Date {
   Date(timeIntervalSince1970: Double(state.startedAtMilliseconds) / 1_000)
@@ -110,11 +134,12 @@ private struct DSHProgressDetailBlock: View {
   let hasGoal: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    HStack(alignment: .top, spacing: 6) {
       Text("进展")
         .font(.system(size: 8, weight: .bold, design: .rounded))
         .foregroundColor(.blue)
-      Text(text.isEmpty ? "—" : text)
+        .frame(width: dshActivityLabelWidth, alignment: .leading)
+      DSHMarkdownText(text: text)
         .font(.system(size: 10.5))
         .foregroundColor(.secondary)
         .multilineTextAlignment(.leading)
@@ -142,7 +167,7 @@ private struct DSHGoalDetailRow: View {
       Text("GOAL")
         .font(.system(size: 8, weight: .bold, design: .rounded))
         .foregroundColor(.green)
-        .frame(width: 30, alignment: .leading)
+        .frame(width: dshActivityLabelWidth, alignment: .leading)
       Text(text)
         .font(.system(size: 10.5, weight: .medium))
         .foregroundColor(.secondary)
@@ -168,7 +193,7 @@ private struct DSHToolDetailRow: View {
       Text("TOOL")
         .font(.system(size: 8, weight: .bold, design: .rounded))
         .foregroundColor(tint)
-        .frame(width: 30, alignment: .leading)
+        .frame(width: dshActivityLabelWidth, alignment: .leading)
       Text(text.isEmpty ? "—" : text)
         .font(.system(size: 10.5))
         .foregroundColor(.secondary)
@@ -302,7 +327,12 @@ struct DSHLiveActivityWidget: Widget {
             if !context.state.goalDetail.isEmpty {
               Text("G  \(context.state.goalDetail)").font(.caption2).lineLimit(1)
             }
-            Text("进展  \(context.state.detail)").font(.caption2).lineLimit(2)
+            HStack(alignment: .top, spacing: 4) {
+              Text("进展")
+              DSHMarkdownText(text: context.state.detail)
+            }
+            .font(.caption2)
+            .lineLimit(2)
             Text("T  \(context.state.toolDetail)").font(.caption2).lineLimit(1)
           }
         }
