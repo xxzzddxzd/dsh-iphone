@@ -36,26 +36,26 @@ DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 ./scripts/start-tunnel.sh
 打开：
 
 ```text
-http://127.0.0.1:3082/?ioscompat=5
+http://127.0.0.1:3082/?ioscompat=6
 ```
 
 ## Mac 有回复，iPhone 没有回复
 
-Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先确认 compatibility 5 入口：
+Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先确认 compatibility 6 入口：
 
 ```bash
-curl -sS 'http://127.0.0.1:3082/?ioscompat=5' | rg 'dsh-ios-compat|ioscompat=5'
+curl -sS 'http://127.0.0.1:3082/?ioscompat=6' | rg 'dsh-ios-compat|ioscompat=6'
 ```
 
 如果 Mac 能看到新消息而手机仍保留空白或旧内容：
 
 1. 关闭对应页面的所有标签页。
 2. 清除 `127.0.0.1` 的网站数据，或重置刚打开的 Safari Experimental Features。
-3. 重新打开带 `?ioscompat=5` 的地址。
+3. 重新打开带 `?ioscompat=6` 的地址。
 4. 确认服务返回 `Cache-Control: no-store`。
 
 ```bash
-curl -i 'http://127.0.0.1:3082/?ioscompat=5' | head -30
+curl -i 'http://127.0.0.1:3082/?ioscompat=6' | head -30
 ```
 
 如果整个页面在打开实验功能后无法显示，先恢复 Safari 实验功能默认值，再清理网站数据；服务端无需重新安装。
@@ -74,7 +74,7 @@ Invalid regular expression: invalid group specifier name
 检查部署文件：
 
 ```bash
-ssh -p 22 root@10.99.6.77 "grep -nE 'dsh-ios-compat|ioscompat=5' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
+ssh -p 22 root@10.99.6.77 "grep -nE 'dsh-ios-compat|ioscompat=6' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
 ```
 
 本地重新生成并部署 DSH 包：

@@ -234,8 +234,20 @@ await replaceExactlyOnce(
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js",
   'from"./vendor-Cjbwl5VI.js"',
-  'from"./vendor-Cjbwl5VI.js?ioscompat=5"',
+  'from"./vendor-Cjbwl5VI.js?ioscompat=6"',
   "frontend vendor cache key",
+);
+await installExactFile(
+  "node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js",
+  resolve(repositoryRoot, "web/plugins/ui-layout-client.js"),
+  "744b27c101f129e2a3cd4dcbad8e0932c1950459cea733a8d0d32d238af473b0",
+  "iOS floating layout plugin",
+);
+await installExactFile(
+  "node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/client.js",
+  resolve(repositoryRoot, "web/plugins/ui-sidebar-client.js"),
+  "b9bd53c300a07199cadcfee7c2a35c6ca4633849ce14574738c26649b09657ba",
+  "iOS split sidebar plugin",
 );
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
