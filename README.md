@@ -130,7 +130,7 @@ git submodule status
 git -C upstream/deepseek-harness log -1 --oneline
 ```
 
-更新流程不是直接拉取后部署，而是更新子模块和版本锁、重新生成 npm lock、修复严格补丁的失败预像、运行完整验证。具体步骤见[更新 DSH 与 Node](./docs/updating.md)。
+更新流程不是直接拉取后部署，而是更新子模块和版本锁、重新生成 npm lock、修复严格补丁的失败预像、运行完整验证，再备份、部署和实机验收。具体步骤见 [DSH 更新标准 SOP](./docs/updating.md)。
 
 ## 文档
 
@@ -139,7 +139,7 @@ git -C upstream/deepseek-harness log -1 --oneline
 - [独立 VLESS 客户端](./docs/vless-client.md)
 - [DSH 与 Safari 16 兼容层](./docs/dsh-compatibility.md)
 - [iOS 系统通知与 session 深链接](./docs/notifications.md)
-- [更新 DSH 与 Node](./docs/updating.md)
+- [DSH 更新标准 SOP](./docs/updating.md)
 - [部署与运行排障](./docs/troubleshooting.md)
 - [第三方软件声明](./THIRD_PARTY_NOTICES.md)
 
