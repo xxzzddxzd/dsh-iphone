@@ -135,7 +135,7 @@ private struct DSHProgressDetailBlock: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 6) {
-      Text("进展")
+      Text("PROG")
         .font(.system(size: 8, weight: .bold, design: .rounded))
         .foregroundColor(.blue)
         .frame(width: dshActivityLabelWidth, alignment: .leading)
