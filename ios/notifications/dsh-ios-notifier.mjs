@@ -722,9 +722,9 @@ function updateLiveTasks(tasks, session, event) {
         startedAtMilliseconds: Number.isFinite(eventTime) && eventTime > 0 ? Math.trunc(eventTime) : Date.now(),
         title: sessionTitle(session) ?? "未命名会话",
         phase: "正在开始",
-        detail: "正在准备本轮任务",
+        detail: "正在理解请求并规划下一步",
         goalDetail: activeGoalDetail(session),
-        assistantDetail: "等待 Assistant 回复",
+        assistantDetail: "",
         toolDetail: "尚未调用 Tool",
         step: 0,
         finishedAtMilliseconds: 0,
@@ -752,15 +752,17 @@ function updateLiveTasks(tasks, session, event) {
     const now = Number.isFinite(eventTime) && eventTime > 0 ? Math.trunc(eventTime) : Date.now();
     const summary = assistantSummary(session, event.data.turn);
     task.phase = presentation.phase;
-    task.detail = presentation.fallback;
     task.finishedAtMilliseconds = Math.max(task.startedAtMilliseconds, now);
     task.waitingForUser = false;
     if (summary !== undefined) {
       task.assistantDetail = summary;
     } else if (event.data.reason.kind !== "completed"
-      || task.assistantDetail === "等待 Assistant 回复") {
+      || task.assistantDetail === "") {
       task.assistantDetail = presentation.fallback;
     }
+    task.detail = event.data.reason.kind === "completed"
+      ? task.assistantDetail
+      : presentation.fallback;
     return newestRunningTask(tasks) ?? newestFinishedTask(tasks);
   }
   if (event.type === "session/title") {
@@ -782,7 +784,7 @@ function updateLiveTasks(tasks, session, event) {
       task.waitingForUser = false;
       if (!task.hasMeaningfulAction) {
         task.phase = "思考中";
-        task.detail = "正在分析任务";
+        task.detail = "正在理解请求并规划下一步";
       } else if (resumedAfterUserInput) {
         task.phase = "继续执行";
       }
@@ -794,15 +796,18 @@ function updateLiveTasks(tasks, session, event) {
       // event, use a quiet analysis placeholder instead of "model output".
       if (!task.waitingForUser && !task.hasMeaningfulAction) {
         task.phase = "思考中";
-        task.detail = "正在分析任务";
+        task.detail = "正在理解请求并规划下一步";
       }
       break;
     case "assistant/message": {
       const assistantDetail = assistantMessageDetail(event);
-      if (assistantDetail !== undefined) task.assistantDetail = assistantDetail;
-      if (!task.waitingForUser && !task.hasMeaningfulAction) {
-        task.phase = "思考中";
-        task.detail = "正在分析任务";
+      if (assistantDetail !== undefined) {
+        task.assistantDetail = assistantDetail;
+        if (!task.waitingForUser) {
+          task.phase = "正在说明进展";
+          task.detail = assistantDetail;
+          task.hasMeaningfulAction = true;
+        }
       }
       break;
     }
@@ -879,7 +884,7 @@ function updateLiveTasks(tasks, session, event) {
       task.waitingForUser = false;
       if (!task.hasMeaningfulAction) {
         task.phase = "思考中";
-        task.detail = "正在分析任务";
+        task.detail = "正在理解请求并规划下一步";
       }
       break;
     default:

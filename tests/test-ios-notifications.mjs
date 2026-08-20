@@ -353,12 +353,13 @@ assert.match(liveActivitySource, /ForEach\(0\.\.<visibleAgentCount/);
 assert.match(liveActivitySource, /Text\(startedAt, style: \.timer\)/);
 assert.match(liveActivitySource, /multilineTextAlignment\(\.center\)/);
 assert.match(liveActivitySource, /frame\(width: 40, height: 40, alignment: \.center\)/);
-assert.doesNotMatch(liveActivitySource, /Text\("\\\(state\.step\)"\)/);
+assert.doesNotMatch(liveActivitySource, /state\.step/);
 assert.match(liveActivitySource, /Text\("GOAL"\)/);
-assert.match(liveActivitySource, /Text\("ASSISTANT"\)/);
+assert.match(liveActivitySource, /Text\("进展"\)/);
 assert.match(liveActivitySource, /Text\("TOOL"\)/);
 assert.match(liveActivitySource, /context\.state\.goalDetail/);
-assert.match(liveActivitySource, /context\.state\.assistantDetail/);
+assert.match(liveActivitySource, /context\.state\.detail/);
+assert.doesNotMatch(liveActivitySource, /context\.state\.assistantDetail/);
 assert.match(liveActivitySource, /context\.state\.toolDetail/);
 assert.match(liveActivitySource, /finishedAtMilliseconds/);
 assert.doesNotMatch(liveActivitySource, /fixedSize\(|firstTextBaseline/);
@@ -619,7 +620,7 @@ if (pluginAvailable) {
       phase: "正在执行计划",
       detail: "验证 Live Activity",
       goalDetail: "交付完整的 Live Activity",
-      assistantDetail: "等待 Assistant 回复",
+      assistantDetail: "",
       toolDetail: "任务计划 · 验证 Live Activity",
       startedAtMilliseconds: 1_700_000_000_000,
       finishedAtMilliseconds: 0,
@@ -697,8 +698,8 @@ if (pluginAvailable) {
       message: { content: [{ type: "text", text: "权限已确认，继续等待测试完成。" }] },
     },
   });
-  assert.equal(activityCommand(runningTasks).task.phase, "继续执行");
-  assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
+  assert.equal(activityCommand(runningTasks).task.phase, "正在说明进展");
+  assert.equal(activityCommand(runningTasks).task.detail, "权限已确认，继续等待测试完成。");
   assert.equal(
     activityCommand(runningTasks).task.assistantDetail,
     "权限已确认，继续等待测试完成。",
@@ -737,6 +738,7 @@ if (pluginAvailable) {
   const finishedActivity = activityCommand(runningTasks);
   assert.equal(finishedActivity.operation, "update");
   assert.equal(finishedActivity.task.phase, "已完成");
+  assert.equal(finishedActivity.task.detail, "回复已完成，点击查看完整结果");
   assert.equal(finishedActivity.task.finishedAtMilliseconds, 1_700_000_010_000);
   assert.equal(finishedActivity.task.goalDetail, "交付完整的 Live Activity");
   assert.equal(finishedActivity.task.assistantDetail, "回复已完成，点击查看完整结果");

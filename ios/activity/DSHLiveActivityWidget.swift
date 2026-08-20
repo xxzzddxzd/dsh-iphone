@@ -105,13 +105,13 @@ private struct DSHAgentDotsRing: View {
 }
 
 @available(iOS 16.1, *)
-private struct DSHAssistantDetailBlock: View {
+private struct DSHProgressDetailBlock: View {
   let text: String
   let hasGoal: Bool
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text("ASSISTANT")
+      Text("进展")
         .font(.system(size: 8, weight: .bold, design: .rounded))
         .foregroundColor(.blue)
       Text(text.isEmpty ? "—" : text)
@@ -201,7 +201,9 @@ private struct DSHActivityLockScreenView: View {
   }
 
   private var statusText: String {
-    if isFinished { return context.state.phase }
+    let phase = context.state.phase.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !phase.isEmpty { return phase }
+    if isFinished { return "已结束" }
     return context.state.waitingForUser ? "待确认" : "运行中"
   }
 
@@ -249,8 +251,8 @@ private struct DSHActivityLockScreenView: View {
           if hasGoal {
             DSHGoalDetailRow(text: context.state.goalDetail)
           }
-          DSHAssistantDetailBlock(
-            text: context.state.assistantDetail,
+          DSHProgressDetailBlock(
+            text: context.state.detail,
             hasGoal: hasGoal)
           DSHToolDetailRow(
             text: context.state.toolDetail,
@@ -300,7 +302,7 @@ struct DSHLiveActivityWidget: Widget {
             if !context.state.goalDetail.isEmpty {
               Text("G  \(context.state.goalDetail)").font(.caption2).lineLimit(1)
             }
-            Text("A  \(context.state.assistantDetail)").font(.caption2).lineLimit(2)
+            Text("进展  \(context.state.detail)").font(.caption2).lineLimit(2)
             Text("T  \(context.state.toolDetail)").font(.caption2).lineLimit(1)
           }
         }
