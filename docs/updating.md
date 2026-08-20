@@ -13,6 +13,7 @@
 
 - `upstream/deepseek-harness` 是只读的官方 Git 子模块。本项目兼容上游，不要求上游兼容本项目，也不在子模块里保留任何本地修改。
 - Git tag/commit 与 npm 发布包是两份独立证据：子模块固定到准确 commit，实际打包使用准确 npm 版本、integrity 和带时间截点的完整 lock。
+- 只有 npm `dist-tags.latest` 与当前 `DSH_VERSION` 不同时才启动升级。`next`、单独出现的新 tag 或 `master` 新提交只做观察，不构建、不部署。
 - iOS 改动只存在于本仓库的 `scripts/`、`shims/`、`ios/`、`web/` 和 `packaging/` 中，并且只修改 `build/dsh-runtime` 内的发布包副本。
 - 补丁必须 fail-closed。上游预像、文件名或 hash 变化时停止构建并逐项审计，不能为了让构建通过而放宽成模糊匹配。
 - 新的上游版本把 Debian revision 重置为 `-1`；同一上游版本的本地修订依次使用 `-2`、`-3`，不能复用已经部署过的版本号。
@@ -49,15 +50,21 @@ printf 'DSH=%s\nDebian=%s\nUpstream=%s\n' \
 
 ```bash
 git -C upstream/deepseek-harness fetch --tags origin
-git -C upstream/deepseek-harness log --oneline --decorate -20 origin/main
+git -C upstream/deepseek-harness log --oneline --decorate -20 origin/master
 git -C upstream/deepseek-harness tag --sort=-version:refname | head -20
+npm view @deepseek-ai/dsh dist-tags --json
+. ./versions.env
+dsh_latest_version=$(npm view @deepseek-ai/dsh dist-tags.latest)
+printf 'installed=%s latest=%s\n' "$DSH_VERSION" "$dsh_latest_version"
 ```
 
-为候选版本设置临时变量，以下版本号仅为格式示例：
+如果 `dsh_latest_version` 与 `DSH_VERSION` 相同，到此停止。即使 `next` 或 Git tag 更高，也不继续移动子模块、生成 lock、构建或部署。
+
+只有 `latest` 已变化时才建立候选版本：
 
 ```bash
-dsh_target_version=0.1.0-rc.8
-dsh_target_ref=dsh-v0.1.0-rc.8
+dsh_target_version=$dsh_latest_version
+dsh_target_ref="dsh-v${dsh_target_version}"
 dsh_target_commit=$(git -C upstream/deepseek-harness rev-parse "$dsh_target_ref^{commit}")
 npm view "@deepseek-ai/dsh@$dsh_target_version" version dist.integrity time --json
 printf '%s\n' "$dsh_target_commit"
@@ -66,7 +73,8 @@ printf '%s\n' "$dsh_target_commit"
 候选版本必须同时满足：
 
 - 官方 tag 能解析到一个确定 commit；
-- npm 上存在完全相同的版本，不使用 `latest` 代替版本号；
+- 候选版本等于 npm `dist-tags.latest`，并且不同于当前 `DSH_VERSION`；
+- npm 上存在完全相同的版本；后续锁定和安装都使用该完整版本号，不把 `latest` 写入版本文件或 lock；
 - npm integrity 可以记录；
 - 已阅读目标 tag 相对当前 `DSH_UPSTREAM_COMMIT` 的提交和文件变化；
 - 已确认是否包含会话格式、配置格式、Node engine、依赖或授权/API 协议变化。
@@ -82,7 +90,7 @@ git -C upstream/deepseek-harness diff \
   --name-status "$DSH_UPSTREAM_COMMIT..$dsh_target_commit"
 ```
 
-如果只有 `origin/main` 新提交而没有对应的正式 npm 版本，不进入打包部署流程。
+如果只有 `origin/master`、`next` 或新 tag 发生变化，而 npm `latest` 没变，不进入打包部署流程。
 
 ## 2. 更新精确锁定信息
 
@@ -313,7 +321,7 @@ git push origin main
 
 每次升级结束前逐项确认：
 
-- [ ] 官方 tag、commit、npm version 和 integrity 已对应；
+- [ ] npm `latest` 已变化，且与官方 tag、commit、npm version 和 integrity 对应；
 - [ ] `versions.env`、`package.json`、lockfile 和 Debian revision 已同步；
 - [ ] 上游差异中的依赖、API、Web、持久化和 iOS 兼容面已审计；
 - [ ] 严格补丁没有被放宽，子模块保持干净；

@@ -6,8 +6,11 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 
 ROOT=$(repo_root)
-TARGET_REF=${1:-origin/main}
+TARGET_REF=${1:-}
 require_command git
+
+[ -n "$TARGET_REF" ] || \
+  die "usage: ./scripts/update-upstream.sh <released-tag-or-commit>"
 
 git -C "$ROOT" submodule update --init upstream/deepseek-harness
 git -C "$ROOT/upstream/deepseek-harness" fetch --tags origin
