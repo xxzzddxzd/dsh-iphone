@@ -6,12 +6,18 @@ import vm from "node:vm";
 
 const htmlPath = new URL("../web/index.ios.html", import.meta.url);
 const html = await readFile(htmlPath, "utf8");
+const touchIcon = await readFile(new URL("../web/apple-touch-icon.png", import.meta.url));
 const inlineScript = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
 
 assert.ok(inlineScript, "compatibility bootstrap script is missing");
-assert.match(html, /name="dsh-ios-compat" content="7"/);
-assert.match(html, /index-C-1AiF3k\.js\?ioscompat=7/);
-assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=7/);
+assert.match(html, /name="dsh-ios-compat" content="8"/);
+assert.match(html, /name="apple-mobile-web-app-title" content="DSH"/);
+assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/apple-touch-icon\.png\?ioscompat=8"/);
+assert.match(html, /index-C-1AiF3k\.js\?ioscompat=8/);
+assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=8/);
+assert.equal(touchIcon.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+assert.equal(touchIcon.readUInt32BE(16), 180, "Home Screen icon width");
+assert.equal(touchIcon.readUInt32BE(20), 180, "Home Screen icon height");
 
 const storage = new Map();
 let replacedUrl;
@@ -46,7 +52,7 @@ const context = vm.createContext({
     },
   },
   location: {
-    href: "http://127.0.0.1:3080/?ioscompat=7&session=child-1&parent=parent-1&mode=continuable",
+    href: "http://127.0.0.1:3080/?ioscompat=8&session=child-1&parent=parent-1&mode=continuable",
   },
 });
 context.window = context;
@@ -84,9 +90,9 @@ assert.deepEqual(JSON.parse(storage.get("dsh.sessions.current")), {
     mode: "continuable",
   },
 });
-assert.equal(replacedUrl, "/?ioscompat=7");
+assert.equal(replacedUrl, "/?ioscompat=8");
 assert.equal(vm.runInContext("__DSH_IOS_SESSION_LINK__.sessionId", context), "child-1");
-assert.equal(vm.runInContext("__DSH_IOS_COMPAT__", context), 7);
+assert.equal(vm.runInContext("__DSH_IOS_COMPAT__", context), 8);
 
 const vendorPath = process.argv[2];
 const indexPath = process.argv[3];
@@ -100,7 +106,7 @@ if (vendorPath !== undefined || indexPath !== undefined) {
     'new RegExp("([-.\\\\w+]+)@([-\\\\w]+(?:\\\\.[-\\\\w]+)+)","gu")';
   assert.equal(vendor.includes(unsupported), false, "Safari lookbehind remains");
   assert.equal(vendor.split(compatible).length - 1, 1, "compatible regexp count");
-  assert.ok(index.includes('from"./vendor-Cjbwl5VI.js?ioscompat=7"'));
+  assert.ok(index.includes('from"./vendor-Cjbwl5VI.js?ioscompat=8"'));
 }
 
 console.log("iOS 16 frontend compatibility checks passed");

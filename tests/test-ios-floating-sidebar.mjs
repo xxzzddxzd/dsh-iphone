@@ -9,18 +9,26 @@ const defaultConversation = new URL("../web/plugins/ui-conversation-client.js", 
 const layoutPath = process.argv[2] ?? defaultLayout;
 const sidebarPath = process.argv[3] ?? defaultSidebar;
 const conversationPath = process.argv[4] ?? defaultConversation;
+const settingsPath = process.argv[5];
 
-if (process.argv[2] !== undefined || process.argv[3] !== undefined || process.argv[4] !== undefined) {
+if (
+  process.argv[2] !== undefined
+  || process.argv[3] !== undefined
+  || process.argv[4] !== undefined
+  || process.argv[5] !== undefined
+) {
   assert.ok(
-    process.argv[2] && process.argv[3] && process.argv[4],
-    "pass layout, sidebar, and conversation bundle paths",
+    process.argv[2] && process.argv[3] && process.argv[4] && process.argv[5],
+    "pass layout, sidebar, conversation, and settings bundle paths",
   );
 }
 
-const [layout, sidebar, conversation] = await Promise.all([
+const [layout, sidebar, conversation, settingsPatch, settings] = await Promise.all([
   readFile(layoutPath, "utf8"),
   readFile(sidebarPath, "utf8"),
   readFile(conversationPath, "utf8"),
+  readFile(new URL("../patches/dsh-rc7-ios-floating-sidebar.patch", import.meta.url), "utf8"),
+  settingsPath === undefined ? undefined : readFile(settingsPath, "utf8"),
 ]);
 
 assert.ok(layout.includes('"data-floating-sidebar"'), "floating layout marker is missing");
@@ -58,10 +66,34 @@ assert.ok(
   "mobile header does not clear the whale launcher",
 );
 
+assert.ok(
+  settingsPatch.includes("@media (max-width: 680px)"),
+  "narrow Settings source media query is missing",
+);
+assert.ok(
+  settingsPatch.includes("overflow-x: auto"),
+  "narrow Settings navigation is not horizontally scrollable",
+);
+assert.ok(
+  settingsPatch.includes("padding: max(8px, env(safe-area-inset-top))"),
+  "narrow Settings panel does not respect the iOS safe area",
+);
+
+if (settings !== undefined) {
+  assert.ok(settings.includes("@media (max-width:680px)"), "narrow Settings bundle media query is missing");
+  assert.ok(settings.includes("flex-direction:column"), "narrow Settings bundle still uses two columns");
+  assert.ok(settings.includes("overflow-x:auto"), "narrow Settings bundle tabs cannot scroll");
+  assert.ok(settings.includes("safe-area-inset-top"), "narrow Settings bundle ignores safe areas");
+  assert.ok(settings.includes("width:44px;height:44px"), "narrow Settings close target is too small");
+  assert.ok(settings.includes("@media (max-width:390px)"), "very narrow Settings rows do not stack");
+  assert.ok(settings.includes("[class$='_rowText']{padding-right:0}"), "stacked Settings labels remain squeezed");
+}
+
 for (const [name, bundle] of [
   ["layout", layout],
   ["sidebar", sidebar],
   ["conversation", conversation],
+  ...(settings === undefined ? [] : [["settings", settings]]),
 ]) {
   assert.equal(
     bundle.includes("@media (width<=1023px)"),

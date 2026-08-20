@@ -1017,3 +1017,115 @@ index 0000000000..dc0a21ec07
 +    expect(css).not.toMatch(/\.root\s*\{[^}]*padding-left: max\(/)
 +  })
 +})
+diff --git a/packages/client/ui-settings-general/src/client/SettingsRoot.module.css b/packages/client/ui-settings-general/src/client/SettingsRoot.module.css
+index 03e0f6372c..aaaaaaaaaa 100644
+--- a/packages/client/ui-settings-general/src/client/SettingsRoot.module.css
++++ b/packages/client/ui-settings-general/src/client/SettingsRoot.module.css
+@@ -219,8 +219,107 @@
+ .hiddenLabel {
+   position: absolute;
+   width: 1px;
+   height: 1px;
+   overflow: hidden;
+   clip: rect(0 0 0 0);
+   white-space: nowrap;
+ }
++
++/* The desktop settings rail leaves less than 100px for content on an iPhone.
++   Narrow screens instead use a safe-area-aware sheet with horizontally
++   scrollable section tabs and a full-width content column. */
++@media (max-width: 680px) {
++  .overlay {
++    box-sizing: border-box;
++    align-items: stretch;
++    padding: max(8px, env(safe-area-inset-top))
++      max(8px, env(safe-area-inset-right))
++      max(8px, env(safe-area-inset-bottom))
++      max(8px, env(safe-area-inset-left));
++  }
++
++  .panel {
++    width: 100%;
++    max-width: none;
++    height: 100%;
++    border-radius: 18px;
++    flex-direction: column;
++  }
++
++  .nav {
++    width: 100%;
++    gap: 10px;
++    padding: 12px 12px 10px;
++    border-bottom: 1px solid var(--dsw-alias-border-l2);
++  }
++
++  .navTitle {
++    padding: 0 48px 0 4px;
++    font-size: 18px;
++    line-height: 28px;
++  }
++
++  .navList {
++    flex-direction: row;
++    gap: 4px;
++    overflow-x: auto;
++    overscroll-behavior-x: contain;
++    -webkit-overflow-scrolling: touch;
++  }
++
++  .navList::-webkit-scrollbar {
++    display: none;
++  }
++
++  .navCell {
++    flex: none;
++    height: 44px;
++    padding: 10px 12px;
++    border-radius: 10px;
++  }
++
++  .content {
++    min-height: 0;
++  }
++
++  .header {
++    height: 44px;
++    align-items: center;
++    padding: 8px 12px 4px;
++  }
++
++  .actions {
++    justify-content: flex-start;
++    width: 100%;
++    margin-left: 0;
++  }
++
++  .close {
++    position: absolute;
++    top: 4px;
++    right: 6px;
++    width: 44px;
++    height: 44px;
++  }
++
++  .options {
++    padding: 4px 12px 16px;
++    overscroll-behavior: contain;
++  }
++}
++
++@media (max-width: 390px) {
++  .options :global([data-slot='settings.general.item']) > :global([class$='_row']) {
++    align-items: stretch;
++    flex-direction: column;
++    gap: 10px;
++  }
++
++  .options :global([data-slot='settings.general.item']) > :global([class$='_row']) > :global([class$='_rowText']) {
++    padding-right: 0;
++  }
++
++  .options :global([data-slot='settings.general.item']) > :global([class$='_row']) > :last-child {
++    align-self: flex-start;
++  }
++}
