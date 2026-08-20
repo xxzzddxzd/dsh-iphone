@@ -118,6 +118,7 @@ const pluginSource = await readFile(
 assert.match(pluginSource, /import WebSocket from "ws"/);
 assert.match(pluginSource, /new URL\("\/api\/events\.mux"/);
 assert.match(pluginSource, /new URL\("\/api\/respond"/);
+assert.match(pluginSource, /ctx\.on\("agent\/status"/);
 assert.doesNotMatch(pluginSource, /\bfetch\s*\(/);
 assert.doesNotMatch(pluginSource, /consumeMuxEvents/);
 assert.doesNotMatch(pluginSource, /launchActivityHost/);
@@ -276,6 +277,8 @@ assert.match(activityBridgeSource, /goalDetail/);
 assert.match(activityBridgeSource, /assistantDetail/);
 assert.match(activityBridgeSource, /toolDetail/);
 assert.match(activityBridgeSource, /finishedAtMilliseconds/);
+assert.match(activityBridgeSource, /activity\.task/);
+assert.match(activityBridgeSource, /replacing activity .* for new task/);
 assert.match(activityBridgeSource, /int main\(int argc/);
 assert.doesNotMatch(activityBridgeSource, /__attribute__\(\(constructor\)\)/);
 assert.doesNotMatch(activityBridgeSource, /ActivityKit\.framework/);
@@ -384,6 +387,7 @@ if (pluginAvailable) {
     renderApprovalNotification,
     renderGoalNotification,
     renderSessionNotification,
+    removeUnfinishedLiveTasks,
     resolveConfig,
     runNotifier,
     toolActionDetail,
@@ -747,6 +751,29 @@ if (pluginAvailable) {
   });
   assert.equal(activityCommand(runningTasks).task.sessionID, "running-c");
   assert.equal(activityCommand(runningTasks).task.finishedAtMilliseconds, 0);
+
+  const interruptedTasks = new Map();
+  const interruptedSession = {
+    id: "interrupted-live",
+    header: {},
+    events: [{ type: "session/title", data: { title: "异常中断任务" } }],
+  };
+  updateLiveTasks(interruptedTasks, interruptedSession, {
+    type: "turn/start", time: 1_700_000_030_000, data: { turn: 1 },
+  });
+  assert.equal(removeUnfinishedLiveTasks(interruptedTasks, "other-session"), 0);
+  assert.equal(removeUnfinishedLiveTasks(interruptedTasks, interruptedSession.id), 1);
+  assert.deepEqual(activityCommand(interruptedTasks), { version: 1, operation: "end" });
+
+  updateLiveTasks(interruptedTasks, interruptedSession, {
+    type: "turn/start", time: 1_700_000_040_000, data: { turn: 2 },
+  });
+  updateLiveTasks(interruptedTasks, interruptedSession, {
+    type: "turn/end", time: 1_700_000_045_000,
+    data: { turn: 2, reason: { kind: "completed" } },
+  });
+  assert.equal(removeUnfinishedLiveTasks(interruptedTasks, interruptedSession.id), 0);
+  assert.equal(activityCommand(interruptedTasks).task.finishedAtMilliseconds, 1_700_000_045_000);
 
   const childSession = {
     id: "child-1",
