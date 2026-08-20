@@ -357,6 +357,10 @@ assert.doesNotMatch(liveActivitySource, /state\.step/);
 assert.match(liveActivitySource, /Text\("GOAL"\)/);
 assert.match(liveActivitySource, /Text\("进展"\)/);
 assert.match(liveActivitySource, /Text\("TOOL"\)/);
+assert.match(liveActivitySource, /HStack\(alignment: \.top, spacing: 6\)/);
+assert.match(liveActivitySource, /dshActivityLabelWidth/);
+assert.match(liveActivitySource, /AttributedString\(/);
+assert.match(liveActivitySource, /inlineOnlyPreservingWhitespace/);
 assert.match(liveActivitySource, /context\.state\.goalDetail/);
 assert.match(liveActivitySource, /context\.state\.detail/);
 assert.doesNotMatch(liveActivitySource, /context\.state\.assistantDetail/);
@@ -385,6 +389,7 @@ if (pluginAvailable) {
     activityCommand,
     navigationUrl,
     newestRunningTask,
+    normalizeLiveMarkdown,
     renderApprovalNotification,
     renderGoalNotification,
     renderSessionNotification,
@@ -401,6 +406,19 @@ if (pluginAvailable) {
   assert.equal(config.actionableApprovals, true);
   assert.equal(config.liveActivity, true);
   assert.throws(() => resolveConfig({ browserBaseUrl: "file:///tmp/dsh" }), /HTTP\(S\)/);
+  assert.equal(normalizeLiveMarkdown([
+    "### 检查结果",
+    "- **已完成** [查看详情](https://example.test/private)",
+    "> `pnpm test` 已通过",
+    "```text",
+    "raw output",
+    "```",
+  ].join("\n")), [
+    "检查结果",
+    "• **已完成** 查看详情",
+    "`pnpm test` 已通过",
+    "raw output",
+  ].join("\n"));
 
   const detailedSession = {
     id: "session-detailed",
@@ -621,7 +639,7 @@ if (pluginAvailable) {
       detail: "验证 Live Activity",
       goalDetail: "交付完整的 Live Activity",
       assistantDetail: "",
-      toolDetail: "任务计划 · 验证 Live Activity",
+      toolDetail: "尚未调用 Tool",
       startedAtMilliseconds: 1_700_000_000_000,
       finishedAtMilliseconds: 0,
       step: 2,
@@ -651,6 +669,31 @@ if (pluginAvailable) {
     goal: { objective: "验证目标实时变化", phase: "paused" },
   }), true);
   assert.equal(activityCommand(runningTasks).task.goalDetail, "");
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "assistant/chunk",
+    data: {
+      turn: 4,
+      step: 1,
+      chunk: { type: "reasoning-delta", index: 0, text: "**正在流式检查方案**" },
+    },
+  });
+  assert.equal(activityCommand(runningTasks).task.phase, "正在思考");
+  assert.equal(activityCommand(runningTasks).task.detail, "思考 · 正在流式检查方案");
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "assistant/message",
+    data: {
+      turn: 4,
+      step: 1,
+      message: {
+        content: [
+          { type: "reasoning", text: "**正在分析旧方案** **正在检查等待流程**" },
+          { type: "tool-call", id: "call-live-action", name: "bash", arguments: "{}" },
+        ],
+      },
+    },
+  });
+  assert.equal(activityCommand(runningTasks).task.phase, "正在思考");
+  assert.equal(activityCommand(runningTasks).task.detail, "思考 · 正在检查等待流程");
   const bashCall = {
     type: "tool/call",
     data: {
@@ -669,7 +712,7 @@ if (pluginAvailable) {
   assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
   assert.equal(
     activityCommand(runningTasks).task.toolDetail,
-    "Bash · 等待四十五秒完成通知测试",
+    "Bash · 运行中",
   );
   updateLiveTasks(runningTasks, secondRunningSession, {
     type: "assistant/chunk",
@@ -687,6 +730,7 @@ if (pluginAvailable) {
   });
   assert.equal(activityCommand(runningTasks).task.phase, "等待操作授权");
   assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
+  assert.equal(activityCommand(runningTasks).task.toolDetail, "Bash · 等待授权");
   assert.equal(activityCommand(runningTasks).task.waitingForUser, true);
   updateLiveTasks(runningTasks, secondRunningSession, {
     type: "approval/decided", data: { outcome: "allowed-once" },
@@ -704,6 +748,33 @@ if (pluginAvailable) {
     activityCommand(runningTasks).task.assistantDetail,
     "权限已确认，继续等待测试完成。",
   );
+  const searchCall = {
+    type: "tool/call",
+    data: {
+      turn: 4,
+      callId: "call-live-search",
+      name: "web_search",
+      arguments: JSON.stringify({ query: "飞书数据获取方式" }),
+    },
+  };
+  secondRunningSession.events.push(searchCall);
+  updateLiveTasks(runningTasks, secondRunningSession, searchCall);
+  assert.equal(activityCommand(runningTasks).task.phase, "正在执行 网络搜索");
+  assert.equal(activityCommand(runningTasks).task.detail, "网络搜索 · 飞书数据获取方式");
+  assert.equal(
+    activityCommand(runningTasks).task.toolDetail,
+    "网络搜索 · 运行中",
+  );
+  updateLiveTasks(runningTasks, secondRunningSession, {
+    type: "tool/result",
+    data: {
+      turn: 4,
+      step: 2,
+      message: { source: { callId: "call-live-search" }, content: [] },
+    },
+  });
+  assert.equal(activityCommand(runningTasks).task.detail, "网络搜索 · 飞书数据获取方式");
+  assert.equal(activityCommand(runningTasks).task.toolDetail, "网络搜索 · 已完成");
   const childRunningSession = {
     id: "running-b-child",
     header: { origin: "subagent", parentSession: "running-b" },

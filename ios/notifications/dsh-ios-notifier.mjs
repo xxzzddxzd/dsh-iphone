@@ -169,6 +169,31 @@ function compactText(value) {
   return typeof value === "string" ? value.replace(/\s+/gu, " ").trim() : "";
 }
 
+function normalizeLiveMarkdown(value) {
+  if (typeof value !== "string") return "";
+  const withoutLinkTargets = value
+    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+    .replace(/\r\n?/gu, "\n");
+  const lines = [];
+  let insideFence = false;
+  for (const rawLine of withoutLinkTargets.split("\n")) {
+    if (/^\s*```/u.test(rawLine)) {
+      insideFence = !insideFence;
+      continue;
+    }
+    let line = rawLine
+      .replace(/^\s{0,3}#{1,6}\s+/u, "")
+      .replace(/^\s*>\s?/u, "")
+      .replace(/^\s*[-+*]\s+/u, "• ")
+      .replace(/^\s*(\d+)[.)]\s+/u, "$1. ")
+      .replace(/\s+$/u, "");
+    if (!insideFence) line = line.replace(/[\t ]{2,}/gu, " ");
+    lines.push(line);
+  }
+  return lines.join("\n").replace(/\n{3,}/gu, "\n\n").trim();
+}
+
 function notificationBody(session, lines, config) {
   const content = [];
   if (session !== undefined) content.push(`会话：${sessionTitle(session) ?? "未命名会话"}`);
@@ -186,6 +211,44 @@ function assistantMessageDetail(event) {
     .filter((value) => typeof value === "string")
     .join("\n"));
   return text === "" ? undefined : text;
+}
+
+function reasoningProgressText(value, requireMarkdownHeading = false) {
+  const rawText = compactText(value);
+  const headings = [...rawText.matchAll(/\*\*([^*]+)\*\*/gu)];
+  if (requireMarkdownHeading && headings.length === 0) return undefined;
+  const text = compactText(headings.at(-1)?.[1] ?? rawText.replace(/\*\*/gu, ""));
+  return text === "" ? undefined : text;
+}
+
+function assistantProgressDetail(event) {
+  if (event?.type !== "assistant/message") return undefined;
+  const blocks = event.data?.message?.content ?? event.data?.content;
+  if (!Array.isArray(blocks)) return undefined;
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index];
+    if (block?.type !== "text" && block?.type !== "reasoning") continue;
+    const text = block.type === "reasoning"
+      ? reasoningProgressText(block.text)
+      : normalizeLiveMarkdown(block.text);
+    if (text === undefined) continue;
+    if (text === "") continue;
+    return block.type === "reasoning"
+      ? { phase: "正在思考", detail: `思考 · ${text}` }
+      : { phase: "正在说明进展", detail: text };
+  }
+  return undefined;
+}
+
+function assistantChunkProgressDetail(event) {
+  if (event?.type !== "assistant/chunk") return undefined;
+  const chunk = event.data?.chunk;
+  if (chunk?.type !== "reasoning-delta") return undefined;
+  // Codex emits complete **reasoning headings** as individual chunks. Updating
+  // only those headings makes Think visible without sending one native Live
+  // Activity request for every token from providers that stream plain prose.
+  const text = reasoningProgressText(chunk.text, true);
+  return text === undefined ? undefined : { phase: "正在思考", detail: `思考 · ${text}` };
 }
 
 function assistantSummary(session, turn) {
@@ -605,9 +668,15 @@ function toolDisplayName(name) {
     Bash: "Bash",
     bash: "Bash",
     apply_patch: "文件修改",
+    edit: "文件修改",
     read: "文件读取",
     write: "文件写入",
     web: "网络查询",
+    web_search: "网络搜索",
+    web_fetch: "网页读取",
+    glob: "文件搜索",
+    grep: "内容搜索",
+    todo_write: "进度更新",
     request_user_input: "用户问答",
   };
   return labels[name] ?? name;
@@ -652,12 +721,16 @@ function toolActionDetail(name, rawArguments) {
   return `工具“${label}”正在运行`;
 }
 
-function toolActivityDetail(name, rawArguments) {
+function toolProgressDetail(name, rawArguments) {
   const label = toolDisplayName(name);
   const action = toolActionDetail(name, rawArguments);
   if (action === `工具“${label}”正在运行`) return `${label} · 正在运行`;
   if (action.startsWith(`${label}：`)) return `${label} · ${action.slice(label.length + 1)}`;
-  return `${label} · ${action}`;
+  return action;
+}
+
+function toolStatusDetail(name, status) {
+  return `${toolDisplayName(name)} · ${status}`;
 }
 
 function findToolCall(session, callId) {
@@ -790,24 +863,26 @@ function updateLiveTasks(tasks, session, event) {
       }
       break;
     }
-    case "assistant/chunk":
-      // Token streaming is transport activity, not a useful task action. Keep
-      // the last tool, plan, approval, or todo visible. Before the first such
-      // event, use a quiet analysis placeholder instead of "model output".
-      if (!task.waitingForUser && !task.hasMeaningfulAction) {
+    case "assistant/chunk": {
+      const progress = assistantChunkProgressDetail(event);
+      if (progress !== undefined && !task.waitingForUser) {
+        task.phase = progress.phase;
+        task.detail = progress.detail;
+        task.hasMeaningfulAction = true;
+      } else if (!task.waitingForUser && !task.hasMeaningfulAction) {
         task.phase = "思考中";
         task.detail = "正在理解请求并规划下一步";
       }
       break;
+    }
     case "assistant/message": {
       const assistantDetail = assistantMessageDetail(event);
-      if (assistantDetail !== undefined) {
-        task.assistantDetail = assistantDetail;
-        if (!task.waitingForUser) {
-          task.phase = "正在说明进展";
-          task.detail = assistantDetail;
-          task.hasMeaningfulAction = true;
-        }
+      if (assistantDetail !== undefined) task.assistantDetail = assistantDetail;
+      const progress = assistantProgressDetail(event);
+      if (progress !== undefined && !task.waitingForUser) {
+        task.phase = progress.phase;
+        task.detail = progress.detail;
+        task.hasMeaningfulAction = true;
       }
       break;
     }
@@ -815,18 +890,18 @@ function updateLiveTasks(tasks, session, event) {
       if (event.data.name === "ask_user_question") {
         task.phase = "等待你的回答";
         task.detail = firstQuestion(event.data.arguments) ?? "会话提出了一个问题";
-        task.toolDetail = `用户问答 · ${task.detail}`;
+        task.toolDetail = "用户问答 · 等待回答";
         task.waitingForUser = true;
       } else if (event.data.name === "exit_plan_mode") {
         task.phase = "等待计划确认";
         task.detail = firstPlanLine(event.data.arguments) ?? "计划已经准备完成";
-        task.toolDetail = `计划确认 · ${task.detail}`;
+        task.toolDetail = "计划确认 · 等待确认";
         task.waitingForUser = true;
       } else {
         const toolName = toolDisplayName(event.data.name);
         task.phase = `正在执行 ${toolName}`;
-        task.detail = toolActionDetail(event.data.name, event.data.arguments);
-        task.toolDetail = toolActivityDetail(event.data.name, event.data.arguments);
+        task.detail = toolProgressDetail(event.data.name, event.data.arguments);
+        task.toolDetail = toolStatusDetail(event.data.name, "运行中");
         task.waitingForUser = false;
       }
       task.hasMeaningfulAction = true;
@@ -837,10 +912,10 @@ function updateLiveTasks(tasks, session, event) {
       task.phase = "等待操作授权";
       task.detail = call === undefined
         ? compactText(event.data.reason) || `“${toolName}”需要一次性权限`
-        : toolActionDetail(call.data.name, call.data.arguments);
+        : toolProgressDetail(call.data.name, call.data.arguments);
       task.toolDetail = call === undefined
-        ? `${toolName} · ${task.detail}`
-        : toolActivityDetail(call.data.name, call.data.arguments);
+        ? `${toolName} · 等待授权`
+        : toolStatusDetail(call.data.name, "等待授权");
       task.waitingForUser = true;
       task.hasMeaningfulAction = true;
       break;
@@ -852,14 +927,10 @@ function updateLiveTasks(tasks, session, event) {
     case "tool/result": {
       const call = findToolCall(session, event.data.message?.source?.callId ?? event.data.callId);
       const toolName = toolDisplayName(call?.data?.name ?? "工具");
-      const action = call === undefined
-        ? `工具“${toolName}”`
-        : toolActionDetail(call.data.name, call.data.arguments);
       task.phase = event.data.error === undefined ? "正在处理结果" : "工具执行失败";
-      task.detail = event.data.error === undefined ? `${action} · 已完成` : `${action} · 执行失败`;
       const liveAction = call === undefined
         ? toolName
-        : toolActivityDetail(call.data.name, call.data.arguments);
+        : toolDisplayName(call.data.name);
       task.toolDetail = event.data.error === undefined
         ? `${liveAction} · 已完成`
         : `${liveAction} · 执行失败`;
@@ -875,7 +946,6 @@ function updateLiveTasks(tasks, session, event) {
       if (current !== undefined) {
         task.phase = "正在执行计划";
         task.detail = compactText(current.content) || task.detail;
-        task.toolDetail = `任务计划 · ${task.detail}`;
         task.hasMeaningfulAction = true;
       }
       break;
@@ -903,7 +973,7 @@ function activityCommand(tasks) {
       sessionID: task.sessionID,
       title: truncate(task.title, 100),
       phase: truncate(task.phase, 40),
-      detail: truncate(task.detail, 160),
+      detail: truncate(normalizeLiveMarkdown(task.detail), 160),
       goalDetail: truncate(task.goalDetail, 160),
       assistantDetail: truncate(task.assistantDetail, 320),
       toolDetail: truncate(task.toolDetail, 160),
@@ -1468,6 +1538,7 @@ export {
   name,
   navigationUrl,
   newestRunningTask,
+  normalizeLiveMarkdown,
   removeUnfinishedLiveTasks,
   notificationIdForApproval,
   renderGoalNotification,
