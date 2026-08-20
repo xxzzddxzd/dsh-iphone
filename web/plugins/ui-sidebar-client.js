@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:packages/client/ui-sidebar/src/client/SidebarRoot.module.css.mjs
-		const css = ".WHpsvq_root{--dsh-sidebar-inline-padding:12px;height:100%;padding:6px var(--dsh-sidebar-inline-padding);box-sizing:border-box;background:var(--dsw-specific-sidebar-fill);color:var(--dsw-alias-label-primary);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);flex-direction:column;font-size:14px;display:flex}.WHpsvq_root.WHpsvq_collapsed{padding:18px 10px 6px}.WHpsvq_root.WHpsvq_quietBars{--dsh-scrollbar-thumb:transparent;--dsh-scrollbar-thumb-hover:transparent}.WHpsvq_primaryArea{flex-direction:column;flex:1;min-height:0;display:flex}.WHpsvq_fading>*{opacity:0;transition:opacity .15s var(--ds-ease-in-out)}.WHpsvq_wide{animation:WHpsvq_wide-in .2s var(--ds-ease-in-out)}@keyframes WHpsvq_wide-in{0%{opacity:0}}.WHpsvq_railIn .WHpsvq_iconButton,.WHpsvq_railIn .WHpsvq_newSession,.WHpsvq_railIn .WHpsvq_regionArea,.WHpsvq_railIn .WHpsvq_footerActions{animation:WHpsvq_rail-in .15s var(--ds-ease-in-out) backwards}.WHpsvq_railIn .WHpsvq_settingsArea{animation:WHpsvq_rail-fade-in .15s var(--ds-ease-in-out) backwards}@keyframes WHpsvq_rail-in{0%{opacity:0;transform:translate(49px)}}@keyframes WHpsvq_rail-fade-in{0%{opacity:0}}.WHpsvq_logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}.WHpsvq_collapsed .WHpsvq_logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}.WHpsvq_brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}.WHpsvq_iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.WHpsvq_iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}.WHpsvq_collapsed .WHpsvq_iconButton{width:36px;height:36px}.WHpsvq_collapsed .WHpsvq_toggle .WHpsvq_panelIcon{display:none}.WHpsvq_collapsed .WHpsvq_toggle:hover .WHpsvq_panelIcon{display:inline}.WHpsvq_collapsed .WHpsvq_toggle:hover .WHpsvq_railFish{display:none}.WHpsvq_collapsed .WHpsvq_iconButton{color:var(--dsw-alias-label-primary)}.WHpsvq_newSession{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;border-radius:12px;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}.WHpsvq_newSession:hover{background:var(--dsw-alias-button-floating-hover)}.WHpsvq_collapsed .WHpsvq_newSession{background:0 0;border-color:#0000;align-self:flex-start;gap:0;width:36px;height:36px;margin:0 0 12px;padding:0}.WHpsvq_collapsed .WHpsvq_newSession:hover{background:var(--dsw-alias-interactive-bg-hover)}.WHpsvq_newSessionLabel{white-space:nowrap;max-width:200px;overflow:hidden}.WHpsvq_collapsed .WHpsvq_newSessionLabel{max-width:0}.WHpsvq_regionArea{min-height:0;margin-left:-4px;margin-right:calc(-1 * var(--dsh-sidebar-inline-padding));flex-direction:column;flex:1;padding-left:4px;display:flex;overflow:hidden}.WHpsvq_collapsed .WHpsvq_regionArea{margin-left:0;margin-right:0;padding-left:0}.WHpsvq_settingsArea,.WHpsvq_footerActions{flex:none;width:100%;min-width:0}.WHpsvq_footerActions{display:flex}.WHpsvq_collapsed .WHpsvq_settingsArea,.WHpsvq_collapsed .WHpsvq_footerActions{justify-content:center;width:auto;display:flex}@media (width<=1023px){.WHpsvq_root{border-radius:inherit}.WHpsvq_root.WHpsvq_collapsed{pointer-events:none;background:0 0;padding:0;overflow:visible}.WHpsvq_collapsed .WHpsvq_primaryArea,.WHpsvq_collapsed .WHpsvq_settingsArea{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-specific-sidebar-fill);width:48px;box-shadow:var(--dsw-shadow-lv2);pointer-events:auto;border-radius:18px;margin-inline:4px}.WHpsvq_collapsed .WHpsvq_primaryArea{flex:none;min-height:0;padding:6px}.WHpsvq_collapsed .WHpsvq_logoRow,.WHpsvq_collapsed .WHpsvq_newSession{margin-bottom:6px}.WHpsvq_collapsed .WHpsvq_regionArea{flex:none;overflow:visible}.WHpsvq_collapsed .WHpsvq_footerActions{width:36px}.WHpsvq_collapsed .WHpsvq_settingsArea{margin-top:auto;padding:6px}.WHpsvq_collapsed .WHpsvq_settingsArea>button{margin:0}}@media (prefers-reduced-motion:reduce){.WHpsvq_wide,.WHpsvq_fading>*,.WHpsvq_railIn .WHpsvq_iconButton,.WHpsvq_railIn .WHpsvq_newSession,.WHpsvq_railIn .WHpsvq_settingsArea,.WHpsvq_railIn .WHpsvq_regionArea,.WHpsvq_railIn .WHpsvq_footerActions{transition:none;animation:none}}";
+		const css = ".WHpsvq_root{--dsh-sidebar-inline-padding:12px;height:100%;padding:6px var(--dsh-sidebar-inline-padding);box-sizing:border-box;background:var(--dsw-specific-sidebar-fill);color:var(--dsw-alias-label-primary);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);flex-direction:column;font-size:14px;display:flex}.WHpsvq_root.WHpsvq_collapsed{padding:18px 10px 6px}.WHpsvq_root.WHpsvq_quietBars{--dsh-scrollbar-thumb:transparent;--dsh-scrollbar-thumb-hover:transparent}.WHpsvq_primaryArea{flex-direction:column;flex:1;min-height:0;display:flex}.WHpsvq_fading>*{opacity:0;transition:opacity .15s var(--ds-ease-in-out)}.WHpsvq_wide{animation:WHpsvq_wide-in .2s var(--ds-ease-in-out)}@keyframes WHpsvq_wide-in{0%{opacity:0}}.WHpsvq_railIn .WHpsvq_iconButton,.WHpsvq_railIn .WHpsvq_newSession,.WHpsvq_railIn .WHpsvq_regionArea,.WHpsvq_railIn .WHpsvq_footerActions{animation:WHpsvq_rail-in .15s var(--ds-ease-in-out) backwards}.WHpsvq_railIn .WHpsvq_settingsArea{animation:WHpsvq_rail-fade-in .15s var(--ds-ease-in-out) backwards}@keyframes WHpsvq_rail-in{0%{opacity:0;transform:translate(49px)}}@keyframes WHpsvq_rail-fade-in{0%{opacity:0}}.WHpsvq_logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}.WHpsvq_collapsed .WHpsvq_logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}.WHpsvq_brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}.WHpsvq_iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.WHpsvq_iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}.WHpsvq_collapsed .WHpsvq_iconButton{width:36px;height:36px}.WHpsvq_collapsed .WHpsvq_toggle .WHpsvq_panelIcon{display:none}.WHpsvq_collapsed .WHpsvq_toggle:hover .WHpsvq_panelIcon{display:inline}.WHpsvq_collapsed .WHpsvq_toggle:hover .WHpsvq_railFish{display:none}.WHpsvq_collapsed .WHpsvq_iconButton{color:var(--dsw-alias-label-primary)}.WHpsvq_newSession{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;border-radius:12px;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}.WHpsvq_newSession:hover{background:var(--dsw-alias-button-floating-hover)}.WHpsvq_collapsed .WHpsvq_newSession{background:0 0;border-color:#0000;align-self:flex-start;gap:0;width:36px;height:36px;margin:0 0 12px;padding:0}.WHpsvq_collapsed .WHpsvq_newSession:hover{background:var(--dsw-alias-interactive-bg-hover)}.WHpsvq_newSessionLabel{white-space:nowrap;max-width:200px;overflow:hidden}.WHpsvq_collapsed .WHpsvq_newSessionLabel{max-width:0}.WHpsvq_regionArea{min-height:0;margin-left:-4px;margin-right:calc(-1 * var(--dsh-sidebar-inline-padding));flex-direction:column;flex:1;padding-left:4px;display:flex;overflow:hidden}.WHpsvq_collapsed .WHpsvq_regionArea{margin-left:0;margin-right:0;padding-left:0}.WHpsvq_settingsArea,.WHpsvq_footerActions{flex:none;width:100%;min-width:0}.WHpsvq_footerActions{display:flex}.WHpsvq_collapsed .WHpsvq_settingsArea,.WHpsvq_collapsed .WHpsvq_footerActions{justify-content:center;width:auto;display:flex}@media (width<=1023px){.WHpsvq_root{border-radius:inherit}.WHpsvq_root.WHpsvq_collapsed{--dsh-mobile-sidebar-launcher-size:48px;pointer-events:none;background:0 0;padding:0;overflow:visible}.WHpsvq_collapsed .WHpsvq_primaryArea{width:var(--dsh-mobile-sidebar-launcher-size);min-height:var(--dsh-mobile-sidebar-launcher-size);box-sizing:border-box;pointer-events:auto;flex:none;margin-inline:4px;padding:2px}.WHpsvq_collapsed .WHpsvq_logoRow{height:44px;margin:0}.WHpsvq_collapsed .WHpsvq_iconButton{width:44px;height:44px}.WHpsvq_collapsed .WHpsvq_toggle:hover .WHpsvq_panelIcon{display:none}.WHpsvq_collapsed .WHpsvq_toggle:hover .WHpsvq_railFish{display:inline}.WHpsvq_collapsed .WHpsvq_newSession,.WHpsvq_collapsed .WHpsvq_regionArea,.WHpsvq_collapsed .WHpsvq_footerActions,.WHpsvq_collapsed .WHpsvq_settingsArea{display:none}}@media (prefers-reduced-motion:reduce){.WHpsvq_wide,.WHpsvq_fading>*,.WHpsvq_railIn .WHpsvq_iconButton,.WHpsvq_railIn .WHpsvq_newSession,.WHpsvq_railIn .WHpsvq_settingsArea,.WHpsvq_railIn .WHpsvq_regionArea,.WHpsvq_railIn .WHpsvq_footerActions{transition:none;animation:none}}";
 		const tagId = "@deepseek-ai/dsh-client-ui-sidebar/SidebarRoot.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -34,26 +34,26 @@ window.__ModuleLoader__.load({
 		}
 		var SidebarRoot_module_css_default = {
 			"root": "WHpsvq_root",
-			"primaryArea": "WHpsvq_primaryArea",
 			"rail-fade-in": "WHpsvq_rail-fade-in",
-			"railFish": "WHpsvq_railFish",
-			"logoRow": "WHpsvq_logoRow",
-			"rail-in": "WHpsvq_rail-in",
-			"wide-in": "WHpsvq_wide-in",
-			"collapsed": "WHpsvq_collapsed",
-			"wide": "WHpsvq_wide",
-			"iconButton": "WHpsvq_iconButton",
-			"settingsArea": "WHpsvq_settingsArea",
-			"brand": "WHpsvq_brand",
-			"footerActions": "WHpsvq_footerActions",
-			"toggle": "WHpsvq_toggle",
-			"regionArea": "WHpsvq_regionArea",
-			"newSession": "WHpsvq_newSession",
+			"quietBars": "WHpsvq_quietBars",
 			"newSessionLabel": "WHpsvq_newSessionLabel",
-			"railIn": "WHpsvq_railIn",
-			"panelIcon": "WHpsvq_panelIcon",
+			"logoRow": "WHpsvq_logoRow",
+			"wide-in": "WHpsvq_wide-in",
+			"newSession": "WHpsvq_newSession",
+			"brand": "WHpsvq_brand",
 			"fading": "WHpsvq_fading",
-			"quietBars": "WHpsvq_quietBars"
+			"wide": "WHpsvq_wide",
+			"railIn": "WHpsvq_railIn",
+			"iconButton": "WHpsvq_iconButton",
+			"primaryArea": "WHpsvq_primaryArea",
+			"collapsed": "WHpsvq_collapsed",
+			"regionArea": "WHpsvq_regionArea",
+			"toggle": "WHpsvq_toggle",
+			"rail-in": "WHpsvq_rail-in",
+			"railFish": "WHpsvq_railFish",
+			"settingsArea": "WHpsvq_settingsArea",
+			"footerActions": "WHpsvq_footerActions",
+			"panelIcon": "WHpsvq_panelIcon"
 		};
 		//#endregion
 		//#region src/client/SidebarRoot.tsx
@@ -63,8 +63,9 @@ window.__ModuleLoader__.load({
 		* while the sliding column (AppFrame grid tracks) clips it — nothing reflows
 		* mid-slide. At settle the wide-only content unmounts and the four upper
 		* controls enter the 56px rail from the same horizontal offset (one icon each,
-		* same top-down order) on one fade that ends with the slide. The bottom-pinned
-		* settings control only fades. The workspace/session browsing region between
+		* same top-down order) on one fade that ends with the slide. On narrow screens
+		* the settled rail reduces to its whale toggle; all actions return in the
+		* expanded drawer. The workspace/session browsing region between
 		* the New Session button and the foot is the `sidebar.workspaces` registrant's,
 		* and the foot holds `sidebar.settings` plus `sidebar.footer.action`; the shell
 		* hands them the wide flag (plus an expand request callback for the browser).
@@ -288,5 +289,3 @@ window.__ModuleLoader__.load({
 		return module.exports;
 	}
 });
-
-//# sourceMappingURL=client.js.map

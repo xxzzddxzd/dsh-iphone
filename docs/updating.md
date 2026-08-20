@@ -113,7 +113,7 @@ git submodule status
   - 浏览器兼容代码或缓存语义改变时才递增 `IOS_COMPAT_VERSION`。
 - `dsh-runtime/package.json`：`@deepseek-ai/dsh` 使用完全版本，不用 `^`、`~` 或 `latest`。
 - `scripts/patch-dsh.mjs`：支持版本、依赖版本、严格补丁预像、bundle 名和原始 hash。
-- `web/plugins/`：重新生成 iOS 专用的布局与侧栏 bundle，并更新补丁器中的官方预像 hash。
+- `web/plugins/`：重新生成 iOS 专用的布局、侧栏与会话标题 bundle，并更新补丁器中的官方预像 hash。
 - 受版本影响的测试、README、兼容和通知文档。
 
 Debian prerelease 使用 `~`，这样排序仍低于将来的正式版。上游版本没变而只发布本项目修正时，不改 `DSH_VERSION`，只增加 Debian revision。

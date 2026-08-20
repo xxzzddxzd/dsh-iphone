@@ -247,7 +247,13 @@ await installExactFile(
   "node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/client.js",
   resolve(repositoryRoot, "web/plugins/ui-sidebar-client.js"),
   "b9bd53c300a07199cadcfee7c2a35c6ca4633849ce14574738c26649b09657ba",
-  "iOS split sidebar plugin",
+  "iOS single-launcher sidebar plugin",
+);
+await installExactFile(
+  "node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js",
+  resolve(repositoryRoot, "web/plugins/ui-conversation-client.js"),
+  "0980922f58332dea0ff18079d2da728f7a81136079babf0278776d6897a45d80",
+  "iOS mobile conversation header plugin",
 );
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
