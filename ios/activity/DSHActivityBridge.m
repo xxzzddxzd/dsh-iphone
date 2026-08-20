@@ -19,6 +19,8 @@ static NSString *const DSHActivitySocketPath =
     @"/var/mobile/Library/DSHNotifier/activity.sock";
 static NSString *const DSHActivityIdentifierPath =
     @"/var/mobile/Library/DSHNotifier/activity.id";
+static NSString *const DSHActivityTaskPath =
+    @"/var/mobile/Library/DSHNotifier/activity.task";
 static NSString *const DSHActivityFinishedPath =
     @"/var/mobile/Library/DSHNotifier/activity.finished";
 static NSString *const DSHActivityWorkerPath =
@@ -28,6 +30,7 @@ static const NSUInteger DSHActivityMaximumWorkerOutputBytes = 4 * 1024;
 static const int64_t DSHActivityWorkerTimeoutMilliseconds = 7 * 1000;
 
 static NSString *DSHActivityIdentifier;
+static NSDictionary *DSHActivityTask;
 static BOOL DSHActivityFinished;
 
 static BOOL DSHActivityValidString(id value, NSUInteger maximumBytes, BOOL mayBeEmpty) {
@@ -420,6 +423,57 @@ static void DSHActivityStoreIdentifier(NSString *identifier) {
   chmod(DSHActivityIdentifierPath.fileSystemRepresentation, 0600);
 }
 
+static NSDictionary *DSHActivityTaskForState(NSDictionary *state) {
+  return @{
+    @"sessionID": state[@"sessionID"],
+    @"startedAtMilliseconds": state[@"startedAtMilliseconds"],
+  };
+}
+
+static void DSHActivityStoreTask(NSDictionary *task) {
+  DSHActivityTask = [task copy];
+  if (task == nil) {
+    unlink(DSHActivityTaskPath.fileSystemRepresentation);
+    return;
+  }
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:task options:0 error:&error];
+  if (data == nil ||
+      ![data writeToFile:DSHActivityTaskPath options:NSDataWritingAtomic error:&error]) {
+    NSLog(@"[DSHActivity] could not persist task identity: %@", error);
+    return;
+  }
+  chmod(DSHActivityTaskPath.fileSystemRepresentation, 0600);
+}
+
+static void DSHActivityLoadTask(void) {
+  NSError *error = nil;
+  NSData *data = [NSData dataWithContentsOfFile:DSHActivityTaskPath options:0 error:&error];
+  id task = data == nil
+      ? nil
+      : [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+  NSString *sessionID = [task isKindOfClass:[NSDictionary class]] ? task[@"sessionID"] : nil;
+  NSNumber *startedAt = [task isKindOfClass:[NSDictionary class]]
+      ? task[@"startedAtMilliseconds"]
+      : nil;
+  if (DSHActivityValidString(sessionID, 512, NO) &&
+      DSHActivityInteger(startedAt, 1, NULL)) {
+    DSHActivityTask = @{
+      @"sessionID": sessionID,
+      @"startedAtMilliseconds": startedAt,
+    };
+    return;
+  }
+  if (data != nil || error.code != NSFileReadNoSuchFileError) {
+    unlink(DSHActivityTaskPath.fileSystemRepresentation);
+  }
+}
+
+static BOOL DSHActivityIsSameTask(NSDictionary *state) {
+  return DSHActivityTask != nil &&
+      [DSHActivityTask isEqualToDictionary:DSHActivityTaskForState(state)];
+}
+
 static void DSHActivityLoadIdentifier(void) {
   NSError *error = nil;
   NSString *identifier = [NSString stringWithContentsOfFile:DSHActivityIdentifierPath
@@ -430,11 +484,13 @@ static void DSHActivityLoadIdentifier(void) {
   if (identifier.length > 0 && [[NSUUID alloc] initWithUUIDString:identifier] != nil) {
     DSHActivityIdentifier = identifier;
     DSHActivityFinished = access(DSHActivityFinishedPath.fileSystemRepresentation, F_OK) == 0;
+    DSHActivityLoadTask();
     NSLog(@"[DSHActivity] recovered activity %@", identifier);
   } else {
     if (identifier != nil || error.code != NSFileReadNoSuchFileError) {
       unlink(DSHActivityIdentifierPath.fileSystemRepresentation);
     }
+    unlink(DSHActivityTaskPath.fileSystemRepresentation);
     unlink(DSHActivityFinishedPath.fileSystemRepresentation);
   }
 }
@@ -453,6 +509,7 @@ static BOOL DSHActivityCreate(NSDictionary *state, NSString **errorMessage) {
     return NO;
   }
   DSHActivityStoreIdentifier(identifier);
+  DSHActivityStoreTask(DSHActivityTaskForState(state));
   NSLog(@"[DSHActivity] worker created %@ for ai.deepseek.dsh", identifier);
   return YES;
 }
@@ -468,11 +525,13 @@ static BOOL DSHActivityUpdate(NSDictionary *state, NSString **errorMessage) {
 static BOOL DSHActivityEnd(NSString **errorMessage) {
   NSString *identifier = DSHActivityIdentifier;
   if (identifier == nil) {
+    DSHActivityStoreTask(nil);
     DSHActivityStoreFinished(NO);
     return YES;
   }
   if (!DSHActivityRunWorker(@[@"end", identifier], NULL, errorMessage)) return NO;
   DSHActivityStoreIdentifier(nil);
+  DSHActivityStoreTask(nil);
   DSHActivityStoreFinished(NO);
   NSLog(@"[DSHActivity] worker ended %@", identifier);
   return YES;
@@ -481,10 +540,15 @@ static BOOL DSHActivityEnd(NSString **errorMessage) {
 static BOOL DSHActivityApplyState(NSDictionary *state, NSString **errorMessage) {
   BOOL nextFinished = [state[@"finishedAtMilliseconds"] longLongValue] > 0;
   // A completed card intentionally stays active so the user can read or
-  // dismiss it. The first state of a later task must get a fresh Activity ID:
-  // an activity the user already dismissed may silently ignore further
-  // updates, and reusing an ended-looking card makes task boundaries unclear.
-  if (DSHActivityIdentifier != nil && DSHActivityFinished && !nextFinished &&
+  // dismiss it. Task identity is also persisted because a user can dismiss a
+  // running card before its terminal state arrives. Updates for that same task
+  // respect the dismissal; a later root turn always gets a fresh Activity ID.
+  BOOL isNewTask = DSHActivityIdentifier != nil && !DSHActivityIsSameTask(state);
+  if (isNewTask) {
+    NSLog(@"[DSHActivity] replacing activity %@ for new task", DSHActivityIdentifier);
+  }
+  if (DSHActivityIdentifier != nil &&
+      (isNewTask || (DSHActivityFinished && !nextFinished)) &&
       !DSHActivityEnd(errorMessage)) {
     return NO;
   }

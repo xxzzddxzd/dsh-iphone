@@ -71,3 +71,9 @@ SessionKit descriptor 对无 Bundle 的命令行进程显示的是被系统截�
 - SpringBoard bridge 和 broker 二进制中都不应出现 ActivityKit framework 路径或私有 client 符号。
 - helper 缺失、超时、返回错误或 XPC 拒绝时向调用方返回 `ERR`，不启动 App。
 - [Apple 的 ActivityKit 文档](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities)规定静态属性与动态状态合计不得超过 4 KB；helper 在发 XPC 前再次检查实际 JSON 字节数。
+
+## 用户清除后的生命周期
+
+用户在锁屏或通知中心左滑清除 Live Activity 后，系统会撤掉它的展示，但原创建者仍能查询到对应 descriptor，input 服务对旧 UUID 的 update 也继续返回成功；这些 update 不会让卡片重新出现。因此不能用 descriptor 是否存在来判断用户是否清除过卡片。
+
+broker 同时持久化当前 root turn 的 `sessionID` 与 `startedAtMilliseconds`。同一任务的后续 update 继续使用原 UUID，尊重用户对这次任务的清除操作；收到不同任务身份时，即使上一任务没有送达 terminal 状态，也会先结束旧 UUID，再为新任务创建 Activity。这样不会在用户刚清除后立刻反复弹回，同时保证后续任务仍能显示。

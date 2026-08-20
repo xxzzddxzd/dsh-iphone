@@ -546,6 +546,16 @@ function newestFinishedTask(tasks) {
   return selected;
 }
 
+function removeUnfinishedLiveTasks(tasks, sessionId) {
+  let removed = 0;
+  for (const [key, task] of tasks) {
+    if (task.sessionID !== sessionId || task.finishedAtMilliseconds > 0) continue;
+    tasks.delete(key);
+    removed += 1;
+  }
+  return removed;
+}
+
 function latestSessionTask(tasks, sessionId, turn) {
   if (Number.isSafeInteger(turn)) {
     const task = tasks.get(taskKey(sessionId, turn));
@@ -1404,11 +1414,23 @@ function apply(ctx, config = {}) {
       `event "${event.type}"`,
     );
   }, { global: true });
+  const stopAgentStatus = ctx.on("agent/status", ({ agent, status }) => {
+    if (status !== "idle") return;
+    const removed = removeUnfinishedLiveTasks(liveTasks, agent.id);
+    if (removed === 0) return;
+    if (resolved.logSuccess) {
+      ctx.logger.info(
+        `ios-notifier: removed ${removed} unfinished Live Activity task(s) for idle session "${agent.id}"`,
+      );
+    }
+    syncLiveActivity();
+  }, { global: true });
 
   ctx.effect(() => async () => {
     stopped = true;
     stopGoals();
     stopSessionEvents();
+    stopAgentStatus();
     if (approvalExpiryTimer !== undefined) clearInterval(approvalExpiryTimer);
     muxAbort.abort(new Error("ios-notifier stopped"));
     const pendingNotificationIds = [...pendingApprovals.values()].map((pending) => pending.notificationId);
@@ -1441,6 +1463,7 @@ export {
   name,
   navigationUrl,
   newestRunningTask,
+  removeUnfinishedLiveTasks,
   notificationIdForApproval,
   renderGoalNotification,
   renderApprovalNotification,
