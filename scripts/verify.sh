@@ -37,12 +37,16 @@ node "$ROOT/tests/test-lockfile.mjs"
 node "$ROOT/tests/test-shims.mjs"
 node "$ROOT/tests/test-vless-config.mjs"
 node "$ROOT/tests/test-ios-notifications.mjs"
+node "$ROOT/tests/test-ios-floating-sidebar.mjs"
 "$ROOT/tests/test-xray-package.sh"
 
 VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-Cjbwl5VI.js"
 INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js"
 if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios16-frontend.mjs" "$VENDOR" "$INDEX"
+  node "$ROOT/tests/test-ios-floating-sidebar.mjs" \
+    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js" \
+    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/client.js"
   node "$ROOT/scripts/patch-dsh.mjs" --root "$ROOT/build/dsh-runtime" --check
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js')"
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-sandbox-windows-acl/lib/index.js')"
@@ -86,6 +90,8 @@ actual_upstream=$(git -C "$ROOT/upstream/deepseek-harness" rev-parse HEAD)
   die "upstream submodule is $actual_upstream, expected $DSH_UPSTREAM_COMMIT"
 [ -z "$(git -C "$ROOT/upstream/deepseek-harness" status --porcelain)" ] || \
   die "upstream submodule has local changes; iOS compatibility must stay outside official DSH"
+git -C "$ROOT/upstream/deepseek-harness" apply --check \
+  "$ROOT/patches/dsh-rc7-ios-floating-sidebar.patch"
 upstream_version=$(node -p "require('$ROOT/upstream/deepseek-harness/package.json').version")
 [ "$upstream_version" = "$DSH_VERSION" ] || \
   die "upstream package version is $upstream_version, expected $DSH_VERSION"

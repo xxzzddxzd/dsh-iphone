@@ -9,9 +9,9 @@ const html = await readFile(htmlPath, "utf8");
 const inlineScript = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
 
 assert.ok(inlineScript, "compatibility bootstrap script is missing");
-assert.match(html, /name="dsh-ios-compat" content="5"/);
-assert.match(html, /index-C-1AiF3k\.js\?ioscompat=5/);
-assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=5/);
+assert.match(html, /name="dsh-ios-compat" content="6"/);
+assert.match(html, /index-C-1AiF3k\.js\?ioscompat=6/);
+assert.match(html, /vendor-Cjbwl5VI\.js\?ioscompat=6/);
 
 const storage = new Map();
 let replacedUrl;
@@ -46,7 +46,7 @@ const context = vm.createContext({
     },
   },
   location: {
-    href: "http://127.0.0.1:3080/?ioscompat=5&session=child-1&parent=parent-1&mode=continuable",
+    href: "http://127.0.0.1:3080/?ioscompat=6&session=child-1&parent=parent-1&mode=continuable",
   },
 });
 context.window = context;
@@ -84,7 +84,7 @@ assert.deepEqual(JSON.parse(storage.get("dsh.sessions.current")), {
     mode: "continuable",
   },
 });
-assert.equal(replacedUrl, "/?ioscompat=5");
+assert.equal(replacedUrl, "/?ioscompat=6");
 assert.equal(vm.runInContext("__DSH_IOS_SESSION_LINK__.sessionId", context), "child-1");
 
 const vendorPath = process.argv[2];
@@ -99,7 +99,7 @@ if (vendorPath !== undefined || indexPath !== undefined) {
     'new RegExp("([-.\\\\w+]+)@([-\\\\w]+(?:\\\\.[-\\\\w]+)+)","gu")';
   assert.equal(vendor.includes(unsupported), false, "Safari lookbehind remains");
   assert.equal(vendor.split(compatible).length - 1, 1, "compatible regexp count");
-  assert.ok(index.includes('from"./vendor-Cjbwl5VI.js?ioscompat=5"'));
+  assert.ok(index.includes('from"./vendor-Cjbwl5VI.js?ioscompat=6"'));
 }
 
 console.log("iOS 16 frontend compatibility checks passed");

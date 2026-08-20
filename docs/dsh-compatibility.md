@@ -11,7 +11,8 @@ DSH 0.1.0-rc.7 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向�
 | profile HMR | 部分 iOS 启动组合没有 `ctx.loader.internal` | 未挂载 internal loader 时跳过 HMR watcher 初始化 |
 | node-pty | npm 未提供 iPhoneOS native 产物，SDK 未声明 `openpty` | 使用上游 Apple `posix_spawn` 后端，为 iPhoneOS 编译 `pty.node` 和 `spawn-helper`，并补充缺失的 SDK 声明 |
 | HTML 缓存 | Safari 会继续使用旧入口或旧 module graph | index 与 SPA fallback 返回 no-cache header，并给 bundle 增加 compatibility 查询参数 |
-| 通知深链接 | 通知 URL 只知道 session，Web 默认恢复上次选择 | compatibility 5 在 module 启动前把 URL 参数写入 `dsh.sessions.current` |
+| 通知深链接 | 通知 URL 只知道 session，Web 默认恢复上次选择 | compatibility 6 在 module 启动前把 URL 参数写入 `dsh.sessions.current` |
+| 移动端侧栏 | 收起后仍占对话宽度，展开时挤压对话区 | compatibility 6 在窄屏使用上下分离的悬浮入口，展开层覆盖对话区 |
 
 图片 shim 支持 DSH 当前接收的 PNG、JPEG、WebP 和 GIF 元数据与结构检查，不提供 resize、转码或颜色处理。它是上传准入校验器，不是 `sharp` 的通用替代品；升级附件模块时必须重新核对调用面。
 
@@ -19,7 +20,7 @@ Node iOS 构建报告 `process.platform === "ios"`，因此两个 node-pty 产�
 
 ## Safari 16 兼容
 
-iOS 上的 Chrome 仍使用 WebKit，因此更换 Chrome 不能绕过 Safari 16 的 JavaScript 能力边界。compatibility 5 入口在任何 DSH module 执行前提供：
+iOS 上的 Chrome 仍使用 WebKit，因此更换 Chrome 不能绕过 Safari 16 的 JavaScript 能力边界。compatibility 6 入口在任何 DSH module 执行前提供：
 
 - `Promise.withResolvers`
 - `Array.prototype.toSpliced`
@@ -32,7 +33,9 @@ iOS 上的 Chrome 仍使用 WebKit，因此更换 Chrome 不能绕过 Safari 16 
 - `structuredClone`
 - `crypto.randomUUID`
 
-另外，GFM email autolink 中的 RegExp lookbehind 会让 Safari 16 在解析整个 vendor bundle 时失败。补丁去除该 lookbehind，同时保留调用方已有的 email 边界检查。主 bundle 对 vendor 的 import 使用 `?ioscompat=5`，避免旧 module cache 继续返回解析失败的文件。
+另外，GFM email autolink 中的 RegExp lookbehind 会让 Safari 16 在解析整个 vendor bundle 时失败。补丁去除该 lookbehind，同时保留调用方已有的 email 边界检查。主 bundle 对 vendor 的 import 使用 `?ioscompat=6`，避免旧 module cache 继续返回解析失败的文件。
+
+窄于 1024px 时，对话区保持全宽。上方功能入口与下方设置入口分别悬浮；打开侧栏后以遮罩层覆盖对话，点击遮罩或按 Escape 可关闭。桌面宽屏仍保留官方三栏和拖拽行为。
 
 入口还识别 `session`、`parent` 与 `mode` 查询参数。合法参数会同步写入 Web runtime 已有的 `dsh.sessions.current` localStorage 项，然后从地址栏清除；module graph 随后按普通的恢复选择流程打开根 session 或带父地址的 subagent session。URL 不含设置、凭据或消息正文。
 
@@ -48,7 +51,7 @@ Invalid regular expression: invalid group specifier name
 浏览器应始终访问带版本参数的地址：
 
 ```text
-http://127.0.0.1:3082/?ioscompat=5
+http://127.0.0.1:3082/?ioscompat=6
 ```
 
 ## 严格补丁器
