@@ -53,4 +53,4 @@ done
   die "DSH did not answer on device port 3080; inspect /var/root/dsh.log"
 
 printf 'DSH is running on %s. Start ./scripts/start-tunnel.sh and open:\n' "$REMOTE"
-printf 'http://127.0.0.1:3082/?ioscompat=%s\n' "$IOS_COMPAT_VERSION"
+printf 'http://127.0.0.1:3081/?ioscompat=%s\n' "$IOS_COMPAT_VERSION"

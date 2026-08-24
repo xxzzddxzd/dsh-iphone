@@ -23,6 +23,7 @@ done < <(rg --files scripts shims tests ios -g '*.mjs')
 
 plutil -lint \
   "$ROOT/launchd/ai.deepseek.dsh.plist" \
+  "$ROOT/launchd/ai.deepseek.dsh-iphone-usb-proxy.plist.in" \
   "$ROOT/launchd/ai.deepseek.dsh-activity.plist" \
   "$ROOT/launchd/ai.deepseek.dsh-vless.plist" \
   "$ROOT/packaging/node/entitlements.xml" \

@@ -59,7 +59,7 @@ Invalid regular expression: invalid group specifier name
 浏览器应始终访问带版本参数的地址：
 
 ```text
-http://127.0.0.1:3082/?ioscompat=9
+http://127.0.0.1:3081/?ioscompat=9
 ```
 
 Safari 会长期缓存已添加到主屏幕的图标。图标资源升级后，现有快捷方式通常不会自动换图；删除旧快捷方式，再从带当前 compatibility 参数的页面重新“添加到主屏幕”即可。

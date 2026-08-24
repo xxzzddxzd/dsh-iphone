@@ -1,6 +1,6 @@
 # 部署与运行排障
 
-以下命令默认设备为 `10.99.6.77:22`，服务端口为 3080，Mac 转发端口为 3082。
+以下命令默认设备为 `10.99.6.77:22`，服务端口为 3080，Mac 转发端口为 3081。
 
 ## 先检查服务
 
@@ -24,7 +24,7 @@ ssh -p 22 root@10.99.6.77 'launchctl bootout user/foreground/ai.deepseek.dsh >/d
 
 ```bash
 nc -vz 10.99.6.77 22
-lsof -nP -iTCP:3082 -sTCP:LISTEN
+lsof -nP -iTCP:3081 -sTCP:LISTEN
 ```
 
 重建转发：
@@ -36,7 +36,7 @@ DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 ./scripts/start-tunnel.sh
 打开：
 
 ```text
-http://127.0.0.1:3082/?ioscompat=9
+http://127.0.0.1:3081/?ioscompat=9
 ```
 
 ## Mac 有回复，iPhone 没有回复
@@ -44,7 +44,7 @@ http://127.0.0.1:3082/?ioscompat=9
 Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先确认 compatibility 9 入口：
 
 ```bash
-curl -sS 'http://127.0.0.1:3082/?ioscompat=9' | rg 'dsh-ios-compat|ioscompat=9'
+curl -sS 'http://127.0.0.1:3081/?ioscompat=9' | rg 'dsh-ios-compat|ioscompat=9'
 ```
 
 如果 Mac 能看到新消息而手机仍保留空白或旧内容：
@@ -55,7 +55,7 @@ curl -sS 'http://127.0.0.1:3082/?ioscompat=9' | rg 'dsh-ios-compat|ioscompat=9'
 4. 确认服务返回 `Cache-Control: no-store`。
 
 ```bash
-curl -i 'http://127.0.0.1:3082/?ioscompat=9' | head -30
+curl -i 'http://127.0.0.1:3081/?ioscompat=9' | head -30
 ```
 
 如果整个页面在打开实验功能后无法显示，先恢复 Safari 实验功能默认值，再清理网站数据；服务端无需重新安装。
