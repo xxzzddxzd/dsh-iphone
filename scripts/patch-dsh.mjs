@@ -110,7 +110,7 @@ async function readJson(relativePath) {
 }
 
 const dshPackage = await readJson("package.json");
-if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.1.0-rc.7") {
+if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.1.1-rc.2") {
   throw new Error(
     `unsupported DSH package: ${dshPackage.name ?? "unknown"}@${dshPackage.version ?? "unknown"}`,
   );
@@ -144,8 +144,64 @@ await installNewFile(
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
   'import sharp from "sharp";',
-  '// iOS patch: pure-JS image validator replaces native libvips\nimport sharp from "../../../ios-sharp-shim.mjs";',
+  '// iOS patch: ImageIO/CoreGraphics facade replaces native libvips\nimport sharp from "../../../ios-sharp-shim.mjs";',
   "attachment image backend",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
+  `\tconst webp = NORMALIZATION_QUALITIES.map((quality) => (() => encode(prepared.clone(), "image/webp", quality)));
+\tif (lowColour) return [() => encode(prepared.clone(), "image/png", void 0, !hasAlpha), ...webp];
+\tif (hasAlpha) return webp;
+\treturn NORMALIZATION_QUALITIES.map((quality) => (() => encode(prepared.clone(), "image/jpeg", quality)));`,
+  `\tconst jpeg = NORMALIZATION_QUALITIES.map((quality) => (() => encode(prepared.clone(), "image/jpeg", quality)));
+\tconst png = () => encode(prepared.clone(), "image/png", void 0, !hasAlpha);
+\tif (hasAlpha) return [png];
+\tif (lowColour) return [png, ...jpeg];
+\treturn jpeg;`,
+  "attachment normalization encoders",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
+  `\tconst webp = REQUEST_IMAGE_QUALITIES.map((quality) => (() => encoded(prepared.clone(), "image/webp", quality)));
+\tif (lowColour) return [() => encoded(prepared.clone(), "image/png", void 0, !hasAlpha), ...webp];
+\tif (hasAlpha) return webp;
+\treturn REQUEST_IMAGE_QUALITIES.map((quality) => (() => encoded(prepared.clone(), "image/jpeg", quality)));`,
+  `\tconst jpeg = REQUEST_IMAGE_QUALITIES.map((quality) => (() => encoded(prepared.clone(), "image/jpeg", quality)));
+\tconst png = () => encoded(prepared.clone(), "image/png", void 0, !hasAlpha);
+\tif (hasAlpha) return [png];
+\tif (lowColour) return [png, ...jpeg];
+\treturn jpeg;`,
+  "attachment request-image encoders",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
+  `const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v4";`,
+  `const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v4-ios-imageio-1";`,
+  "attachment request-image transform identity",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
+  `\t\t\twebpQualities: REQUEST_IMAGE_QUALITIES,
+\t\t\tjpegQualities: REQUEST_IMAGE_QUALITIES,
+\t\t\torder: [
+\t\t\t\t"low-colour:png-webp",
+\t\t\t\t"alpha:webp",
+\t\t\t\t"opaque:jpeg"
+\t\t\t],`,
+  `\t\t\tjpegQualities: REQUEST_IMAGE_QUALITIES,
+\t\t\torder: [
+\t\t\t\t"low-colour:png-jpeg",
+\t\t\t\t"alpha:png",
+\t\t\t\t"opaque:jpeg"
+\t\t\t],`,
+  "attachment request-image descriptor",
+);
+
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-subprocess-local/lib/index.js",
+  'import koffi from "koffi";',
+  '// iOS patch: Win32 process inspection stays inert on iOS\nimport koffi from "../../../ios-koffi-stub.mjs";',
+  "subprocess Win32 koffi import",
 );
 
 await replaceExactlyOnce(
@@ -218,8 +274,8 @@ await replaceExactlyOnce(
 );
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-host-frontend-static/lib/index.js",
-  'res.writeHead(200, { "content-type": MIME[".html"] });',
-  "res.writeHead(200, INDEX_HEADERS);",
+  'res.writeHead(200, { "content-type": type });',
+  'res.writeHead(200, type === HTML_MIME ? INDEX_HEADERS : { "content-type": type });',
   "frontend index response headers",
 );
 
@@ -228,33 +284,33 @@ const unsupportedEmailRegExp =
 const compatibleEmailRegExp =
   'new RegExp("([-.\\\\w+]+)@([-\\\\w]+(?:\\\\.[-\\\\w]+)+)","gu")';
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-Cjbwl5VI.js",
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-D22_Mp1f.js",
   unsupportedEmailRegExp,
   compatibleEmailRegExp,
   "Safari 16 GFM email regexp",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js",
-  'from"./vendor-Cjbwl5VI.js"',
-  'from"./vendor-Cjbwl5VI.js?ioscompat=8"',
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-ClqxG24t.js",
+  'from"./vendor-D22_Mp1f.js"',
+  'from"./vendor-D22_Mp1f.js?ioscompat=9"',
   "frontend vendor cache key",
 );
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js",
   resolve(repositoryRoot, "web/plugins/ui-layout-client.js"),
-  "744b27c101f129e2a3cd4dcbad8e0932c1950459cea733a8d0d32d238af473b0",
+  "16f001f89a9bc19c54cfa90e37cf52e191113af0abe5efd593e57d7ab30060ad",
   "iOS floating layout plugin",
 );
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/client.js",
   resolve(repositoryRoot, "web/plugins/ui-sidebar-client.js"),
-  "b9bd53c300a07199cadcfee7c2a35c6ca4633849ce14574738c26649b09657ba",
+  "719693c401e7175e73f50e8021d918b2829a602fbd09761a6ef39d055c53460a",
   "iOS single-launcher sidebar plugin",
 );
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js",
   resolve(repositoryRoot, "web/plugins/ui-conversation-client.js"),
-  "0980922f58332dea0ff18079d2da728f7a81136079babf0278776d6897a45d80",
+  "fe448ef7e0b1f3e7713dadfc7eff56b9f80d103a2111dfe69c1735ffd0196d61",
   "iOS mobile conversation header plugin",
 );
 
@@ -276,7 +332,7 @@ await installNewFile(
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
   resolve(repositoryRoot, "web/index.ios.html"),
-  "dd159dc02803ac2b16892ec5843567722e0b18e93a9a7a888c77410ea108a13e",
+  "f64ff1fca53360a2ae76819ed23c64ddb5b92ae8bf43b2323c8139416efcf065",
   "Safari 16 entry document",
 );
 

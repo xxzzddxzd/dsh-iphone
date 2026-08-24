@@ -27,7 +27,7 @@ const [layout, sidebar, conversation, settingsPatch, settings] = await Promise.a
   readFile(layoutPath, "utf8"),
   readFile(sidebarPath, "utf8"),
   readFile(conversationPath, "utf8"),
-  readFile(new URL("../patches/dsh-rc7-ios-floating-sidebar.patch", import.meta.url), "utf8"),
+  readFile(new URL("../patches/dsh-rc2-ios-floating-sidebar.patch", import.meta.url), "utf8"),
   settingsPath === undefined ? undefined : readFile(settingsPath, "utf8"),
 ]);
 

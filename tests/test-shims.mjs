@@ -42,8 +42,19 @@ assert.deepEqual(await image.metadata(), {
   format: "png",
   width: 1,
   height: 1,
+  pages: 1,
+  depth: "uchar",
+  space: "srgb",
+  hasAlpha: true,
 });
 await assert.doesNotReject(() => image.raw().toBuffer());
+assert.deepEqual(sharp.kernel, { nearest: "nearest" });
+await assert.doesNotReject(() => image.clone()
+  .rotate()
+  .toColourspace("srgb")
+  .resize({ width: 1, height: 1, kernel: sharp.kernel.nearest })
+  .raw()
+  .toBuffer({ resolveWithObject: true }));
 await assert.rejects(() => sharp(Buffer.from("not an image")).metadata());
 
 const pointer = koffi.pointer("void");

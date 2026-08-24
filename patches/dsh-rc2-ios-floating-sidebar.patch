@@ -1,0 +1,1302 @@
+diff --git a/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css b/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
+index 265a0bd802..ca3e075a36 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
++++ b/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
+@@ -50,6 +50,16 @@
+   display: none;
+ }
+ 
++/* The rootless-iOS shell reduces its collapsed sidebar to one whale launcher.
++   Reserve only header chrome for that 44px target: transcript and composer
++   retain the full conversation width. The safe-area term keeps the same gap
++   when landscape Safari moves the launcher inward. */
++@media (max-width: 1023px) {
++  .header {
++    padding-left: max(68px, calc(env(safe-area-inset-left) + 64px));
++  }
++}
++
+ .titleRow {
+   display: flex;
+   align-items: center;
+diff --git a/packages/client/ui-conversation/tests/mobile-header-styles.client.spec.ts b/packages/client/ui-conversation/tests/mobile-header-styles.client.spec.ts
+new file mode 100644
+index 0000000000..dc0a21ec07
+--- /dev/null
++++ b/packages/client/ui-conversation/tests/mobile-header-styles.client.spec.ts
+@@ -0,0 +1,19 @@
++/** Narrow-header clearance for the rootless-iOS whale navigation launcher. */
++import { readFileSync } from 'node:fs'
++import { fileURLToPath } from 'node:url'
++import { describe, expect, it } from 'vitest'
++
++const css = readFileSync(
++  fileURLToPath(new URL('../src/client/skeleton/ConversationRoot.module.css', import.meta.url)),
++  'utf8',
++)
++
++describe('ConversationRoot.module.css mobile header', () => {
++  it('reserves safe-area-aware leading space without narrowing the conversation body', () => {
++    expect(css).toContain('@media (max-width: 1023px)')
++    expect(css).toMatch(
++      /\.header\s*\{\s*padding-left: max\(68px, calc\(env\(safe-area-inset-left\) \+ 64px\)\);\s*}/,
++    )
++    expect(css).not.toMatch(/\.root\s*\{[^}]*padding-left: max\(/)
++  })
++})
+diff --git a/packages/client/ui-layout/src/client/AppFrame.module.css b/packages/client/ui-layout/src/client/AppFrame.module.css
+index ae56780133..79bb01a448 100644
+--- a/packages/client/ui-layout/src/client/AppFrame.module.css
++++ b/packages/client/ui-layout/src/client/AppFrame.module.css
+@@ -23,13 +23,19 @@
+ }
+ 
+ .sidebarCol {
++  grid-column: 1;
+   min-width: 0;
+   overflow: hidden;
+   background: var(--dsw-specific-sidebar-fill);
+   border-right: 1px solid var(--dsw-alias-border-l1);
+ }
+ 
++.sidebarBackdrop {
++  display: none;
++}
++
+ .centerCol {
++  grid-column: 2;
+   min-width: 0;
+   display: flex;
+   flex-direction: column;
+@@ -37,6 +43,7 @@
+ }
+ 
+ .detailsCol {
++  grid-column: 3;
+   min-width: 0;
+   overflow: hidden;
+   border-left: 1px solid var(--dsw-alias-border-l2);
+@@ -117,3 +124,51 @@
+ .overlayLayer > * {
+   pointer-events: auto;
+ }
++
++/* Below the layout's auto-collapse breakpoint the conversation owns the full
++   grid width. The sidebar is an overlaid drawer while open and a transparent
++   carrier for the single whale launcher while closed. */
++@media (max-width: 1023px) {
++  .frame[data-floating-sidebar] .sidebarCol {
++    position: absolute;
++    z-index: 10;
++    top: max(8px, env(safe-area-inset-top));
++    bottom: max(8px, env(safe-area-inset-bottom));
++    left: max(8px, env(safe-area-inset-left));
++    min-width: 0;
++    max-width: calc(100% - 24px);
++    border: 1px solid var(--dsw-alias-border-l1);
++    border-radius: 20px;
++    background: var(--dsw-specific-sidebar-fill);
++    box-shadow: var(--dsw-shadow-lv3);
++    transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
++  }
++
++  .frame[data-floating-sidebar][data-sidebar-collapsed] .sidebarCol {
++    overflow: visible;
++    border: none;
++    border-radius: 0;
++    background: transparent;
++    box-shadow: none;
++    pointer-events: none;
++  }
++
++  .frame[data-floating-sidebar] .sidebarBackdrop {
++    position: absolute;
++    inset: 0;
++    z-index: 9;
++    display: block;
++    background: var(--dsw-alias-bg-mask-1);
++    backdrop-filter: var(--dsw-mask-blur);
++  }
++
++  .frame[data-floating-sidebar] .handle[data-side='sidebar'] {
++    display: none;
++  }
++}
++
++@media (max-width: 1023px) and (prefers-reduced-motion: reduce) {
++  .frame[data-floating-sidebar] .sidebarCol {
++    transition: none;
++  }
++}
+diff --git a/packages/client/ui-layout/src/client/AppFrame.tsx b/packages/client/ui-layout/src/client/AppFrame.tsx
+index 2696dc91fa..f965737fa2 100644
+--- a/packages/client/ui-layout/src/client/AppFrame.tsx
++++ b/packages/client/ui-layout/src/client/AppFrame.tsx
+@@ -143,6 +143,18 @@ export function AppFrame({
+   const colsRef = useRef(cols)
+   colsRef.current = cols
+ 
++  // Narrow viewports keep the conversation on the full frame and float the
++  // sidebar above it. Escape mirrors the backdrop gesture while the drawer is
++  // open; the compact rail stays click-through between its two control groups.
++  useEffect(() => {
++    if (!narrow || sidebarCollapsed) return
++    const onKeyDown = (event: KeyboardEvent): void => {
++      if (event.key === 'Escape') actions.toggleSidebar()
++    }
++    document.addEventListener('keydown', onKeyDown)
++    return () => { document.removeEventListener('keydown', onKeyDown) }
++  }, [actions, narrow, sidebarCollapsed])
++
+   // The drag base is the rendered width captured at drag start (grabbing a
+   // concession-clamped panel must not jump back to the stored preference);
+   // it stays frozen for the whole gesture so dx deltas do not compound.
+@@ -165,12 +177,16 @@ export function AppFrame({
+     <div
+       ref={frameRef}
+       className={css.frame}
+-      style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
++      style={{ gridTemplateColumns: `${narrow ? 0 : cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
++      data-floating-sidebar={narrow || undefined}
+       data-sidebar-collapsed={sidebarCollapsed || undefined}
+       data-details-collapsed={cols.details === 0 || undefined}
+       data-dragging={dragging || undefined}
+     >
+-      <div className={css.sidebarCol}>
++      {!sidebarCollapsed && narrow && (
++        <div className={css.sidebarBackdrop} role="presentation" onClick={() => { actions.toggleSidebar() }} />
++      )}
++      <div className={css.sidebarCol} style={narrow ? { width: cols.sidebar } : undefined}>
+         {/* Render-site slot call with live concession output: a closed
+             sidebar keeps the mounted slot at the compact-rail width, and the
+             component sees its rendered state as owner params decided here
+@@ -194,7 +210,7 @@ export function AppFrame({
+         {renderSlot('shell.overlay', {})}
+       </div>
+       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
+-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
++      {!narrow && !sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+       {cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
+     </div>
+   )
+diff --git a/packages/client/ui-layout/tests/app-frame-styles.client.spec.ts b/packages/client/ui-layout/tests/app-frame-styles.client.spec.ts
+new file mode 100644
+index 0000000000..e47d21e986
+--- /dev/null
++++ b/packages/client/ui-layout/tests/app-frame-styles.client.spec.ts
+@@ -0,0 +1,30 @@
++/** Structural CSS contracts for the AppFrame grid and floating narrow shell. */
++import { readFileSync } from 'node:fs'
++import { fileURLToPath } from 'node:url'
++import { describe, expect, it } from 'vitest'
++
++const css = readFileSync(
++  fileURLToPath(new URL('../src/client/AppFrame.module.css', import.meta.url)),
++  'utf8',
++)
++
++function declaration(selector: string, property: string): string | undefined {
++  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, ' ')
++  for (const [, selectorList = '', body = ''] of withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
++    if (!selectorList.split(',').map(value => value.trim()).includes(selector)) continue
++    for (const part of body.split(';')) {
++      const colon = part.indexOf(':')
++      if (colon === -1) continue
++      if (part.slice(0, colon).trim() === property) return part.slice(colon + 1).trim()
++    }
++  }
++  return undefined
++}
++
++describe('AppFrame.module.css', () => {
++  it('pins all content columns so an absolute floating sidebar cannot shift the conversation', () => {
++    expect(declaration('.sidebarCol', 'grid-column')).toBe('1')
++    expect(declaration('.centerCol', 'grid-column')).toBe('2')
++    expect(declaration('.detailsCol', 'grid-column')).toBe('3')
++  })
++})
+diff --git a/packages/client/ui-layout/tests/app-frame.client.spec.tsx b/packages/client/ui-layout/tests/app-frame.client.spec.tsx
+index d865a5c186..4625bffe63 100644
+--- a/packages/client/ui-layout/tests/app-frame.client.spec.tsx
++++ b/packages/client/ui-layout/tests/app-frame.client.spec.tsx
+@@ -285,24 +285,41 @@ describe('AppFrame', () => {
+ })
+ 
+ describe('AppFrame — narrow-viewport auto-collapse', () => {
+-  it('mounts collapsed below the breakpoint with no sidebar handle', () => {
++  it('mounts a floating rail over a full-width conversation below the breakpoint', () => {
+     frameWidth = 980
+     const { frame, slotCalls } = mountFrame()
+-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
++    expect(tracks(frame)).toEqual([0, 0])
++    expect(frame.hasAttribute('data-floating-sidebar')).toBe(true)
+     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+     expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props).toEqual({ collapsed: true, width: SIDEBAR_COLLAPSED })
++    expect((frame.firstElementChild as HTMLElement).style.width).toBe(`${SIDEBAR_COLLAPSED}px`)
+     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
+   })
+ 
+-  it('narrow toggle re-expands over the squeezed center and back', () => {
++  it('narrow toggle opens an overlaid drawer without changing the center track', () => {
+     frameWidth = 980
+     const { frame, instance } = mountFrame()
+     act(() => { instance.actions.toggleSidebar() })
+-    expect(tracks(frame)).toEqual([280, 0])
++    expect(tracks(frame)).toEqual([0, 0])
+     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
+-    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(1)
++    expect((frame.querySelector('[class*="sidebarCol"]') as HTMLElement).style.width).toBe('280px')
++    expect(frame.querySelector('[class*="sidebarBackdrop"]')).not.toBeNull()
++    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
+     act(() => { instance.actions.toggleSidebar() })
+-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
++    expect(tracks(frame)).toEqual([0, 0])
++  })
++
++  it('closes the floating drawer from its backdrop and Escape', () => {
++    frameWidth = 980
++    const { frame, instance } = mountFrame()
++    act(() => { instance.actions.toggleSidebar() })
++    const backdrop = frame.querySelector('[class*="sidebarBackdrop"]')!
++    act(() => { backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
++    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
++
++    act(() => { instance.actions.toggleSidebar() })
++    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
++    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+   })
+ 
+   it('a wide-closed preference re-expands at the contract default while narrow', () => {
+@@ -312,7 +329,7 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
+     frameWidth = 980
+     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
+     act(() => { instance.actions.toggleSidebar() })
+-    expect(tracks(frame)).toEqual([280, 0])
++    expect(tracks(frame)).toEqual([0, 0])
+     expect(instance.getSnapshot().sidebar).toBe(0) // preference untouched
+   })
+ 
+@@ -321,7 +338,7 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
+     act(() => { instance.actions.setSidebar(400) })
+     frameWidth = 980
+     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
+-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
++    expect(tracks(frame)).toEqual([0, 0])
+     frameWidth = 1920
+     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
+     expect(tracks(frame)).toEqual([400, 0])
+diff --git a/packages/client/ui-settings-general/src/client/SettingsRoot.module.css b/packages/client/ui-settings-general/src/client/SettingsRoot.module.css
+index 03e0f6372c..f13c1bae4f 100644
+--- a/packages/client/ui-settings-general/src/client/SettingsRoot.module.css
++++ b/packages/client/ui-settings-general/src/client/SettingsRoot.module.css
+@@ -224,3 +224,102 @@
+   clip: rect(0 0 0 0);
+   white-space: nowrap;
+ }
++
++/* The desktop settings rail leaves less than 100px for content on an iPhone.
++   Narrow screens instead use a safe-area-aware sheet with horizontally
++   scrollable section tabs and a full-width content column. */
++@media (max-width: 680px) {
++  .overlay {
++    box-sizing: border-box;
++    align-items: stretch;
++    padding: max(8px, env(safe-area-inset-top))
++      max(8px, env(safe-area-inset-right))
++      max(8px, env(safe-area-inset-bottom))
++      max(8px, env(safe-area-inset-left));
++  }
++
++  .panel {
++    width: 100%;
++    max-width: none;
++    height: 100%;
++    border-radius: 18px;
++    flex-direction: column;
++  }
++
++  .nav {
++    width: 100%;
++    gap: 10px;
++    padding: 12px 12px 10px;
++    border-bottom: 1px solid var(--dsw-alias-border-l2);
++  }
++
++  .navTitle {
++    padding: 0 48px 0 4px;
++    font-size: 18px;
++    line-height: 28px;
++  }
++
++  .navList {
++    flex-direction: row;
++    gap: 4px;
++    overflow-x: auto;
++    overscroll-behavior-x: contain;
++    -webkit-overflow-scrolling: touch;
++  }
++
++  .navList::-webkit-scrollbar {
++    display: none;
++  }
++
++  .navCell {
++    flex: none;
++    height: 44px;
++    padding: 10px 12px;
++    border-radius: 10px;
++  }
++
++  .content {
++    min-height: 0;
++  }
++
++  .header {
++    height: 44px;
++    align-items: center;
++    padding: 8px 12px 4px;
++  }
++
++  .actions {
++    justify-content: flex-start;
++    width: 100%;
++    margin-left: 0;
++  }
++
++  .close {
++    position: absolute;
++    top: 4px;
++    right: 6px;
++    width: 44px;
++    height: 44px;
++  }
++
++  .options {
++    padding: 4px 12px 16px;
++    overscroll-behavior: contain;
++  }
++}
++
++@media (max-width: 390px) {
++  .options :global([data-slot='settings.general.item']) > :global([class$='_row']) {
++    align-items: stretch;
++    flex-direction: column;
++    gap: 10px;
++  }
++
++  .options :global([data-slot='settings.general.item']) > :global([class$='_row']) > :global([class$='_rowText']) {
++    padding-right: 0;
++  }
++
++  .options :global([data-slot='settings.general.item']) > :global([class$='_row']) > :last-child {
++    align-self: flex-start;
++  }
++}
+diff --git a/packages/client/ui-sidebar/src/client/SidebarRoot.module.css b/packages/client/ui-sidebar/src/client/SidebarRoot.module.css
+index c52291bf75..7dae7dae8e 100644
+--- a/packages/client/ui-sidebar/src/client/SidebarRoot.module.css
++++ b/packages/client/ui-sidebar/src/client/SidebarRoot.module.css
+@@ -42,6 +42,13 @@
+   --dsh-scrollbar-thumb-hover: transparent;
+ }
+ 
++.primaryArea {
++  flex: 1;
++  min-height: 0;
++  display: flex;
++  flex-direction: column;
++}
++
+ /* Collapse phase 1: the whole frozen-width content fades out in place over
+    150ms; at settle the children unmount/snap to the rail layout. */
+ .fading > * {
+@@ -65,11 +72,12 @@
+    render stays static. */
+ .railIn .iconButton,
+ .railIn .newSession,
+-.railIn .regionArea {
++.railIn .regionArea,
++.railIn .footerActions {
+   animation: rail-in 150ms var(--ds-ease-in-out) backwards;
+ }
+ 
+-.railIn .footArea {
++.railIn .settingsArea {
+   animation: rail-fade-in 150ms var(--ds-ease-in-out) backwards;
+ }
+ 
+@@ -296,14 +304,8 @@
+   padding-left: 0;
+ }
+ 
+-/* Footer seats: additive actions stack above Settings. Each occupant owns its
+-   button geometry and hover chrome. */
+-.footArea {
+-  flex: none;
+-  display: flex;
+-  flex-direction: column;
+-}
+-
++/* Additive footer actions stay in the upper functional group; Settings owns
++   the independent bottom group. Each occupant owns its button geometry. */
+ .settingsArea,
+ .footerActions {
+   flex: none;
+@@ -315,10 +317,6 @@
+   display: flex;
+ }
+ 
+-.collapsed .footArea {
+-  align-items: center;
+-}
+-
+ .collapsed .settingsArea,
+ .collapsed .footerActions {
+   display: flex;
+@@ -326,13 +324,69 @@
+   width: auto;
+ }
+ 
++/* On narrow screens the layout places this root above a full-width
++   conversation. The collapsed rail reduces to one 44px whale launcher in
++   the header's reserved leading space; every other action, including
++   Settings, returns inside the drawer after expansion. */
++@media (max-width: 1023px) {
++  .root {
++    border-radius: inherit;
++  }
++
++  .root.collapsed {
++    --dsh-mobile-sidebar-launcher-size: 48px;
++    padding: 0;
++    overflow: visible;
++    background: transparent;
++    pointer-events: none;
++  }
++
++  .collapsed .primaryArea {
++    flex: none;
++    width: var(--dsh-mobile-sidebar-launcher-size);
++    min-height: var(--dsh-mobile-sidebar-launcher-size);
++    margin-inline: 4px;
++    padding: 2px;
++    box-sizing: border-box;
++    pointer-events: auto;
++  }
++
++  .collapsed .logoRow {
++    height: 44px;
++    margin: 0;
++  }
++
++  .collapsed .iconButton {
++    width: 44px;
++    height: 44px;
++  }
++
++  /* A pointer-capable responsive preview should still show the requested
++     whale, not swap it for the desktop rail's panel glyph on hover. */
++  .collapsed .toggle:hover .panelIcon {
++    display: none;
++  }
++
++  .collapsed .toggle:hover .railFish {
++    display: inline;
++  }
++
++  .collapsed .newSession,
++  .collapsed .regionArea,
++  .collapsed .footerActions,
++  .collapsed .settingsArea {
++    display: none;
++  }
++}
++
+ @media (prefers-reduced-motion: reduce) {
+   .wide,
+   .fading > *,
+   .railIn .iconButton,
+   .railIn .newSession,
+-  .railIn .footArea,
+-  .railIn .regionArea {
++  .railIn .settingsArea,
++  .railIn .regionArea,
++  .railIn .footerActions {
+     transition: none;
+     animation: none;
+   }
+diff --git a/packages/client/ui-sidebar/src/client/SidebarRoot.tsx b/packages/client/ui-sidebar/src/client/SidebarRoot.tsx
+index a7ef74eaa6..ccbe96f837 100644
+--- a/packages/client/ui-sidebar/src/client/SidebarRoot.tsx
++++ b/packages/client/ui-sidebar/src/client/SidebarRoot.tsx
+@@ -4,8 +4,9 @@
+  * while the sliding column (AppFrame grid tracks) clips it — nothing reflows
+  * mid-slide. At settle the wide-only content unmounts and the four upper
+  * controls enter the 56px rail from the same horizontal offset (one icon each,
+- * same top-down order) on one fade that ends with the slide. The bottom-pinned
+- * settings control only fades. The workspace/session browsing region between
++ * same top-down order) on one fade that ends with the slide. On narrow screens
++ * the settled rail reduces to its whale toggle; all actions return in the
++ * expanded drawer. The workspace/session browsing region between
+  * the New Session button and the foot is the `sidebar.workspaces` registrant's,
+  * and the foot holds `sidebar.settings` plus `sidebar.footer.action`; the shell
+  * hands them the wide flag (plus an expand request callback for the browser).
+@@ -125,85 +126,87 @@ export function SidebarRoot({
+       }}
+       onPointerLeave={() => { armLinger() }}
+     >
+-      <div className={css.logoRow}>
+-        {/* Expanded, the brand doubles as a New Session shortcut; the
+-            collapsed rail's logo is the expand toggle below instead. */}
+-        {wide && (
++      <div className={css.primaryArea}>
++        <div className={css.logoRow}>
++          {/* Expanded, the brand doubles as a New Session shortcut; the
++              collapsed rail's logo is the expand toggle below instead. */}
++          {wide && (
++            <button
++              type="button"
++              className={clsx(css.brand, css.wide)}
++              aria-label={t('session.new.label')}
++              onClick={() => { startSession() }}
++            >
++              <span className={css.brandIdentity} aria-hidden="true">
++                <span className={css.brandMark}>
++                  {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
++                </span>
++                <span className={css.brandName}>
++                  {renderSlot('sidebar.brand.name', {}, {
++                    fallback: (
++                      <>
++                        <span className={css.fallbackBrandName}>DSH Local Build</span>
++                        {process.env.DSH_CLIENT_COMMIT_HASH
++                          ? <span className={css.buildRevision}>{process.env.DSH_CLIENT_COMMIT_HASH}</span>
++                          : null}
++                      </>
++                    ),
++                  })}
++                </span>
++              </span>
++            </button>
++          )}
++          {/* Rail resting state is the whale mark; hovering swaps in the panel
++              icon (the expand affordance, figma sidebar-hover flow). */}
++          <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
++            <button
++              type="button"
++              className={clsx(css.iconButton, css.toggle)}
++              aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
++              onClick={() => { toggleSidebar() }}
++            >
++              {!wide && (
++                <span className={css.railMark} aria-hidden="true">
++                  {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
++                </span>
++              )}
++              {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
++              <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
++            </button>
++          </Tooltip>
++        </div>
++
++        {/* Expanded, the button carries its own label — tooltip only on the rail. */}
++        <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
+           <button
+             type="button"
+-            className={clsx(css.brand, css.wide)}
++            className={css.newSession}
+             aria-label={t('session.new.label')}
+             onClick={() => { startSession() }}
+           >
+-            <span className={css.brandIdentity} aria-hidden="true">
+-              <span className={css.brandMark}>
+-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+-              </span>
+-              <span className={css.brandName}>
+-                {renderSlot('sidebar.brand.name', {}, {
+-                  fallback: (
+-                    <>
+-                      <span className={css.fallbackBrandName}>DSH Local Build</span>
+-                      {process.env.DSH_CLIENT_COMMIT_HASH
+-                        ? <span className={css.buildRevision}>{process.env.DSH_CLIENT_COMMIT_HASH}</span>
+-                        : null}
+-                    </>
+-                  ),
+-                })}
+-              </span>
+-            </span>
+-          </button>
+-        )}
+-        {/* Rail resting state is the whale mark; hovering swaps in the panel
+-            icon (the expand affordance, figma sidebar-hover flow). */}
+-        <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
+-          <button
+-            type="button"
+-            className={clsx(css.iconButton, css.toggle)}
+-            aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
+-            onClick={() => { toggleSidebar() }}
+-          >
+-            {!wide && (
+-              <span className={css.railMark} aria-hidden="true">
+-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
+-              </span>
+-            )}
+-            {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
+-            <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
++            <IconNewChatOutline16 size={wide ? 14 : 18} />
++            {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
+           </button>
+         </Tooltip>
+-      </div>
+ 
+-      {/* Expanded, the button carries its own label — tooltip only on the rail. */}
+-      <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
+-        <button
+-          type="button"
+-          className={css.newSession}
+-          aria-label={t('session.new.label')}
+-          onClick={() => { startSession() }}
+-        >
+-          <IconNewChatOutline16 size={wide ? 14 : 18} />
+-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
+-        </button>
+-      </Tooltip>
+-
+-      {/* The browsing region fills the column between the controls and the
+-          foot in both states; its rail icon column rides the same slot. */}
+-      <div className={css.regionArea}>
+-        {renderSlot('sidebar.workspaces', {
+-          wide,
+-          expandSidebar: () => { if (collapsed) toggleSidebar() },
+-        })}
+-      </div>
++        {/* The browsing region fills the column between the controls and the
++            footer actions; its rail icon column rides the same slot. */}
++        <div className={css.regionArea}>
++          {renderSlot('sidebar.workspaces', {
++            wide,
++            expandSidebar: () => { if (collapsed) toggleSidebar() },
++          })}
++        </div>
+ 
+-      {/* Footer actions stack above Settings in both sidebar widths. */}
+-      <div className={css.footArea}>
+         <div className={css.footerActions}>
+           {renderSlot('sidebar.footer.action', { wide })}
+         </div>
+-        <div className={css.settingsArea}>
+-          {renderSlot('sidebar.settings', { wide })}
+-        </div>
++      </div>
++
++      {/* Settings stays bottom-pinned in the drawer and desktop rail; narrow
++          launcher mode hides this seat until the drawer expands. */}
++      <div className={css.settingsArea}>
++        {renderSlot('sidebar.settings', { wide })}
+       </div>
+     </div>
+   )
+diff --git a/packages/client/ui-sidebar/tests/__snapshots__/sidebar-snapshot.client.spec.tsx.snap b/packages/client/ui-sidebar/tests/__snapshots__/sidebar-snapshot.client.spec.tsx.snap
+index a8ef9f5d4e..247d31f440 100644
+--- a/packages/client/ui-sidebar/tests/__snapshots__/sidebar-snapshot.client.spec.tsx.snap
++++ b/packages/client/ui-sidebar/tests/__snapshots__/sidebar-snapshot.client.spec.tsx.snap
+@@ -10,34 +10,52 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
+     style=""
+   >
+     <div
+-      class="logoRow"
++      class="primaryArea"
+     >
+-      <button
+-        aria-label="Open sidebar"
+-        class="iconButton toggle"
+-        type="button"
++      <div
++        class="logoRow"
+       >
+-        <span
+-          aria-hidden="true"
+-          class="railMark"
++        <button
++          aria-label="Open sidebar"
++          class="iconButton toggle"
++          type="button"
+         >
+-          <div
+-            data-slot="sidebar.brand.mark"
+-            style="display: contents;"
++          <span
++            aria-hidden="true"
++            class="railMark"
+           >
+-            <svg
+-              aria-hidden="true"
+-              data-content="965fe321"
+-              fill="none"
+-              height="17.6580310880829"
+-              viewBox="0 0 23.16 17.04"
+-              width="24"
+-            />
+-          </div>
+-        </span>
++            <div
++              data-slot="sidebar.brand.mark"
++              style="display: contents;"
++            >
++              <svg
++                aria-hidden="true"
++                data-content="965fe321"
++                fill="none"
++                height="17.6580310880829"
++                viewBox="0 0 23.16 17.04"
++                width="24"
++              />
++            </div>
++          </span>
++          <svg
++            class="panelIcon"
++            data-content="35f95b0c"
++            fill="none"
++            height="18"
++            viewBox="0 0 16 16"
++            width="18"
++            xmlns="http://www.w3.org/2000/svg"
++          />
++        </button>
++      </div>
++      <button
++        aria-label="New session"
++        class="newSession"
++        type="button"
++      >
+         <svg
+-          class="panelIcon"
+-          data-content="35f95b0c"
++          data-content="c0ce4dcc"
+           fill="none"
+           height="18"
+           viewBox="0 0 16 16"
+@@ -45,49 +63,31 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
+           xmlns="http://www.w3.org/2000/svg"
+         />
+       </button>
+-    </div>
+-    <button
+-      aria-label="New session"
+-      class="newSession"
+-      type="button"
+-    >
+-      <svg
+-        data-content="c0ce4dcc"
+-        fill="none"
+-        height="18"
+-        viewBox="0 0 16 16"
+-        width="18"
+-        xmlns="http://www.w3.org/2000/svg"
+-      />
+-    </button>
+-    <div
+-      class="regionArea"
+-    >
+       <div
+-        data-slot="sidebar.workspaces"
+-        style="display: contents;"
+-      />
+-    </div>
+-    <div
+-      class="footArea"
+-    >
+-      <div
+-        class="footerActions"
++        class="regionArea"
+       >
+         <div
+-          data-slot="sidebar.footer.action"
++          data-slot="sidebar.workspaces"
+           style="display: contents;"
+         />
+       </div>
+       <div
+-        class="settingsArea"
++        class="footerActions"
+       >
+         <div
+-          data-slot="sidebar.settings"
++          data-slot="sidebar.footer.action"
+           style="display: contents;"
+         />
+       </div>
+     </div>
++    <div
++      class="settingsArea"
++    >
++      <div
++        data-slot="sidebar.settings"
++        style="display: contents;"
++      />
++    </div>
+   </div>
+ </div>
+ `;
+@@ -102,118 +102,118 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
+     style="width: 300px;"
+   >
+     <div
+-      class="logoRow"
++      class="primaryArea"
+     >
+-      <button
+-        aria-label="New session"
+-        class="brand wide"
+-        type="button"
++      <div
++        class="logoRow"
+       >
+-        <span
+-          aria-hidden="true"
+-          class="brandIdentity"
++        <button
++          aria-label="New session"
++          class="brand wide"
++          type="button"
+         >
+           <span
+-            class="brandMark"
++            aria-hidden="true"
++            class="brandIdentity"
+           >
+-            <div
+-              data-slot="sidebar.brand.mark"
+-              style="display: contents;"
++            <span
++              class="brandMark"
+             >
+-              <svg
+-                aria-hidden="true"
+-                data-content="965fe321"
+-                fill="none"
+-                height="17.6580310880829"
+-                viewBox="0 0 23.16 17.04"
+-                width="24"
+-              />
+-            </div>
+-          </span>
+-          <span
+-            class="brandName"
+-          >
+-            <div
+-              data-slot="sidebar.brand.name"
+-              style="display: contents;"
+-            >
+-              <span
+-                class="fallbackBrandName"
++              <div
++                data-slot="sidebar.brand.mark"
++                style="display: contents;"
+               >
+-                DSH Local Build
+-              </span>
+-              <span
+-                class="buildRevision"
++                <svg
++                  aria-hidden="true"
++                  data-content="965fe321"
++                  fill="none"
++                  height="17.6580310880829"
++                  viewBox="0 0 23.16 17.04"
++                  width="24"
++                />
++              </div>
++            </span>
++            <span
++              class="brandName"
++            >
++              <div
++                data-slot="sidebar.brand.name"
++                style="display: contents;"
+               >
+-                abc1234
+-              </span>
+-            </div>
++                <span
++                  class="fallbackBrandName"
++                >
++                  DSH Local Build
++                </span>
++                <span
++                  class="buildRevision"
++                >
++                  abc1234
++                </span>
++              </div>
++            </span>
+           </span>
+-        </span>
+-      </button>
++        </button>
++        <button
++          aria-label="Collapse sidebar"
++          class="iconButton toggle"
++          type="button"
++        >
++          <svg
++            class="panelIcon"
++            data-content="35f95b0c"
++            fill="none"
++            height="16"
++            viewBox="0 0 16 16"
++            width="16"
++            xmlns="http://www.w3.org/2000/svg"
++          />
++        </button>
++      </div>
+       <button
+-        aria-label="Collapse sidebar"
+-        class="iconButton toggle"
++        aria-label="New session"
++        class="newSession"
+         type="button"
+       >
+         <svg
+-          class="panelIcon"
+-          data-content="35f95b0c"
++          data-content="c0ce4dcc"
+           fill="none"
+-          height="16"
++          height="14"
+           viewBox="0 0 16 16"
+-          width="16"
++          width="14"
+           xmlns="http://www.w3.org/2000/svg"
+         />
++        <span
++          class="newSessionLabel wide"
++        >
++          New Session
++        </span>
+       </button>
+-    </div>
+-    <button
+-      aria-label="New session"
+-      class="newSession"
+-      type="button"
+-    >
+-      <svg
+-        data-content="c0ce4dcc"
+-        fill="none"
+-        height="14"
+-        viewBox="0 0 16 16"
+-        width="14"
+-        xmlns="http://www.w3.org/2000/svg"
+-      />
+-      <span
+-        class="newSessionLabel wide"
+-      >
+-        New Session
+-      </span>
+-    </button>
+-    <div
+-      class="regionArea"
+-    >
+-      <div
+-        data-slot="sidebar.workspaces"
+-        style="display: contents;"
+-      />
+-    </div>
+-    <div
+-      class="footArea"
+-    >
+       <div
+-        class="footerActions"
++        class="regionArea"
+       >
+         <div
+-          data-slot="sidebar.footer.action"
++          data-slot="sidebar.workspaces"
+           style="display: contents;"
+         />
+       </div>
+       <div
+-        class="settingsArea"
++        class="footerActions"
+       >
+         <div
+-          data-slot="sidebar.settings"
++          data-slot="sidebar.footer.action"
+           style="display: contents;"
+         />
+       </div>
+     </div>
++    <div
++      class="settingsArea"
++    >
++      <div
++        data-slot="sidebar.settings"
++        style="display: contents;"
++      />
++    </div>
+   </div>
+ </div>
+ `;
+@@ -228,118 +228,118 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
+     style="width: 300px;"
+   >
+     <div
+-      class="logoRow"
++      class="primaryArea"
+     >
+-      <button
+-        aria-label="新建会话"
+-        class="brand wide"
+-        type="button"
++      <div
++        class="logoRow"
+       >
+-        <span
+-          aria-hidden="true"
+-          class="brandIdentity"
++        <button
++          aria-label="新建会话"
++          class="brand wide"
++          type="button"
+         >
+           <span
+-            class="brandMark"
+-          >
+-            <div
+-              data-slot="sidebar.brand.mark"
+-              style="display: contents;"
+-            >
+-              <svg
+-                aria-hidden="true"
+-                data-content="965fe321"
+-                fill="none"
+-                height="17.6580310880829"
+-                viewBox="0 0 23.16 17.04"
+-                width="24"
+-              />
+-            </div>
+-          </span>
+-          <span
+-            class="brandName"
++            aria-hidden="true"
++            class="brandIdentity"
+           >
+-            <div
+-              data-slot="sidebar.brand.name"
+-              style="display: contents;"
++            <span
++              class="brandMark"
+             >
+-              <span
+-                class="fallbackBrandName"
++              <div
++                data-slot="sidebar.brand.mark"
++                style="display: contents;"
+               >
+-                DSH Local Build
+-              </span>
+-              <span
+-                class="buildRevision"
++                <svg
++                  aria-hidden="true"
++                  data-content="965fe321"
++                  fill="none"
++                  height="17.6580310880829"
++                  viewBox="0 0 23.16 17.04"
++                  width="24"
++                />
++              </div>
++            </span>
++            <span
++              class="brandName"
++            >
++              <div
++                data-slot="sidebar.brand.name"
++                style="display: contents;"
+               >
+-                abc1234
+-              </span>
+-            </div>
++                <span
++                  class="fallbackBrandName"
++                >
++                  DSH Local Build
++                </span>
++                <span
++                  class="buildRevision"
++                >
++                  abc1234
++                </span>
++              </div>
++            </span>
+           </span>
+-        </span>
+-      </button>
++        </button>
++        <button
++          aria-label="收起侧边栏"
++          class="iconButton toggle"
++          type="button"
++        >
++          <svg
++            class="panelIcon"
++            data-content="35f95b0c"
++            fill="none"
++            height="16"
++            viewBox="0 0 16 16"
++            width="16"
++            xmlns="http://www.w3.org/2000/svg"
++          />
++        </button>
++      </div>
+       <button
+-        aria-label="收起侧边栏"
+-        class="iconButton toggle"
++        aria-label="新建会话"
++        class="newSession"
+         type="button"
+       >
+         <svg
+-          class="panelIcon"
+-          data-content="35f95b0c"
++          data-content="c0ce4dcc"
+           fill="none"
+-          height="16"
++          height="14"
+           viewBox="0 0 16 16"
+-          width="16"
++          width="14"
+           xmlns="http://www.w3.org/2000/svg"
+         />
++        <span
++          class="newSessionLabel wide"
++        >
++          新会话
++        </span>
+       </button>
+-    </div>
+-    <button
+-      aria-label="新建会话"
+-      class="newSession"
+-      type="button"
+-    >
+-      <svg
+-        data-content="c0ce4dcc"
+-        fill="none"
+-        height="14"
+-        viewBox="0 0 16 16"
+-        width="14"
+-        xmlns="http://www.w3.org/2000/svg"
+-      />
+-      <span
+-        class="newSessionLabel wide"
+-      >
+-        新会话
+-      </span>
+-    </button>
+-    <div
+-      class="regionArea"
+-    >
+-      <div
+-        data-slot="sidebar.workspaces"
+-        style="display: contents;"
+-      />
+-    </div>
+-    <div
+-      class="footArea"
+-    >
+       <div
+-        class="footerActions"
++        class="regionArea"
+       >
+         <div
+-          data-slot="sidebar.footer.action"
++          data-slot="sidebar.workspaces"
+           style="display: contents;"
+         />
+       </div>
+       <div
+-        class="settingsArea"
++        class="footerActions"
+       >
+         <div
+-          data-slot="sidebar.settings"
++          data-slot="sidebar.footer.action"
+           style="display: contents;"
+         />
+       </div>
+     </div>
++    <div
++      class="settingsArea"
++    >
++      <div
++        data-slot="sidebar.settings"
++        style="display: contents;"
++      />
++    </div>
+   </div>
+ </div>
+ `;
+diff --git a/packages/client/ui-sidebar/tests/sidebar-root.client.spec.tsx b/packages/client/ui-sidebar/tests/sidebar-root.client.spec.tsx
+index 99ae7e4d5e..d3a50d2ded 100644
+--- a/packages/client/ui-sidebar/tests/sidebar-root.client.spec.tsx
++++ b/packages/client/ui-sidebar/tests/sidebar-root.client.spec.tsx
+@@ -119,6 +119,18 @@ describe('SidebarRoot shell', () => {
+     expect(b.toggleSidebar).not.toHaveBeenCalled()
+   })
+ 
++  it('groups every non-settings action above the independent Settings seat', () => {
++    mountShell()
++    const region = screen.getByTestId('region')
++    const footer = screen.getByTestId('footer-action-seat')
++    const settings = screen.getByTestId('settings-seat')
++    const root = region.closest('[class*="root"]')!
++    const primary = region.closest('[class*="primaryArea"]')!
++    expect(primary.contains(footer)).toBe(true)
++    expect(primary.contains(settings)).toBe(false)
++    expect(settings.parentElement?.parentElement).toBe(root)
++  })
++
+   it('keeps the region mounted through collapse and expands on its request', () => {
+     vi.useFakeTimers()
+     const b = mountShell()
+diff --git a/packages/client/ui-sidebar/tests/sidebar-styles.client.spec.ts b/packages/client/ui-sidebar/tests/sidebar-styles.client.spec.ts
+index 45d5410a37..3b6a821a1a 100644
+--- a/packages/client/ui-sidebar/tests/sidebar-styles.client.spec.ts
++++ b/packages/client/ui-sidebar/tests/sidebar-styles.client.spec.ts
+@@ -40,16 +40,17 @@ describe('SidebarRoot.module.css', () => {
+     expect(declarations('.collapsed .regionArea')?.get('margin-right')).toBe('0')
+   })
+ 
+-  it('moves the four upper controls while the settings seat only fades', () => {
++  it('moves every upper-group control while the settings seat only fades', () => {
+     const animation = 'rail-in 150ms var(--ds-ease-in-out) backwards'
+     for (const selector of [
+       '.railIn .iconButton',
+       '.railIn .newSession',
+       '.railIn .regionArea',
++      '.railIn .footerActions',
+     ]) {
+       expect(declarations(selector)?.get('animation')).toBe(animation)
+     }
+-    expect(declarations('.railIn .footArea')?.get('animation')).toBe(
++    expect(declarations('.railIn .settingsArea')?.get('animation')).toBe(
+       'rail-fade-in 150ms var(--ds-ease-in-out) backwards',
+     )
+     expect(css).toMatch(
+@@ -72,4 +73,14 @@ describe('SidebarRoot.module.css', () => {
+     expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
+     expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
+   })
++
++  it('reduces the narrow rail to one whale launcher and hides every other action', () => {
++    expect(css).toContain('@media (max-width: 1023px)')
++    expect(css).toContain('--dsh-mobile-sidebar-launcher-size: 48px')
++    expect(css).toMatch(/\.collapsed \.iconButton\s*\{\s*width: 44px;\s*height: 44px;/)
++    expect(css).toMatch(
++      /\.collapsed \.newSession,\s*\.collapsed \.regionArea,\s*\.collapsed \.footerActions,\s*\.collapsed \.settingsArea\s*\{\s*display: none;/,
++    )
++    expect(css).not.toMatch(/\.collapsed \.settingsArea\s*\{\s*margin-top: auto;/)
++  })
+ })

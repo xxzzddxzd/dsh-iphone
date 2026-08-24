@@ -2,15 +2,15 @@
 
 DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不启动 TUN、不改变网络出口，也不依赖 Shadowrocket；通知发布和 Live Activity 都只发生在手机本机。
 
-## 与官方 DSH rc.7 的边界
+## 与官方 DSH rc.2 的边界
 
-本项目是官方 `dsh-v0.1.0-rc.7` 的 iOS 适配层，不要求 DSH 反向兼容本项目：
+本项目是官方 `dsh-v0.1.1-rc.2` 的 iOS 适配层，不要求 DSH 反向兼容本项目：
 
-- `upstream/deepseek-harness` 子模块固定在官方 rc.7 提交，构建和验证都要求子模块工作区干净。
-- 授权监听使用 rc.7 浏览器载体的官方下行 WebSocket `/api/events.mux`。普通 HTTP GET 在 rc.7 中返回 426，没有 SSE 回退。
+- `upstream/deepseek-harness` 子模块固定在官方 rc.2 提交，构建和验证都要求子模块工作区干净。
+- 授权监听使用 rc.2 浏览器载体的官方下行 WebSocket `/api/events.mux`。普通 HTTP GET 在 rc.2 中返回 426，没有 SSE 回退。
 - 用户在通知上作答后，插件按官方 `client-response` 格式 POST `/api/respond`，回填 `approval/requested` 帧原有的稳定 `rpcId`。
 - 插件只消费 `approval/requested` / `approval/resolved` 公共事件，不修改 DSH 的授权服务、pending 表或客户端运行时。
-- iOS 打包阶段只在生成的运行时副本中加入插件及加载项；`scripts/patch-dsh.mjs` 对 rc.7 版本和每个官方预像做精确校验，未知版本直接停止构建。
+- iOS 打包阶段只在生成的运行时副本中加入插件及加载项；`scripts/patch-dsh.mjs` 对 rc.2 版本和每个官方预像做精确校验，未知版本直接停止构建。
 
 ## 通知覆盖范围
 
@@ -40,8 +40,8 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 授权通知需要长按或下拉展开，显示两个动作：
 
-- `拒绝`：向 rc.7 返回 `rejected`。
-- `允许一次`：需要先通过设备解锁认证，再向 rc.7 返回 `allowed-once`。
+- `拒绝`：向 rc.2 返回 `rejected`。
+- `允许一次`：需要先通过设备解锁认证，再向 rc.2 返回 `allowed-once`。
 
 每个按钮只携带独立生成的 24 字节随机令牌；session、approval id、rpcId 和结果只保存在 DSH 进程内，SpringBoard 不能用令牌自行选择其他结果。令牌只能使用一次、两小时后失效，重复、过期或未知令牌都 fail-closed。动作回调只通过权限为 `0600` 的本机 Unix socket `action.sock` 进入 DSH。
 
@@ -80,7 +80,7 @@ Live Activity 请求进入独立的 launchd broker `DSHActivityD`。broker 本�
 http://127.0.0.1:3080/?session=session-…
 ```
 
-compatibility 入口会在 DSH module graph 启动前把目标写入 `dsh.sessions.current`，随后从地址栏移除一次性参数，最终按 rc.7 正常恢复路径打开 session。subagent 通知还携带 `parent` 与 `mode`，因此可以恢复直接父地址后选择子会话。
+compatibility 入口会在 DSH module graph 启动前把目标写入 `dsh.sessions.current`，随后从地址栏移除一次性参数，最终按 rc.2 正常恢复路径打开 session。subagent 通知还携带 `parent` 与 `mode`，因此可以恢复直接父地址后选择子会话。
 
 此地址只适用于 iPhone 本机，因为 DSH 服务监听 `127.0.0.1:3080`。Mac 通过 SSH 转发访问的端口与通知点击无关。
 
@@ -98,7 +98,7 @@ uikittools
 
 | 路径 | 用途 |
 | --- | --- |
-| `/var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs` | rc.7 Host 插件、任务状态与官方授权协议适配 |
+| `/var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs` | rc.2 Host 插件、任务状态与官方授权协议适配 |
 | `/var/jb/usr/local/bin/dsh-notify` | 通知发布、撤回 helper |
 | `/var/jb/usr/local/bin/dsh-activity` | Live Activity 调试 helper |
 | `/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib` | SpringBoard Bulletin 与通知动作 bridge；不包含 ActivityKit |
@@ -118,7 +118,7 @@ uikittools
 
 ## 配置与开关
 
-rc.7 的插件设置页可以呈现浏览器侧插件注册的设置卡片，但当前 iOS 通知插件只有 Host 侧，因此暂时没有 Web 表单。通知开关仍由 Web profile 的 Cordis patch 控制；修改 `$DSH_HOME/cordis.patch.yml` 后，DSH 配置 watcher 会热重载。
+rc.2 的插件设置页可以呈现浏览器侧插件注册的设置卡片，但当前 iOS 通知插件只有 Host 侧，因此暂时没有 Web 表单。通知开关仍由 Web profile 的 Cordis patch 控制；修改 `$DSH_HOME/cordis.patch.yml` 后，DSH 配置 watcher 会热重载。
 
 关闭全部通知和 Live Activity：
 

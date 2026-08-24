@@ -13,17 +13,21 @@ pnpm 以独立 deb 发布，版本和 registry 归档 SHA-256 锁定在 `version
 
 ```bash
 ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/pnpm --version'
-ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add package@version'
+ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root package@version'
 ```
 
 profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外部 bundle 的 DSH peer dependencies 从 Harness 维护的安装后备目录解析，不会在 profile 中重复安装整套 DSH。
 
 ## OpenAI Codex bundle
 
-当前验证版本固定为 `dsh-codex@0.2.4`。安装后先确认 pnpm 已把 bundle 写入 Web profile：
+DSH `0.1.1-rc.2` 当前验证版本固定为 `dsh-codex@0.2.5-iphone.5`。这个 iPhone
+修订适配了 rc.2 的 provider 图片预算、持久化 auth 注入、replay v2，以及
+`prepareCall()` 冻结调用路径下的原生 Codex compaction。安装后先确认 pnpm 已把
+bundle 写入 Web profile：
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add dsh-codex@0.2.4'
+scp -P 22 dsh-codex-0.2.5-iphone.5.tgz root@10.99.6.77:/var/root/
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root /var/root/dsh-codex-0.2.5-iphone.5.tgz'
 ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex'
 ```
 

@@ -11,6 +11,7 @@
     <string>/var/jb/bin/sh</string>
     <string>/var/jb/usr/local/bin/dsh22</string>
     <string>web</string>
+    <string>--no-open</string>
     <string>--port</string>
     <string>3080</string>
   </array>
@@ -29,7 +30,7 @@
     <key>DSH_HOME</key>
     <string>/var/root/.dsh</string>
     <key>PATH</key>
-    <string>/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin</string>
+    <string>/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin</string>
     <key>SHELL</key>
     <string>/var/jb/bin/bash</string>
   </dict>

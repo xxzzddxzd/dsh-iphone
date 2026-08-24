@@ -1,7 +1,8 @@
 #!/var/jb/bin/sh
 export HOME="${HOME:-/var/root}"
 export DSH_HOME="${DSH_HOME:-/var/root/.dsh}"
-export PATH="/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:${PATH:-}"
+export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--no-jitless --disable-wasm-trap-handler"
 export NODE_PATH=/var/jb/usr/local/lib/dsh/node_modules
 export SHELL=/var/jb/bin/bash
 

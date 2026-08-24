@@ -127,7 +127,7 @@ const upstreamPackage = JSON.parse(await readFile(
   new URL("../upstream/deepseek-harness/package.json", import.meta.url),
   "utf8",
 ));
-assert.equal(upstreamPackage.version, "0.1.0-rc.7");
+assert.equal(upstreamPackage.version, "0.1.1-rc.2");
 const officialConnectionContract = await readFile(
   new URL(
     "../upstream/deepseek-harness/packages/client/connection/README.md",

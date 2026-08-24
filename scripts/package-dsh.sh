@@ -15,6 +15,7 @@ OUTPUT="$ROOT/dist/dsh_${DSH_DEBIAN_VERSION}_iphoneos-arm64.deb"
 "$SCRIPT_DIR/prepare-dsh.sh" >/dev/null
 DSH_RUNTIME_ROOT="$RUNTIME_ROOT" "$SCRIPT_DIR/build-node-pty.sh"
 "$SCRIPT_DIR/build-ios-notifier.sh" >/dev/null
+"$SCRIPT_DIR/build-ios-image-tool.sh" >/dev/null
 node "$SCRIPT_DIR/patch-dsh.mjs" --root "$RUNTIME_ROOT" --check
 
 reset_build_dir "$STAGE"
@@ -29,6 +30,8 @@ mkdir -p \
 
 cp -R "$RUNTIME_ROOT/." "$STAGE/var/jb/usr/local/lib/dsh/"
 install -m 0755 "$ROOT/packaging/dsh/dsh22" "$STAGE/var/jb/usr/local/bin/dsh22"
+install -m 0755 "$ROOT/build/ios-image-tool/dsh-image-tool" \
+  "$STAGE/var/jb/usr/local/bin/dsh-image-tool"
 install -m 0755 "$ROOT/ios/notifications/dsh-notify.mjs" \
   "$STAGE/var/jb/usr/local/lib/dsh/ios/dsh-notify.mjs"
 ln -s ../lib/dsh/ios/dsh-notify.mjs "$STAGE/var/jb/usr/local/bin/dsh-notify"

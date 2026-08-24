@@ -17,6 +17,8 @@ activity_host="$notifier_app/DSHActivityHost"
 activity_extension="$notifier_app/PlugIns/DSHLiveActivity.appex/DSHLiveActivity"
 
 chmod 0755 /var/jb/usr/local/bin/dsh22
+chmod 0755 /var/jb/usr/local/bin/dsh-image-tool
+ldid -S /var/jb/usr/local/bin/dsh-image-tool
 chmod 0755 /var/jb/usr/local/lib/dsh/ios/dsh-notify.mjs
 chmod 0755 /var/jb/usr/local/lib/dsh/ios/dsh-activity.mjs
 /var/jb/usr/local/lib/nodejs22/node \

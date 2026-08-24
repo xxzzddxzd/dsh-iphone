@@ -33,15 +33,25 @@ plutil -lint \
   "$ROOT/ios/activity/DSHActivityExtension.entitlements" \
   "$ROOT/ios/activity/DSHActivityWorker.entitlements" >/dev/null
 
+# Plugin executables use `#!/usr/bin/env node`; they must inherit Node 22 rather
+# than the jailbreak's legacy `/var/jb/usr/local/bin/node` (currently Node 18).
+rg -F 'export PATH="/var/jb/usr/local/lib/nodejs22:' \
+  "$ROOT/packaging/dsh/dsh22" >/dev/null
+rg -F 'export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--no-jitless --disable-wasm-trap-handler"' \
+  "$ROOT/packaging/dsh/dsh22" >/dev/null
+rg -F '<string>/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:' \
+  "$ROOT/launchd/ai.deepseek.dsh.plist" >/dev/null
+
 node "$ROOT/tests/test-lockfile.mjs"
 node "$ROOT/tests/test-shims.mjs"
+node "$ROOT/tests/test-ios-image-tool.mjs"
 node "$ROOT/tests/test-vless-config.mjs"
 node "$ROOT/tests/test-ios-notifications.mjs"
 node "$ROOT/tests/test-ios-floating-sidebar.mjs"
 "$ROOT/tests/test-xray-package.sh"
 
-VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-Cjbwl5VI.js"
-INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-C-1AiF3k.js"
+VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-D22_Mp1f.js"
+INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-ClqxG24t.js"
 if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios16-frontend.mjs" "$VENDOR" "$INDEX"
   node "$ROOT/tests/test-ios-floating-sidebar.mjs" \
@@ -66,6 +76,15 @@ if [ -f "$PTY_NODE" ] || [ -f "$PTY_HELPER" ]; then
   file "$PTY_HELPER" | rg 'Mach-O 64-bit executable arm64' >/dev/null
   vtool -show-build "$PTY_NODE" | rg 'platform IOS' >/dev/null
   vtool -show-build "$PTY_NODE" | rg "minos $NODE_IOS_MIN_VERSION" >/dev/null
+fi
+
+IMAGE_TOOL="$ROOT/build/ios-image-tool/dsh-image-tool"
+if [ -f "$IMAGE_TOOL" ]; then
+  require_command file
+  require_command vtool
+  file "$IMAGE_TOOL" | rg 'Mach-O 64-bit executable arm64' >/dev/null
+  vtool -show-build "$IMAGE_TOOL" | rg 'platform IOS' >/dev/null
+  vtool -show-build "$IMAGE_TOOL" | rg "minos $NODE_IOS_MIN_VERSION" >/dev/null
 fi
 
 if [ -n "${NODE_ARCHIVE_PATH:-}" ] || [ -f "$ROOT/.cache/$NODE_ARCHIVE" ]; then
@@ -93,7 +112,7 @@ actual_upstream=$(git -C "$ROOT/upstream/deepseek-harness" rev-parse HEAD)
 [ -z "$(git -C "$ROOT/upstream/deepseek-harness" status --porcelain)" ] || \
   die "upstream submodule has local changes; iOS compatibility must stay outside official DSH"
 git -C "$ROOT/upstream/deepseek-harness" apply --check \
-  "$ROOT/patches/dsh-rc7-ios-floating-sidebar.patch"
+  "$ROOT/patches/dsh-rc2-ios-floating-sidebar.patch"
 upstream_version=$(node -p "require('$ROOT/upstream/deepseek-harness/package.json').version")
 [ "$upstream_version" = "$DSH_VERSION" ] || \
   die "upstream package version is $upstream_version, expected $DSH_VERSION"

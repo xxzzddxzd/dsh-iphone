@@ -1,5 +1,14 @@
-// Pure-JS replacement for the small sharp API used by DSH attachments.
+// sharp-compatible facade backed by the packaged ImageIO/CoreGraphics helper on iOS.
+import { execFile } from "node:child_process";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import zlib from "node:zlib";
+
+const execFileAsync = promisify(execFile);
+const DEFAULT_HELPER = "/var/jb/usr/local/bin/dsh-image-tool";
+const helperPath = process.env.DSH_IOS_IMAGE_TOOL ?? DEFAULT_HELPER;
 
 function readU32BE(buffer, offset) {
   return (
@@ -284,25 +293,161 @@ function validate(data, metadata) {
   }
 }
 
-export default function sharp(data) {
-  const buffer = Buffer.from(data);
+function fallbackMetadata(buffer) {
   const metadata = inspect(buffer);
+  if (metadata === null) throw new Error("Input buffer contains unsupported image format");
+  const hasAlpha = metadata.format === "png"
+    ? metadata.colorType === 4 || metadata.colorType === 6
+    : false;
   return {
-    async metadata() {
-      if (metadata === null) throw new Error("Input buffer contains unsupported image format");
-      return {
-        format: metadata.format,
-        width: metadata.width,
-        height: metadata.height,
-      };
-    },
-    raw() {
-      return {
-        async toBuffer() {
-          if (metadata === null) throw new Error("Input buffer contains unsupported image format");
-          return validate(buffer, metadata);
-        },
-      };
-    },
+    format: metadata.format,
+    width: metadata.width,
+    height: metadata.height,
+    pages: 1,
+    depth: "uchar",
+    space: "srgb",
+    hasAlpha,
   };
 }
+
+async function hasNativeHelper() {
+  try {
+    await access(helperPath);
+    return true;
+  } catch (error) {
+    if (process.platform === "ios") {
+      throw new Error(`required iOS image helper is missing at ${helperPath}`, { cause: error });
+    }
+    return false;
+  }
+}
+
+function transformationArguments(state) {
+  const args = [];
+  if (state.rotate) args.push("--rotate", "1");
+  if (state.resize !== undefined) {
+    if (state.resize.width !== undefined) args.push("--width", String(state.resize.width));
+    if (state.resize.height !== undefined) args.push("--height", String(state.resize.height));
+    if (state.resize.withoutEnlargement) args.push("--without-enlargement", "1");
+    if (state.resize.kernel !== undefined) args.push("--kernel", String(state.resize.kernel));
+  }
+  return args;
+}
+
+async function runNative(buffer, operation, state = {}) {
+  const directory = await mkdtemp(join(tmpdir(), "dsh-image-"));
+  const input = join(directory, "input");
+  const output = join(directory, "output");
+  try {
+    await writeFile(input, buffer, { mode: 0o600 });
+    const args = [operation, "--input", input];
+    if (operation !== "metadata") args.push("--output", output, ...transformationArguments(state));
+    if (operation === "encode") {
+      args.push("--format", state.format);
+      if (state.encoding?.quality !== undefined) {
+        args.push("--quality", String(state.encoding.quality));
+      }
+    }
+    const { stdout } = await execFileAsync(helperPath, args, {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    });
+    const info = JSON.parse(stdout);
+    return operation === "metadata" ? { info } : { data: await readFile(output), info };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+class IOSSharpPipeline {
+  constructor(data, options = {}, state = {}) {
+    this.buffer = Buffer.from(data);
+    this.options = { ...options };
+    this.state = { ...state };
+  }
+
+  clone() {
+    return new IOSSharpPipeline(this.buffer, this.options, {
+      ...this.state,
+      resize: this.state.resize === undefined ? undefined : { ...this.state.resize },
+      encoding: this.state.encoding === undefined ? undefined : { ...this.state.encoding },
+    });
+  }
+
+  rotate() {
+    this.state.rotate = true;
+    return this;
+  }
+
+  toColourspace(colourspace) {
+    if (colourspace !== "srgb") throw new Error(`unsupported iOS output colourspace: ${colourspace}`);
+    this.state.colourspace = colourspace;
+    return this;
+  }
+
+  resize(options) {
+    this.state.resize = { ...options };
+    return this;
+  }
+
+  raw() {
+    this.state.format = "raw";
+    this.state.encoding = undefined;
+    return this;
+  }
+
+  png(options = {}) {
+    this.state.format = "png";
+    this.state.encoding = { ...options };
+    return this;
+  }
+
+  jpeg(options = {}) {
+    this.state.format = "jpeg";
+    this.state.encoding = { ...options };
+    return this;
+  }
+
+  webp(options = {}) {
+    this.state.format = "webp";
+    this.state.encoding = { ...options };
+    return this;
+  }
+
+  async metadata() {
+    if (await hasNativeHelper()) return (await runNative(this.buffer, "metadata")).info;
+    return fallbackMetadata(this.buffer);
+  }
+
+  async toBuffer(options = {}) {
+    const fallback = inspect(this.buffer);
+    if (!(await hasNativeHelper())) {
+      if (fallback === null) throw new Error("Input buffer contains unsupported image format");
+      const data = validate(this.buffer, fallback);
+      if (options.resolveWithObject) {
+        return {
+          data,
+          info: { width: fallback.width, height: fallback.height, channels: 4 },
+        };
+      }
+      return data;
+    }
+
+    if (this.state.format === "webp") {
+      throw new Error("WebP output is unavailable in the iOS ImageIO backend");
+    }
+    const operation = this.state.format === "raw" || this.state.format === undefined
+      ? "raw"
+      : "encode";
+    const result = await runNative(this.buffer, operation, this.state);
+    return options.resolveWithObject ? result : result.data;
+  }
+}
+
+function sharp(data, options) {
+  return new IOSSharpPipeline(data, options);
+}
+
+sharp.kernel = Object.freeze({ nearest: "nearest" });
+
+export default sharp;

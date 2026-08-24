@@ -11,12 +11,12 @@
 
 | 组件 | 版本 | 验证环境 |
 | --- | --- | --- |
-| iPhone | iPhone 14 Pro | iOS 16.1.1、rootless 越狱 |
+| iPhone | iPhone 13 Pro Max (`iPhone14,3`) | iOS 16.1.1、rootless 越狱 |
 | Node.js | 22.23.2 | iPhoneOS arm64，最低 iOS 15.0 |
-| DSH | 0.1.0-rc.7 | 上游提交 `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca` |
+| DSH | 0.1.1-rc.2 | 上游提交 `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e` |
 | node-pty | 1.2.0-beta.15 | iOS `posix_spawn` 后端 |
 | Xray（可选） | 26.3.27 | 仅回环 HTTP 入站、VLESS 出站 |
-| Web GUI | compatibility 8 | Safari/Chrome 的 iOS 16 WebKit、通知 session 深链接、移动端悬浮侧栏与主屏幕图标 |
+| Web GUI | compatibility 9 | Safari/Chrome 的 iOS 16 WebKit、通知 session 深链接、移动端悬浮侧栏与主屏幕图标 |
 
 仓库不提交 Node/DSH 完整源码副本、npm 依赖目录、`.deb` 或 Mach-O 产物。DSH 官方源码通过 [`upstream/deepseek-harness`](./upstream/deepseek-harness) 子模块引用，Node 官方源包按 SHA-256 下载后应用版本化补丁。
 
@@ -65,13 +65,13 @@ export DEVICE_USER=root
 Mac 浏览器打开：
 
 ```text
-http://127.0.0.1:3082/?ioscompat=8
+http://127.0.0.1:3082/?ioscompat=9
 ```
 
 iPhone 本机 Safari 直接打开：
 
 ```text
-http://127.0.0.1:3080/?ioscompat=8
+http://127.0.0.1:3080/?ioscompat=9
 ```
 
 `127.0.0.1` 是固定的本机回环地址，不是手机的局域网出口 IP。通过 USB 连接时，在第一个终端运行：
