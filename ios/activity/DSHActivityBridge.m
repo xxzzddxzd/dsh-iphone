@@ -41,6 +41,7 @@ static BOOL DSHActivityValidString(id value, NSUInteger maximumBytes, BOOL mayBe
 
 static BOOL DSHActivityInteger(id value, int64_t minimum, int64_t *result) {
   if (![value isKindOfClass:[NSNumber class]]) return NO;
+  if (CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()) return NO;
   double number = [(NSNumber *)value doubleValue];
   int64_t integer = [(NSNumber *)value longLongValue];
   if (!isfinite(number) || number != (double)integer || integer < minimum) return NO;
@@ -162,7 +163,7 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
        !DSHActivityInteger(task[@"finishedAtMilliseconds"], 0, &finishedAt)) ||
       !DSHActivityInteger(task[@"step"], 0, &step) ||
       (task[@"agentCount"] != nil &&
-       !DSHActivityInteger(task[@"agentCount"], 1, &agentCount)) ||
+       !DSHActivityInteger(task[@"agentCount"], 0, &agentCount)) ||
       !DSHActivityInteger(task[@"completedItems"], 0, &completedItems) ||
       !DSHActivityInteger(task[@"totalItems"], 0, &totalItems) ||
       (totalItems != 0 && completedItems > totalItems)) {
@@ -180,6 +181,10 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
     if (errorMessage != NULL) *errorMessage = @"invalid finished task state";
     return nil;
   }
+  // Older notifier builds reported their cumulative Agent count on terminal
+  // updates. Accept that payload during a rolling upgrade, but normalize it so
+  // a finished Live Activity never retains historical dots.
+  if (finishedAt > 0) agentCount = 0;
 
   return @{
     @"sessionID": sessionID,

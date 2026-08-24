@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 import SwiftUI
+import UIKit
 import WidgetKit
 
 private let dshActivityLabelWidth: CGFloat = 30
@@ -61,8 +62,10 @@ private struct DSHWhale: View {
 
   var body: some View {
     Image("DSHWhale", bundle: .main)
+      .renderingMode(.template)
       .resizable()
       .scaledToFit()
+      .foregroundColor(.primary)
       .frame(width: size, height: size)
       .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
   }
@@ -81,7 +84,7 @@ private struct DSHAgentDotsRing: View {
   }
 
   private var visibleAgentCount: Int {
-    min(max(state.agentCount, 1), 24)
+    min(max(state.agentCount, 0), 24)
   }
 
   private var dotSize: CGFloat {
@@ -108,6 +111,7 @@ private struct DSHAgentDotsRing: View {
       if state.finishedAtMilliseconds > 0 {
         Text(dshElapsedText(state))
           .font(.system(size: 10, weight: .semibold, design: .rounded))
+          .foregroundColor(.primary)
           .monospacedDigit()
           .minimumScaleFactor(0.58)
           .lineLimit(1)
@@ -115,6 +119,7 @@ private struct DSHAgentDotsRing: View {
       } else {
         Text(startedAt, style: .timer)
           .font(.system(size: 10, weight: .semibold, design: .rounded))
+          .foregroundColor(.primary)
           .monospacedDigit()
           .multilineTextAlignment(.center)
           .lineLimit(1)
@@ -124,7 +129,7 @@ private struct DSHAgentDotsRing: View {
     }
     .frame(width: 48, height: 48)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(max(state.agentCount, 1)) 个 Agent，执行时长")
+    .accessibilityLabel("\(max(state.agentCount, 0)) 个正在运行的 Agent，执行时长")
   }
 }
 
@@ -141,7 +146,7 @@ private struct DSHProgressDetailBlock: View {
         .frame(width: dshActivityLabelWidth, alignment: .leading)
       DSHMarkdownText(text: text)
         .font(.system(size: 10.5))
-        .foregroundColor(.secondary)
+        .foregroundColor(.primary)
         .multilineTextAlignment(.leading)
         .lineLimit(hasGoal ? 3 : 4)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -170,7 +175,7 @@ private struct DSHGoalDetailRow: View {
         .frame(width: dshActivityLabelWidth, alignment: .leading)
       Text(text)
         .font(.system(size: 10.5, weight: .medium))
-        .foregroundColor(.secondary)
+        .foregroundColor(.primary)
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -196,7 +201,7 @@ private struct DSHToolDetailRow: View {
         .frame(width: dshActivityLabelWidth, alignment: .leading)
       Text(text.isEmpty ? "—" : text)
         .font(.system(size: 10.5))
-        .foregroundColor(.secondary)
+        .foregroundColor(.primary)
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
       if let actionLabel {
@@ -236,7 +241,7 @@ private struct DSHActivityLockScreenView: View {
     if isFinished || context.state.waitingForUser {
       return dshActivityTint(context.state)
     }
-    return .secondary
+    return .primary.opacity(0.72)
   }
 
   private var actionLabel: String? {
@@ -261,6 +266,7 @@ private struct DSHActivityLockScreenView: View {
         DSHWhale(size: 32)
         Text(context.state.title)
           .font(.headline)
+          .foregroundColor(.primary)
           .lineLimit(1)
           .layoutPriority(1)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -291,8 +297,8 @@ private struct DSHActivityLockScreenView: View {
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
-    .activityBackgroundTint(Color(white: 0.98))
-    .activitySystemActionForegroundColor(.black)
+    .background(Color(uiColor: .systemBackground))
+    .activityBackgroundTint(nil)
     .widgetURL(sessionURL)
   }
 }
@@ -347,7 +353,7 @@ struct DSHLiveActivityWidget: Widget {
       } minimal: {
         DSHWhale(size: 18)
       }
-      .keylineTint(.black)
+      .keylineTint(dshActivityTint(context.state))
     }
   }
 }

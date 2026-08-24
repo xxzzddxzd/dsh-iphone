@@ -293,6 +293,15 @@ assert.match(activityBridgeSource, /DSHActivityOp/);
 assert.match(activityBridgeSource, /launchd worker broker listening/);
 assert.match(activityBridgeSource, /activity\.id/);
 assert.match(activityBridgeSource, /agentCount/);
+assert.match(
+  activityBridgeSource,
+  /DSHActivityInteger\(task\[@"agentCount"\], 0, &agentCount\)/,
+);
+assert.match(
+  activityBridgeSource,
+  /CFGetTypeID\(\(__bridge CFTypeRef\)value\) == CFBooleanGetTypeID\(\)/,
+);
+assert.match(activityBridgeSource, /if \(finishedAt > 0\) agentCount = 0;/);
 assert.match(activityBridgeSource, /goalDetail/);
 assert.match(activityBridgeSource, /assistantDetail/);
 assert.match(activityBridgeSource, /toolDetail/);
@@ -369,6 +378,7 @@ assert.match(liveActivitySource, /ActivityConfiguration/);
 assert.match(liveActivitySource, /style: \.timer/);
 assert.match(liveActivitySource, /DSHAgentDotsRing/);
 assert.match(liveActivitySource, /state\.agentCount/);
+assert.match(liveActivitySource, /max\(state\.agentCount, 0\)/);
 assert.match(liveActivitySource, /ForEach\(0\.\.<visibleAgentCount/);
 assert.match(liveActivitySource, /Text\(startedAt, style: \.timer\)/);
 assert.match(liveActivitySource, /multilineTextAlignment\(\.center\)/);
@@ -390,6 +400,23 @@ assert.match(liveActivitySource, /finishedAtMilliseconds/);
 assert.doesNotMatch(liveActivitySource, /fixedSize\(|firstTextBaseline/);
 assert.doesNotMatch(liveActivitySource, /agentCount, 1\)\)A/);
 assert.doesNotMatch(liveActivitySource, /ProgressView/);
+assert.match(liveActivitySource, /\.activityBackgroundTint\(nil\)/);
+assert.doesNotMatch(liveActivitySource, /@Environment\(\\\.colorScheme\)/);
+assert.doesNotMatch(liveActivitySource, /\.activitySystemActionForegroundColor\(/);
+assert.match(liveActivitySource, /import UIKit/);
+assert.match(
+  liveActivitySource,
+  /Image\("DSHWhale", bundle: \.main\)[\s\S]{0,120}\.renderingMode\(\.template\)[\s\S]{0,160}\.foregroundColor\(\.primary\)/,
+);
+assert.match(
+  liveActivitySource,
+  /\.background\(Color\(uiColor: \.systemBackground\)\)/,
+);
+assert.doesNotMatch(
+  liveActivitySource,
+  /DSHMarkdownText\(text: text\)[\s\S]{0,160}\.foregroundColor\(\.secondary\)/,
+);
+assert.match(liveActivitySource, /\.keylineTint\(dshActivityTint\(context\.state\)\)/);
 
 const pluginPath = new URL(
   "../build/dsh-runtime/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs",
@@ -408,6 +435,7 @@ if (pluginAvailable) {
     activeGoalDetail,
     activeTurn,
     activityCommand,
+    liveProgressDetail,
     navigationUrl,
     newestRunningTask,
     normalizeLiveMarkdown,
@@ -417,6 +445,7 @@ if (pluginAvailable) {
     removeUnfinishedLiveTasks,
     resolveConfig,
     runNotifier,
+    setSubagentSessionRunning,
     toolActionDetail,
     updateLiveGoal,
     updateLiveTasks,
@@ -796,6 +825,25 @@ if (pluginAvailable) {
     activityCommand(runningTasks).task.assistantDetail,
     "权限已确认，继续等待测试完成。",
   );
+  assert.equal(liveProgressDetail({
+    waitingForUser: false,
+    finishedAtMilliseconds: 0,
+    assistantDetail: "模型返回的最新消息",
+    detail: "网络搜索 · 正在运行",
+  }), "模型返回的最新消息");
+  assert.equal(liveProgressDetail({
+    waitingForUser: true,
+    finishedAtMilliseconds: 0,
+    assistantDetail: "此前的模型消息",
+    detail: "请选择是否允许执行",
+  }), "请选择是否允许执行");
+  assert.equal(liveProgressDetail({
+    waitingForUser: false,
+    finishedAtMilliseconds: 1,
+    terminalReasonKind: "error",
+    assistantDetail: "此前的模型消息",
+    detail: "运行失败：网络断开",
+  }), "运行失败：网络断开");
   const searchCall = {
     type: "tool/call",
     data: {
@@ -808,7 +856,7 @@ if (pluginAvailable) {
   secondRunningSession.events.push(searchCall);
   updateLiveTasks(runningTasks, secondRunningSession, searchCall);
   assert.equal(activityCommand(runningTasks).task.phase, "正在执行 网络搜索");
-  assert.equal(activityCommand(runningTasks).task.detail, "网络搜索 · 飞书数据获取方式");
+  assert.equal(activityCommand(runningTasks).task.detail, "权限已确认，继续等待测试完成。");
   assert.equal(
     activityCommand(runningTasks).task.toolDetail,
     "网络搜索 · 运行中",
@@ -821,7 +869,7 @@ if (pluginAvailable) {
       message: { source: { callId: "call-live-search" }, content: [] },
     },
   });
-  assert.equal(activityCommand(runningTasks).task.detail, "网络搜索 · 飞书数据获取方式");
+  assert.equal(activityCommand(runningTasks).task.detail, "权限已确认，继续等待测试完成。");
   assert.equal(activityCommand(runningTasks).task.toolDetail, "网络搜索 · 已完成");
   const childRunningSession = {
     id: "running-b-child",
@@ -831,6 +879,8 @@ if (pluginAvailable) {
   updateLiveTasks(runningTasks, childRunningSession, {
     type: "turn/start", data: { turn: 1 },
   });
+  assert.equal(activityCommand(runningTasks).task.agentCount, 1);
+  assert.equal(setSubagentSessionRunning(runningTasks, childRunningSession, true), true);
   assert.equal(activityCommand(runningTasks).task.agentCount, 2);
   const nestedRunningSession = {
     id: "running-b-grandchild",
@@ -840,11 +890,26 @@ if (pluginAvailable) {
   updateLiveTasks(runningTasks, nestedRunningSession, {
     type: "turn/start", data: { turn: 1 },
   });
+  assert.equal(activityCommand(runningTasks).task.agentCount, 2);
+  assert.equal(setSubagentSessionRunning(runningTasks, nestedRunningSession, true), true);
   assert.equal(activityCommand(runningTasks).task.agentCount, 3);
   updateLiveTasks(runningTasks, childRunningSession, {
     type: "step/start", data: { turn: 1, step: 2 },
   });
   assert.equal(activityCommand(runningTasks).task.agentCount, 3);
+  assert.equal(setSubagentSessionRunning(runningTasks, childRunningSession, false), true);
+  assert.equal(activityCommand(runningTasks).task.agentCount, 2);
+  assert.equal(setSubagentSessionRunning(runningTasks, nestedRunningSession, false), true);
+  assert.equal(activityCommand(runningTasks).task.agentCount, 1);
+  assert.equal(setSubagentSessionRunning(runningTasks, childRunningSession, true), true);
+  assert.equal(activityCommand(runningTasks).task.agentCount, 2);
+  assert.equal(setSubagentSessionRunning(runningTasks, childRunningSession, true), false);
+  assert.equal(setSubagentSessionRunning(runningTasks, childRunningSession, false), true);
+  updateLiveTasks(runningTasks, childRunningSession, {
+    type: "session/title", data: { title: "已空闲的子代理" },
+  });
+  assert.equal(activityCommand(runningTasks).task.agentCount, 1);
+  assert.equal(setSubagentSessionRunning(runningTasks, childRunningSession, true), true);
   updateLiveTasks(runningTasks, secondRunningSession, {
     type: "turn/end", time: 1_700_000_006_000,
     data: { turn: 4, reason: { kind: "completed" } },
@@ -859,6 +924,7 @@ if (pluginAvailable) {
   assert.equal(finishedActivity.task.phase, "已完成");
   assert.equal(finishedActivity.task.detail, "回复已完成，点击查看完整结果");
   assert.equal(finishedActivity.task.finishedAtMilliseconds, 1_700_000_010_000);
+  assert.equal(finishedActivity.task.agentCount, 0);
   assert.equal(finishedActivity.task.goalDetail, "交付完整的 Live Activity");
   assert.equal(finishedActivity.task.assistantDetail, "回复已完成，点击查看完整结果");
 
@@ -872,6 +938,58 @@ if (pluginAvailable) {
   });
   assert.equal(activityCommand(runningTasks).task.sessionID, "running-c");
   assert.equal(activityCommand(runningTasks).task.finishedAtMilliseconds, 0);
+
+  const continuedTasks = new Map();
+  const continuedRootSession = {
+    id: "continued-root",
+    header: {},
+    events: [{ type: "session/title", data: { title: "跨轮次子代理" } }],
+  };
+  updateLiveTasks(continuedTasks, continuedRootSession, {
+    type: "turn/start", time: 1_700_000_030_000, data: { turn: 1 },
+  });
+  const continuedChildSession = {
+    id: "continued-child",
+    header: { origin: "subagent", parentSession: "continued-root" },
+    events: [],
+  };
+  updateLiveTasks(continuedTasks, continuedChildSession, {
+    type: "turn/start", data: { turn: 1 },
+  });
+  assert.equal(setSubagentSessionRunning(
+    continuedTasks, continuedChildSession, true,
+  ), true);
+  assert.equal(activityCommand(continuedTasks).task.agentCount, 2);
+  updateLiveTasks(continuedTasks, continuedRootSession, {
+    type: "turn/end", time: 1_700_000_031_000,
+    data: { turn: 1, reason: { kind: "completed" } },
+  });
+  const interleavedRootSession = {
+    id: "interleaved-root",
+    header: {},
+    events: [{ type: "session/title", data: { title: "交错根任务" } }],
+  };
+  updateLiveTasks(continuedTasks, interleavedRootSession, {
+    type: "turn/start", time: 1_700_000_031_500, data: { turn: 1 },
+  });
+  assert.equal(activityCommand(continuedTasks).task.sessionID, "interleaved-root");
+  updateLiveTasks(continuedTasks, continuedRootSession, {
+    type: "turn/start", time: 1_700_000_032_000, data: { turn: 2 },
+  });
+  assert.equal(activityCommand(continuedTasks).task.sessionID, "continued-root");
+  assert.equal(activityCommand(continuedTasks).task.agentCount, 2);
+  updateLiveTasks(continuedTasks, continuedRootSession, {
+    type: "turn/end", time: 1_700_000_033_000,
+    data: { turn: 2, reason: { kind: "aborted", reason: { kind: "user" } } },
+  });
+  updateLiveTasks(continuedTasks, continuedRootSession, {
+    type: "turn/start", time: 1_700_000_034_000, data: { turn: 3 },
+  });
+  assert.equal(activityCommand(continuedTasks).task.agentCount, 2);
+  assert.equal(setSubagentSessionRunning(
+    continuedTasks, continuedChildSession, false,
+  ), true);
+  assert.equal(activityCommand(continuedTasks).task.agentCount, 1);
 
   const interruptedTasks = new Map();
   const interruptedSession = {

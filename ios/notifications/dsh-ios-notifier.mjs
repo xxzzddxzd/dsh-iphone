@@ -594,6 +594,43 @@ function randomActionToken() {
 }
 
 let nextTaskStartOrder = 0;
+const agentRegistries = new WeakMap();
+
+function agentRegistry(tasks) {
+  let registry = agentRegistries.get(tasks);
+  if (registry === undefined) {
+    registry = {
+      parentSessionIDs: new Map(),
+      runningSessionIDs: new Set(),
+    };
+    agentRegistries.set(tasks, registry);
+  }
+  return registry;
+}
+
+function rootSessionForAgent(registry, sessionId) {
+  let current = sessionId;
+  const visited = new Set();
+  while (registry.parentSessionIDs.has(current)) {
+    if (visited.has(current)) return undefined;
+    visited.add(current);
+    current = registry.parentSessionIDs.get(current);
+  }
+  return current;
+}
+
+function agentSessionsForRoot(tasks, rootSessionId) {
+  const registry = agentRegistry(tasks);
+  const known = new Set();
+  const active = new Set();
+  for (const sessionId of registry.parentSessionIDs.keys()) {
+    if (rootSessionForAgent(registry, sessionId) === rootSessionId) known.add(sessionId);
+  }
+  for (const sessionId of registry.runningSessionIDs) {
+    if (rootSessionForAgent(registry, sessionId) === rootSessionId) active.add(sessionId);
+  }
+  return { known, active };
+}
 
 function taskKey(sessionId, turn) {
   return `${sessionId}:${turn}`;
@@ -645,8 +682,13 @@ function latestSessionTask(tasks, sessionId, turn) {
 function taskForAgentSession(tasks, sessionId) {
   const direct = latestSessionTask(tasks, sessionId);
   if (direct !== undefined) return direct;
+  const rootSessionId = rootSessionForAgent(agentRegistry(tasks), sessionId);
+  if (rootSessionId !== undefined && rootSessionId !== sessionId) {
+    const rootTask = latestSessionTask(tasks, rootSessionId);
+    if (rootTask !== undefined) return rootTask;
+  }
   for (const task of tasks.values()) {
-    if (task.agentSessionIDs?.has(sessionId)) return task;
+    if (task.knownAgentSessionIDs?.has(sessionId)) return task;
   }
   return undefined;
 }
@@ -667,9 +709,33 @@ function updateLiveGoal(tasks, session, change) {
 
 function registerSubagentSession(tasks, session) {
   const parentSessionId = session.header?.parentSession;
-  if (typeof parentSessionId !== "string") return;
+  if (typeof parentSessionId !== "string") return undefined;
+  agentRegistry(tasks).parentSessionIDs.set(session.id, parentSessionId);
   const task = taskForAgentSession(tasks, parentSessionId);
-  if (task !== undefined) task.agentSessionIDs.add(session.id);
+  if (task === undefined) return undefined;
+  const sessions = agentSessionsForRoot(tasks, task.sessionID);
+  for (const sessionId of sessions.known) task.knownAgentSessionIDs.add(sessionId);
+  for (const sessionId of sessions.active) task.activeAgentSessionIDs.add(sessionId);
+  return task;
+}
+
+function setSubagentSessionRunning(tasks, session, running) {
+  if (session.header?.origin !== "subagent") return false;
+  const registry = agentRegistry(tasks);
+  if (running) {
+    registry.runningSessionIDs.add(session.id);
+    const previousTask = taskForAgentSession(tasks, session.header?.parentSession);
+    const previousSize = previousTask?.activeAgentSessionIDs.size;
+    const task = registerSubagentSession(tasks, session);
+    if (task === undefined) return false;
+    return task !== previousTask || task.activeAgentSessionIDs.size !== previousSize;
+  }
+  registry.runningSessionIDs.delete(session.id);
+  let changed = false;
+  for (const task of tasks.values()) {
+    if (task.activeAgentSessionIDs?.delete(session.id)) changed = true;
+  }
+  return changed;
 }
 
 function toolDisplayName(name) {
@@ -783,17 +849,24 @@ function terminalActivityPresentation(reason) {
 
 function updateLiveTasks(tasks, session, event) {
   if (session.header?.origin === "subagent") {
-    // Count each session-backed child once for the root task. Looking up a
-    // parent in the already-recorded child set also covers nested delegation.
+    // Session events preserve cumulative lineage for nested delegation, but
+    // only the authoritative agent/status event may change the active set.
+    // This prevents an idle child from being revived by a later title or
+    // maintenance event.
     registerSubagentSession(tasks, session);
     return newestRunningTask(tasks);
   }
   if (event.type === "turn/start") {
     const key = taskKey(session.id, event.data.turn);
     if (!tasks.has(key)) {
+      const agentSessions = agentSessionsForRoot(tasks, session.id);
       // A new root turn supersedes the retained terminal card. The native
       // broker observes finishedAtMilliseconds returning to zero and replaces
-      // the old Activity ID before rendering this task.
+      // the old Activity ID before rendering this task. Carry the agent
+      // lineage and active set from the task-independent registry because a
+      // continuable child can remain running across root turns without
+      // emitting another status transition, even if another root replaced the
+      // previous terminal card in between.
       for (const [finishedKey, task] of tasks) {
         if (task.finishedAtMilliseconds > 0) tasks.delete(finishedKey);
       }
@@ -815,7 +888,9 @@ function updateLiveTasks(tasks, session, event) {
         totalItems: 0,
         waitingForUser: false,
         hasMeaningfulAction: false,
-        agentSessionIDs: new Set(),
+        terminalReasonKind: undefined,
+        knownAgentSessionIDs: agentSessions.known,
+        activeAgentSessionIDs: agentSessions.active,
       });
     }
     return newestRunningTask(tasks);
@@ -835,6 +910,7 @@ function updateLiveTasks(tasks, session, event) {
     const now = Number.isFinite(eventTime) && eventTime > 0 ? Math.trunc(eventTime) : Date.now();
     const summary = assistantSummary(session, event.data.turn);
     task.phase = presentation.phase;
+    task.terminalReasonKind = event.data.reason.kind;
     task.finishedAtMilliseconds = Math.max(task.startedAtMilliseconds, now);
     task.waitingForUser = false;
     if (summary !== undefined) {
@@ -973,6 +1049,16 @@ function updateLiveTasks(tasks, session, event) {
   return newestRunningTask(tasks);
 }
 
+function liveProgressDetail(task) {
+  if (task.waitingForUser) return task.detail;
+  if (task.finishedAtMilliseconds > 0
+      && task.terminalReasonKind !== "completed"
+      && task.terminalReasonKind !== "max-tokens") {
+    return task.detail;
+  }
+  return task.assistantDetail || task.detail;
+}
+
 function activityCommand(tasks) {
   const task = newestRunningTask(tasks) ?? newestFinishedTask(tasks);
   if (task === undefined) return { version: 1, operation: "end" };
@@ -983,14 +1069,16 @@ function activityCommand(tasks) {
       sessionID: task.sessionID,
       title: truncate(task.title, 100),
       phase: truncate(task.phase, 40),
-      detail: truncate(normalizeLiveMarkdown(task.detail), 160),
+      detail: truncate(normalizeLiveMarkdown(liveProgressDetail(task)), 160),
       goalDetail: truncate(task.goalDetail, 160),
       assistantDetail: truncate(task.assistantDetail, 320),
       toolDetail: truncate(task.toolDetail, 160),
       startedAtMilliseconds: task.startedAtMilliseconds,
       finishedAtMilliseconds: task.finishedAtMilliseconds,
       step: task.step,
-      agentCount: 1 + (task.agentSessionIDs?.size ?? 0),
+      agentCount: task.finishedAtMilliseconds > 0
+        ? 0
+        : 1 + (task.activeAgentSessionIDs?.size ?? 0),
       completedItems: task.completedItems,
       totalItems: task.totalItems,
       waitingForUser: task.waitingForUser,
@@ -1500,6 +1588,12 @@ function apply(ctx, config = {}) {
     );
   }, { global: true });
   const stopAgentStatus = ctx.on("agent/status", ({ agent, status }) => {
+    if (agent.session.header?.origin === "subagent") {
+      if (setSubagentSessionRunning(liveTasks, agent.session, status === "running")) {
+        syncLiveActivity();
+      }
+      return;
+    }
     if (status !== "idle") return;
     const removed = removeUnfinishedLiveTasks(liveTasks, agent.id);
     if (removed === 0) return;
@@ -1547,6 +1641,7 @@ export {
   inject,
   name,
   navigationUrl,
+  liveProgressDetail,
   newestRunningTask,
   normalizeLiveMarkdown,
   removeUnfinishedLiveTasks,
@@ -1563,6 +1658,7 @@ export {
   sessionEventNotificationKind,
   sessionTitle,
   subagentMode,
+  setSubagentSessionRunning,
   toolActionDetail,
   truncate,
   updateLiveGoal,
