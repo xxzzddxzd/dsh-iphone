@@ -20,7 +20,7 @@ profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外�
 
 ## Provider bundle
 
-DSH `0.1.1-rc.2` 当前验证版本固定为 `dsh-codex@0.2.5-iphone.8`。这个 iPhone
+DSH `0.1.1-rc.2` 当前验证版本固定为 `dsh-codex@0.2.5-iphone.9`。这个 iPhone
 修订适配了 rc.2 的 provider 图片预算、持久化 auth 注入、replay v2，以及
 `prepareCall()` 冻结调用路径下的原生 Codex compaction；Provider 页还提供 pi-ai
 OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页；锁定 pi-ai
@@ -29,8 +29,8 @@ OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页；锁定
 bundle 写入 Web profile：
 
 ```bash
-scp -P 22 dsh-codex-0.2.5-iphone.8.tgz root@10.99.6.77:/var/root/
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root /var/root/dsh-codex-0.2.5-iphone.8.tgz'
+scp -P 22 dsh-codex-0.2.5-iphone.9.tgz root@10.99.6.77:/var/root/
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root /var/root/dsh-codex-0.2.5-iphone.9.tgz'
 ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex'
 ```
 
