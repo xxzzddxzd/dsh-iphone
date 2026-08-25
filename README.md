@@ -18,7 +18,7 @@
 | 组件 | 版本 |
 | --- | --- |
 | DSH | `0.1.1-rc.2` |
-| dsh-codex | `0.2.5-iphone.7` |
+| dsh-codex | `0.2.5-iphone.8`（pi-ai `0.84.3`） |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
 | node-pty | `1.2.0-beta.15` |

@@ -2,7 +2,8 @@
 
 DSH 0.1.1-rc.2 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向桌面系统及更新浏览器。本项目只修改发布包，不修改或伪装官方 Git 子模块。
 
-可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.5-iphone.7`；旧的
+可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.5-iphone.8`；该版锁定
+pi-ai `0.84.3`，提供 Grok 4.6 与 xAI Imagine 2.0 / Quality。旧的
 `0.2.5-iphone.4` 只适配 DSH 0.1.0，不能继续加载到 rc.2。该版本的 Google
 Code Assist 路由复用 `@kelvinwww/dsh-oauth 0.1.1`，并强制其 gaxios 传输使用
 Node 原生 fetch，以接入 DSH 的 provider 级 VLESS dispatcher。Kelvin 的 Google
