@@ -11,13 +11,14 @@
 - iOS 16 WebKit 兼容、移动端布局和主屏幕图标。
 - 图片附件解码、缩放及 PNG/JPEG 编码。
 - 系统通知、session 深链接和 Live Activity。
-- USB/Wi-Fi 隧道访问；可选 dsh-codex 与 VLESS 出口。
+- USB/Wi-Fi 隧道访问；Provider 页管理 OpenAI Codex、xAI、Google OAuth 及各自的可选 VLESS 出口。
 
 ## 验证版本
 
 | 组件 | 版本 |
 | --- | --- |
 | DSH | `0.1.1-rc.2` |
+| dsh-codex | `0.2.5-iphone.7` |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
 | node-pty | `1.2.0-beta.15` |

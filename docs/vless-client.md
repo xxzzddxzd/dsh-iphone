@@ -1,6 +1,6 @@
 # 独立 VLESS 客户端
 
-这个可选组件只提供一个 `127.0.0.1:18080` HTTP 代理，由 Xray 通过 VLESS 连接固定出口。它不创建 TUN、不修改系统代理或路由，也不依赖 Shadowrocket。DSH 侧仍需把 OpenAI 域名白名单显式交给该端口；DeepSeek、其他模型和 Bash/Python 流量不会自动进入它。
+这个可选组件只提供一个 `127.0.0.1:18080` HTTP 代理，由 Xray 通过 VLESS 连接固定出口。它不创建 TUN、不修改系统代理或路由，也不依赖 Shadowrocket。Provider 页可分别让 OpenAI Codex、xAI、Google OAuth/Code Assist 的服务域名进入该端口；DeepSeek、其他模型和 Bash/Python 流量不会自动进入它。
 
 ## 构建
 
@@ -58,7 +58,7 @@ ssh -p 22 root@10.99.6.77 'tail -n 100 /var/root/dsh-vless-error.log; tail -n 10
 
 Shadowrocket 关闭时，Xray 的 VLESS socket 直接使用手机当前 Wi-Fi 或蜂窝网络。Shadowrocket 开启时，该 socket 可能再次进入 Shadowrocket 的系统隧道，形成代理套代理，因此固定出口运行时建议关闭 Shadowrocket。
 
-通过 `127.0.0.1:18080` 显式发出的出口探测可以验证 VLESS 节点；模型调用 Bash 执行的普通 `curl ipify.org` 仍属工具流量并保持直连，不能据此判断 GPT 通道出口。GPT 请求是否命中代理应以 `dsh-vless-access.log` 和 DSH dispatcher 日志共同确认。
+通过 `127.0.0.1:18080` 显式发出的出口探测可以验证 VLESS 节点；模型调用 Bash 执行的普通 `curl ipify.org` 仍属工具流量并保持直连，不能据此判断 Provider 通道出口。请求是否命中代理应以 `dsh-vless-access.log` 和 DSH dispatcher 日志共同确认。
 
 ## 停止与回滚
 

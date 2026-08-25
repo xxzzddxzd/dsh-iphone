@@ -18,16 +18,18 @@ ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web a
 
 profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外部 bundle 的 DSH peer dependencies 从 Harness 维护的安装后备目录解析，不会在 profile 中重复安装整套 DSH。
 
-## OpenAI Codex bundle
+## Provider bundle
 
-DSH `0.1.1-rc.2` 当前验证版本固定为 `dsh-codex@0.2.5-iphone.5`。这个 iPhone
+DSH `0.1.1-rc.2` 当前验证版本固定为 `dsh-codex@0.2.5-iphone.7`。这个 iPhone
 修订适配了 rc.2 的 provider 图片预算、持久化 auth 注入、replay v2，以及
-`prepareCall()` 冻结调用路径下的原生 Codex compaction。安装后先确认 pnpm 已把
+`prepareCall()` 冻结调用路径下的原生 Codex compaction；Provider 页还提供 pi-ai
+OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页，并为三者分别保存
+直连/VLESS 出口。安装后先确认 pnpm 已把
 bundle 写入 Web profile：
 
 ```bash
-scp -P 22 dsh-codex-0.2.5-iphone.5.tgz root@10.99.6.77:/var/root/
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root /var/root/dsh-codex-0.2.5-iphone.5.tgz'
+scp -P 22 dsh-codex-0.2.5-iphone.7.tgz root@10.99.6.77:/var/root/
+ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root /var/root/dsh-codex-0.2.5-iphone.7.tgz'
 ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex'
 ```
 
@@ -39,5 +41,11 @@ ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web exec
 ```
 
 浏览器完成授权后，插件把凭据以 `0600` 权限保存到 `/var/root/.dsh/.openai-codex-auth.json` 并自动刷新。该文件与 Codex CLI 的 `~/.codex/auth.json` 有独立的 refresh-token 生命周期；不要复制或共用 CLI 凭据文件。登录、状态和 Web 设置接口都不应输出 token。
+
+Google OAuth 需要在 DSH 启动环境中配置 `GEMINI_CLIENT_ID` 与
+`GEMINI_CLIENT_SECRET`；非免费 Code Assist 还需 `GOOGLE_CLOUD_PROJECT` 或
+`GOOGLE_CLOUD_PROJECT_ID`。VLESS 节点统一在“设置 → VLESS”维护，三个 Provider
+子页只保存自己的出口选择。Google 使用动态本机回调端口，手机部署必须在 iPhone
+Safari 中完成授权；不要从 Mac 的 USB `3081` 页面发起，否则回调会落到 Mac。
 
 pnpm 本身是 JavaScript，并已在 `ios/arm64` 上验证 registry 下载、解包、lockfile 和链接布局。这个结果不代表任意 npm 包都能在 iOS 运行：带平台限制、未提供 iPhoneOS arm64 产物的原生模块，或依赖本机编译工具链的生命周期脚本仍会失败。优先安装带预构建 JavaScript 产物且不需要安装脚本的 DSH bundle。

@@ -2,7 +2,7 @@ Package: com.xxzzddxzd.dsh-vless
 Name: DSH VLESS Client
 Version: @PACKAGE_VERSION@
 Architecture: iphoneos-arm64
-Description: Loopback-only Xray VLESS client for DSH GPT traffic
+Description: Loopback-only Xray VLESS client for selected DSH providers
  Contains an iPhoneOS arm64 Xray binary, a fail-closed local HTTP proxy
  configuration, a rootless-jailbreak signature, and a launchd service.
 Maintainer: xxzzddxzd
