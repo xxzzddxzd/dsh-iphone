@@ -4,6 +4,7 @@ build/
 dist/
 artifacts/
 dsh-runtime/node_modules/
+tools/frontend/node_modules/
 *.deb
 *.dylib
 *.node

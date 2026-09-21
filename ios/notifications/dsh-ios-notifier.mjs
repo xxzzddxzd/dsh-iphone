@@ -1,17 +1,5 @@
-import { randomBytes } from "node:crypto";
-import {
-  chmodSync,
-  chownSync,
-  existsSync,
-  mkdirSync,
-  statSync,
-  unlinkSync,
-} from "node:fs";
-import { createConnection, createServer } from "node:net";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { dirname } from "node:path";
-import WebSocket from "ws";
+import { existsSync } from "node:fs";
+import { createConnection } from "node:net";
 import z from "@deepseek-ai/schemastery";
 
 const name = "ios-notifier";
@@ -20,13 +8,11 @@ const inject = ["goals", "subprocess"];
 const HELPER_PATH = "/var/jb/usr/local/bin/dsh-notify";
 const LAUNCHER_PATH = "/var/jb/usr/bin/bash";
 const UIOPEN_PATH = "/var/jb/usr/bin/uiopen";
-const ACTION_SOCKET_PATH = "/var/mobile/Library/DSHNotifier/action.sock";
 const ACTIVITY_SOCKET_PATH = "/var/mobile/Library/DSHNotifier/activity.sock";
 const HELPER_CWD = "/var/root";
 const DEFAULT_HELPER_TIMEOUT_MS = 15_000;
 const DEFAULT_SOCKET_TIMEOUT_MS = 5_000;
 const ACTIVITY_SOCKET_TIMEOUT_MS = 5_000;
-const APPROVAL_ACTION_TTL_MS = 2 * 60 * 60 * 1_000;
 
 const DEFAULTS = Object.freeze({
   enabled: true,
@@ -43,7 +29,6 @@ const DEFAULTS = Object.freeze({
   notifyBlocked: true,
   notifyConfirm: true,
   notifyFailure: true,
-  actionableApprovals: true,
   liveActivity: true,
   soundId: undefined,
   maxBodyChars: 800,
@@ -65,7 +50,6 @@ const Config = z.object({
   notifyBlocked: z.boolean().default(DEFAULTS.notifyBlocked),
   notifyConfirm: z.boolean().default(DEFAULTS.notifyConfirm),
   notifyFailure: z.boolean().default(DEFAULTS.notifyFailure),
-  actionableApprovals: z.boolean().default(DEFAULTS.actionableApprovals),
   liveActivity: z.boolean().default(DEFAULTS.liveActivity),
   soundId: z.number(),
   maxBodyChars: z.number().default(DEFAULTS.maxBodyChars),
@@ -136,11 +120,6 @@ function resolveConfig(config = {}) {
     notifyBlocked: booleanValue(config.notifyBlocked, DEFAULTS.notifyBlocked, "notifyBlocked"),
     notifyConfirm: booleanValue(config.notifyConfirm, DEFAULTS.notifyConfirm, "notifyConfirm"),
     notifyFailure: booleanValue(config.notifyFailure, DEFAULTS.notifyFailure, "notifyFailure"),
-    actionableApprovals: booleanValue(
-      config.actionableApprovals,
-      DEFAULTS.actionableApprovals,
-      "actionableApprovals",
-    ),
     liveActivity: booleanValue(config.liveActivity, DEFAULTS.liveActivity, "liveActivity"),
     soundId,
     maxBodyChars: positiveInteger(config.maxBodyChars, DEFAULTS.maxBodyChars, "maxBodyChars"),
@@ -539,20 +518,6 @@ async function runNotifier(ctx, config, notification, session) {
   return runNotifierHelper(ctx, helperArgs);
 }
 
-async function dismissNotifier(ctx, notificationId) {
-  return runNotifierHelper(ctx, [
-    "--dismiss-id",
-    notificationId,
-    "--timeout",
-    String(DEFAULT_HELPER_TIMEOUT_MS),
-  ]);
-}
-
-function notificationIdForApproval(approvalId) {
-  const safe = String(approvalId).replace(/[^A-Za-z0-9._:-]/gu, "_").slice(0, 220);
-  return `approval-${safe}`;
-}
-
 function approvalNotificationTitle(session) {
   return `${sessionTitle(session) ?? "未命名会话"} · 请求确认`;
 }
@@ -574,23 +539,6 @@ function approvalNotificationBody(approval, session, config) {
     ? `工具：${toolDisplayName(approval.toolName)}`
     : `指令：${command}`;
   return truncate(detail, config.maxBodyChars);
-}
-
-function renderApprovalNotification(frame, config, session, tokens) {
-  if (!config.enabled || !config.notifyConfirm) return undefined;
-  return {
-    id: notificationIdForApproval(frame.approvalId),
-    title: approvalNotificationTitle(session),
-    body: approvalNotificationBody(frame, session, config),
-    actions: [
-      { title: "拒绝", token: tokens.reject, authenticationRequired: false },
-      { title: "允许一次", token: tokens.allow, authenticationRequired: true },
-    ],
-  };
-}
-
-function randomActionToken() {
-  return randomBytes(24).toString("base64url");
 }
 
 let nextTaskStartOrder = 0;
@@ -1126,226 +1074,8 @@ function sendSocketJson(socketPath, payload, timeoutMs = DEFAULT_SOCKET_TIMEOUT_
   });
 }
 
-function waitMilliseconds(milliseconds, signal) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    if (signal?.aborted) {
-      rejectPromise(signal.reason);
-      return;
-    }
-    const finish = () => {
-      signal?.removeEventListener("abort", onAbort);
-      resolvePromise();
-    };
-    const timer = setTimeout(finish, milliseconds);
-    const onAbort = () => {
-      clearTimeout(timer);
-      rejectPromise(signal.reason);
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
 async function sendActivityCommand(_ctx, _bundleId, command) {
   return sendSocketJson(ACTIVITY_SOCKET_PATH, command, ACTIVITY_SOCKET_TIMEOUT_MS);
-}
-
-function safeUnlinkSocket(path) {
-  try {
-    unlinkSync(path);
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
-}
-
-function startActionServer(onToken, logger) {
-  mkdirSync(dirname(ACTION_SOCKET_PATH), { recursive: true, mode: 0o700 });
-  safeUnlinkSocket(ACTION_SOCKET_PATH);
-  // SpringBoard half-closes its write side after sending the token, then waits
-  // for our acknowledgement. Keep the writable side open until onToken has
-  // settled; Node's default allowHalfOpen=false would otherwise emit EOF first.
-  const server = createServer({ allowHalfOpen: true }, (socket) => {
-    let request = "";
-    let handled = false;
-    socket.setEncoding("utf8");
-    socket.setTimeout(DEFAULT_SOCKET_TIMEOUT_MS);
-    const reply = (message) => {
-      if (socket.destroyed) return;
-      socket.end(`${message}\n`);
-    };
-    socket.on("data", (chunk) => {
-      if (handled) return;
-      request += chunk;
-      if (request.length > 64 * 1024) {
-        handled = true;
-        reply("ERR oversized request");
-        return;
-      }
-      const newline = request.indexOf("\n");
-      if (newline < 0) return;
-      handled = true;
-      let payload;
-      try {
-        payload = JSON.parse(request.slice(0, newline));
-      } catch {
-        reply("ERR invalid JSON");
-        return;
-      }
-      if (payload?.version !== 1 || typeof payload.token !== "string") {
-        reply("ERR invalid request");
-        return;
-      }
-      void Promise.resolve(onToken(payload.token)).then(
-        (message) => reply(message.startsWith("OK") ? message : `ERR ${message}`),
-        (error) => reply(`ERR ${error instanceof Error ? error.message : String(error)}`),
-      );
-    });
-    socket.once("timeout", () => socket.destroy());
-  });
-  let readySettled = false;
-  let resolveReady;
-  let rejectReady;
-  const ready = new Promise((resolvePromise, rejectPromise) => {
-    resolveReady = resolvePromise;
-    rejectReady = rejectPromise;
-  });
-  server.on("error", (error) => {
-    logger.warn(`ios-notifier: action socket failed: ${error.message}`);
-    if (!readySettled) {
-      readySettled = true;
-      rejectReady(error);
-    }
-  });
-  server.listen(ACTION_SOCKET_PATH, () => {
-    try {
-      const directory = statSync(dirname(ACTION_SOCKET_PATH));
-      chownSync(ACTION_SOCKET_PATH, directory.uid, directory.gid);
-      chmodSync(ACTION_SOCKET_PATH, 0o600);
-    } catch (error) {
-      logger.warn(`ios-notifier: could not secure action socket: ${String(error)}`);
-    }
-    if (!readySettled) {
-      readySettled = true;
-      resolveReady();
-    }
-  });
-  return {
-    ready,
-    stop: async () => {
-      if (!readySettled) {
-        readySettled = true;
-        rejectReady(new Error("action socket stopped before becoming ready"));
-      }
-      if (server.listening) {
-        await new Promise((resolvePromise) => server.close(resolvePromise));
-      }
-      safeUnlinkSocket(ACTION_SOCKET_PATH);
-    },
-  };
-}
-
-function nativeRequest(url, options, onResponse) {
-  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
-  return request(url, options, onResponse);
-}
-
-function openHttpResponse(url, options = {}, body) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const request = nativeRequest(url, options, resolvePromise);
-    request.once("error", rejectPromise);
-    if (body === undefined) request.end();
-    else request.end(body);
-  });
-}
-
-async function readHttpBody(response, maximumBytes = 64 * 1024) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of response) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += bytes.length;
-    if (size > maximumBytes) throw new Error("HTTP response body is too large");
-    chunks.push(bytes);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-async function postJson(url, payload, signal) {
-  const body = Buffer.from(JSON.stringify(payload));
-  const response = await openHttpResponse(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "content-length": String(body.length),
-    },
-    signal,
-  }, body);
-  const text = await readHttpBody(response);
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(`HTTP request returned ${response.statusCode}`);
-  }
-  return JSON.parse(text);
-}
-
-async function runMuxObserver(config, onEnvelope, signal, logger) {
-  const url = new URL("/api/events.mux", config.browserBaseUrl);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  let announcedFailure = false;
-  let announcedConnection = false;
-  while (!signal.aborted) {
-    try {
-      await new Promise((resolvePromise, rejectPromise) => {
-        const socket = new WebSocket(url);
-        let opened = false;
-        let settled = false;
-        const finish = (error) => {
-          if (settled) return;
-          settled = true;
-          signal.removeEventListener("abort", onAbort);
-          socket.removeAllListeners();
-          if (error === undefined) resolvePromise();
-          else rejectPromise(error);
-        };
-        const onAbort = () => {
-          socket.terminate();
-          finish();
-        };
-        socket.once("open", () => {
-          opened = true;
-          announcedFailure = false;
-          if (config.logSuccess && !announcedConnection) {
-            logger.info("ios-notifier: connected to the official DSH approval mux");
-            announcedConnection = true;
-          }
-        });
-        socket.on("message", (data, isBinary) => {
-          try {
-            if (isBinary) throw new Error("binary mux frame");
-            onEnvelope(JSON.parse(data.toString("utf8")));
-          } catch (error) {
-            logger.warn(`ios-notifier: dropped malformed approval mux frame: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        });
-        socket.once("close", () => finish(opened ? undefined : new Error("approval mux closed before opening")));
-        socket.once("error", (error) => {
-          socket.terminate();
-          finish(error);
-        });
-        signal.addEventListener("abort", onAbort, { once: true });
-        if (signal.aborted) onAbort();
-      });
-    } catch (error) {
-      if (signal.aborted) return;
-      if (!announcedFailure) {
-        logger.warn(`ios-notifier: approval mux disconnected: ${error instanceof Error ? error.message : String(error)}`);
-        announcedFailure = true;
-      }
-    }
-    try {
-      await waitMilliseconds(1_000, signal);
-    } catch {
-      return;
-    }
-  }
 }
 
 function apply(ctx, config = {}) {
@@ -1355,15 +1085,8 @@ function apply(ctx, config = {}) {
   let activityQueue = Promise.resolve();
   let lastActivitySignature;
   const pendingGoalTurns = new Map();
-  const sessionsById = new Map();
   const liveTasks = new Map();
-  const pendingApprovals = new Map();
-  const actionTokens = new Map();
   const nativeFeaturesAvailable = existsSync(HELPER_PATH) && existsSync(UIOPEN_PATH);
-  const muxAbort = new AbortController();
-  let muxPromise = Promise.resolve();
-  let stopActionServer = async () => {};
-  let approvalExpiryTimer;
 
   const enqueue = (kind, session, notification, detail) => {
     if (notification === undefined || stopped) return;
@@ -1377,18 +1100,6 @@ function apply(ctx, config = {}) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         ctx.logger.warn(`ios-notifier: failed ${kind} notification for ${detail}: ${message}`);
-      }
-    });
-  };
-
-  const enqueueDismiss = (notificationId) => {
-    if (stopped) return;
-    queue = queue.then(async () => {
-      if (stopped) return;
-      try {
-        await dismissNotifier(ctx, notificationId);
-      } catch (error) {
-        ctx.logger.warn(`ios-notifier: failed to dismiss notification "${notificationId}": ${error instanceof Error ? error.message : String(error)}`);
       }
     });
   };
@@ -1408,132 +1119,6 @@ function apply(ctx, config = {}) {
       }
     });
   };
-
-  const settleApproval = (pending) => {
-    if (pendingApprovals.get(pending.key) !== pending) return;
-    pendingApprovals.delete(pending.key);
-    actionTokens.delete(pending.tokens.allow);
-    actionTokens.delete(pending.tokens.reject);
-  };
-
-  const onActionToken = async (token) => {
-    const binding = actionTokens.get(token);
-    if (binding === undefined) return "stale or already resolved action";
-    const { pending, outcome } = binding;
-    if (Date.now() >= pending.expiresAt) {
-      settleApproval(pending);
-      enqueueDismiss(pending.notificationId);
-      return "action expired; open DSH to decide";
-    }
-    if (pending.claimed) return "approval is already being answered";
-    pending.claimed = true;
-    const responseAbort = new AbortController();
-    const responseTimer = setTimeout(() => {
-      responseAbort.abort(new Error("approval response timed out"));
-    }, DEFAULT_SOCKET_TIMEOUT_MS);
-    try {
-      const receipt = await postJson(new URL("/api/respond", resolved.browserBaseUrl), {
-        type: "client-response",
-        rpcId: pending.rpcId,
-        result: {
-          ok: true,
-          value: {
-            sessionId: pending.sessionId,
-            approvalId: pending.approvalId,
-            outcome,
-          },
-        },
-      }, responseAbort.signal);
-      if (receipt?.accepted === true || receipt?.reason === "not-pending") {
-        settleApproval(pending);
-        enqueueDismiss(pending.notificationId);
-        return `OK ${outcome}`;
-      }
-      throw new Error(`approval response was rejected: ${String(receipt?.reason ?? "unknown")}`);
-    } catch (error) {
-      pending.claimed = false;
-      throw error;
-    } finally {
-      clearTimeout(responseTimer);
-    }
-  };
-
-  const handleMuxEnvelope = (envelope) => {
-    const frame = envelope?.payload;
-    if (envelope?.type !== "server-request" || frame === null || typeof frame !== "object") return;
-    if (frame.type === "approval/requested") {
-      if (!resolved.enabled || !resolved.notifyConfirm) return;
-      const key = `${frame.sessionId}:${frame.approvalId}`;
-      const previous = pendingApprovals.get(key);
-      if (previous?.rpcId === envelope.rpcId) return;
-      if (previous !== undefined) {
-        settleApproval(previous);
-        enqueueDismiss(previous.notificationId);
-      }
-      const tokens = { allow: randomActionToken(), reject: randomActionToken() };
-      const pending = {
-        key,
-        rpcId: envelope.rpcId,
-        sessionId: frame.sessionId,
-        approvalId: frame.approvalId,
-        notificationId: notificationIdForApproval(frame.approvalId),
-        tokens,
-        expiresAt: Date.now() + APPROVAL_ACTION_TTL_MS,
-        claimed: false,
-      };
-      pendingApprovals.set(key, pending);
-      actionTokens.set(tokens.allow, { pending, outcome: "allowed-once" });
-      actionTokens.set(tokens.reject, { pending, outcome: "rejected" });
-      const session = sessionsById.get(frame.sessionId) ?? {
-        id: frame.sessionId,
-        header: {},
-        events: [],
-      };
-      enqueue(
-        "approval",
-        session,
-        renderApprovalNotification(frame, resolved, session, tokens),
-        `approval "${frame.approvalId}"`,
-      );
-      return;
-    }
-    if (frame.type === "approval/resolved") {
-      const key = `${frame.sessionId}:${frame.approvalId}`;
-      const pending = pendingApprovals.get(key);
-      if (pending === undefined) return;
-      settleApproval(pending);
-      enqueueDismiss(pending.notificationId);
-    }
-  };
-
-  let actionableApprovalsActive = false;
-  if (resolved.actionableApprovals && nativeFeaturesAvailable) {
-    try {
-      const actionServer = startActionServer(onActionToken, ctx.logger);
-      stopActionServer = actionServer.stop;
-      muxPromise = (async () => {
-        await actionServer.ready;
-        if (stopped) return;
-        actionableApprovalsActive = true;
-        await runMuxObserver(resolved, handleMuxEnvelope, muxAbort.signal, ctx.logger);
-      })().catch((error) => {
-        if (!stopped) {
-          ctx.logger.warn(`ios-notifier: actionable approvals unavailable: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      });
-      approvalExpiryTimer = setInterval(() => {
-        const now = Date.now();
-        for (const pending of pendingApprovals.values()) {
-          if (now < pending.expiresAt) continue;
-          settleApproval(pending);
-          enqueueDismiss(pending.notificationId);
-        }
-      }, 60_000);
-      approvalExpiryTimer.unref?.();
-    } catch (error) {
-      ctx.logger.warn(`ios-notifier: actionable approvals unavailable: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
 
   syncLiveActivity();
 
@@ -1559,7 +1144,6 @@ function apply(ctx, config = {}) {
     enqueue(change.operation, agent.session, notification, `goal "${change.ref.id}"`);
   }, { global: true });
   const stopSessionEvents = ctx.on("session/event", (session, event) => {
-    sessionsById.set(session.id, session);
     updateLiveTasks(liveTasks, session, event);
     syncLiveActivity();
     if (event.type === "turn/end") {
@@ -1579,7 +1163,6 @@ function apply(ctx, config = {}) {
       // numerous; their explicit goal and confirmation notifications remain.
       if (session.header?.origin === "subagent") return;
     }
-    if (event.type === "approval/asked" && actionableApprovalsActive) return;
     enqueue(
       sessionEventNotificationKind(event),
       session,
@@ -1610,17 +1193,9 @@ function apply(ctx, config = {}) {
     stopGoals();
     stopSessionEvents();
     stopAgentStatus();
-    if (approvalExpiryTimer !== undefined) clearInterval(approvalExpiryTimer);
-    muxAbort.abort(new Error("ios-notifier stopped"));
-    const pendingNotificationIds = [...pendingApprovals.values()].map((pending) => pending.notificationId);
-    pendingApprovals.clear();
-    actionTokens.clear();
     await Promise.allSettled([
-      muxPromise,
-      stopActionServer(),
       queue,
       activityQueue,
-      ...pendingNotificationIds.map((notificationId) => dismissNotifier(ctx, notificationId)),
       resolved.liveActivity && nativeFeaturesAvailable
         ? sendActivityCommand(ctx, resolved.bundleId, { version: 1, operation: "end" })
         : Promise.resolve(),
@@ -1631,13 +1206,11 @@ function apply(ctx, config = {}) {
 export {
   Config,
   DEFAULTS,
-  ACTION_SOCKET_PATH,
   ACTIVITY_SOCKET_PATH,
   apply,
   activeGoalDetail,
   activeTurn,
   activityCommand,
-  dismissNotifier,
   inject,
   name,
   navigationUrl,
@@ -1645,9 +1218,7 @@ export {
   newestRunningTask,
   normalizeLiveMarkdown,
   removeUnfinishedLiveTasks,
-  notificationIdForApproval,
   renderGoalNotification,
-  renderApprovalNotification,
   renderSessionNotification,
   resolveConfig,
   runNotifier,

@@ -12,33 +12,40 @@ pnpm 以独立 deb 发布，版本和 registry 归档 SHA-256 锁定在 `version
 设备安装后可检查版本并管理 Web profile 插件：
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/pnpm --version'
-ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root package@version'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/pnpm --version'
+ssh -t -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root package@version'
 ```
 
 profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外部 bundle 的 DSH peer dependencies 从 Harness 维护的安装后备目录解析，不会在 profile 中重复安装整套 DSH。
 
 ## Provider bundle
 
-DSH `0.1.1-rc.2` 当前验证版本固定为 `dsh-codex@0.2.5-iphone.9`。这个 iPhone
-修订适配了 rc.2 的 provider 图片预算、持久化 auth 注入、replay v2，以及
+DSH `0.1.5-rc.1` 当前验证版本固定为 `dsh-codex@0.2.6`。Mac 与 iPhone 共用
+同一个 checkout 和版本；插件适配了 0.1.5 的 provider 图片预算、持久化 auth 注入、replay，以及
 `prepareCall()` 冻结调用路径下的原生 Codex compaction；Provider 页还提供 pi-ai
 OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页；锁定 pi-ai
-`0.84.3` 后，xAI 对话目录包含 Grok 4.6，图片设置提供 Imagine 2.0 / Quality，并为三者分别保存
-直连/VLESS 出口。安装后先确认 pnpm 已把
-bundle 写入 Web profile：
+`0.85.1` 后，OpenAI Codex 目录包含 GPT-6 Astra，xAI 对话目录包含 Grok 4.6，图片设置提供 Imagine 2.0 / Quality，并为三者分别保存
+直连/VLESS 出口。对应模型路由分别为 `provider-codex`、`provider-xai` 与
+`provider-google`，不会覆盖“模型”页的 `openai-codex`、`xai` API Key 路由；未登录的
+OAuth 路由不会出现在聊天模型选择器中。`deploy.sh` 会先运行完整检查，从同级
+`dsh-codex` checkout 生成 tarball，再安装进手机 Web profile：
 
 ```bash
-scp -P 22 dsh-codex-0.2.5-iphone.9.tgz root@10.99.6.77:/var/root/
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root /var/root/dsh-codex-0.2.5-iphone.9.tgz'
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex'
+./scripts/package-dsh-codex.sh
+DEVICE_HOST=10.99.1.41 DEVICE_PORT=22 ./scripts/deploy.sh
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-cline-pass'
 ```
+
+`dsh-cline-pass@0.1.1` 没有仓库内 checkout：`package-dsh-cline-pass.sh` 从 Mac
+Web profile 已安装的包打 tarball，`deploy.sh` 再装进手机 Web profile。Cline 的
+`settings.yaml` 段和 `CLINE_PASS_API_KEY` 不由 deb 部署写入。
 
 无 Codex CLI 的设备使用插件自带的设备码登录：
 
 ```bash
-ssh -tt -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web exec dsh-openai-codex login --device-code'
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web exec dsh-openai-codex status'
+ssh -tt -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/dsh22 plugin --profile web exec dsh-openai-codex login --device-code'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/dsh22 plugin --profile web exec dsh-openai-codex status'
 ```
 
 浏览器完成授权后，插件把凭据以 `0600` 权限保存到 `/var/root/.dsh/.openai-codex-auth.json` 并自动刷新。该文件与 Codex CLI 的 `~/.codex/auth.json` 有独立的 refresh-token 生命周期；不要复制或共用 CLI 凭据文件。登录、状态和 Web 设置接口都不应输出 token。

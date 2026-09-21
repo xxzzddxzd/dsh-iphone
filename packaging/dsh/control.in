@@ -4,7 +4,7 @@ Version: @PACKAGE_VERSION@
 Architecture: iphoneos-arm64
 Description: DeepSeek Harness Web service adapted for rootless iOS
  Contains the locked DSH npm runtime, iOS native modules, Safari 16
- compatibility layer, actionable system notifications, Live Activity task
+ compatibility layer, system approval notifications, Live Activity task
  progress, launch wrapper, and launchd service definition.
 Maintainer: xxzzddxzd
 Section: Utilities

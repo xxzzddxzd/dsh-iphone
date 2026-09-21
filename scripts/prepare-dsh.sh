@@ -10,6 +10,8 @@ load_versions
 require_command npm
 require_command node
 
+npm ci --prefix "$ROOT/tools/frontend" --no-audit --no-fund
+
 LOCK_FILE="$ROOT/dsh-runtime/package-lock.json"
 INSTALL_ROOT="$ROOT/dsh-runtime/node_modules"
 PACKAGE_ROOT="$INSTALL_ROOT/@deepseek-ai/dsh"

@@ -115,19 +115,19 @@ const pluginSource = await readFile(
   new URL("../ios/notifications/dsh-ios-notifier.mjs", import.meta.url),
   "utf8",
 );
-assert.match(pluginSource, /import WebSocket from "ws"/);
-assert.match(pluginSource, /new URL\("\/api\/events\.mux"/);
-assert.match(pluginSource, /new URL\("\/api\/respond"/);
+assert.doesNotMatch(pluginSource, /from "ws"/);
+assert.doesNotMatch(pluginSource, /\/api\/events\.mux/);
+assert.doesNotMatch(pluginSource, /\/api\/respond/);
+assert.doesNotMatch(pluginSource, /actionableApprovals/);
 assert.match(pluginSource, /ctx\.on\("agent\/status"/);
-assert.doesNotMatch(pluginSource, /\bfetch\s*\(/);
-assert.doesNotMatch(pluginSource, /consumeMuxEvents/);
+assert.match(pluginSource, /event\.type === "approval\/asked"/);
 assert.doesNotMatch(pluginSource, /launchActivityHost/);
 
 const upstreamPackage = JSON.parse(await readFile(
   new URL("../upstream/deepseek-harness/package.json", import.meta.url),
   "utf8",
 ));
-assert.equal(upstreamPackage.version, "0.1.1-rc.2");
+assert.equal(upstreamPackage.version, "0.1.5-rc.1");
 const officialConnectionContract = await readFile(
   new URL(
     "../upstream/deepseek-harness/packages/client/connection/README.md",
@@ -135,12 +135,12 @@ const officialConnectionContract = await readFile(
   ),
   "utf8",
 );
-assert.match(officialConnectionContract, /\/api\/events\.mux/);
-assert.match(officialConnectionContract, /WebSocket upgrade/);
-assert.match(officialConnectionContract, /return 426 with no SSE fallback/);
+assert.match(officialConnectionContract, /\/api\/remote\.mux/);
+assert.match(officialConnectionContract, /\$events/);
+assert.match(officialConnectionContract, /browser session/);
 const officialApprovalSchema = await readFile(
   new URL(
-    "../upstream/deepseek-harness/packages/host/apiproxy/src/api/approvals.schema.ts",
+    "../upstream/deepseek-harness/packages/interaction/user-approval/src/types.ts",
     import.meta.url,
   ),
   "utf8",
@@ -277,12 +277,6 @@ assert.match(bridgeSource, /setSupplementaryActionsByLayout:/);
 assert.match(bridgeSource, /setAuthenticationRequired:/);
 assert.match(bridgeSource, /DSHActionSocketPath/);
 assert.match(bridgeSource, /DSHDismissPayload/);
-
-const notifierPluginSource = await readFile(
-  new URL("../ios/notifications/dsh-ios-notifier.mjs", import.meta.url),
-  "utf8",
-);
-assert.match(notifierPluginSource, /createServer\(\{ allowHalfOpen: true \}/);
 
 const activityBridgeSource = await readFile(
   new URL("../ios/activity/DSHActivityBridge.m", import.meta.url),
@@ -439,7 +433,6 @@ if (pluginAvailable) {
     navigationUrl,
     newestRunningTask,
     normalizeLiveMarkdown,
-    renderApprovalNotification,
     renderGoalNotification,
     renderSessionNotification,
     removeUnfinishedLiveTasks,
@@ -453,7 +446,6 @@ if (pluginAvailable) {
   const config = resolveConfig();
   assert.equal(config.browserBaseUrl, "http://127.0.0.1:3080/");
   assert.equal(config.notifyFailure, true);
-  assert.equal(config.actionableApprovals, true);
   assert.equal(config.liveActivity, true);
   assert.throws(() => resolveConfig({ browserBaseUrl: "file:///tmp/dsh" }), /HTTP\(S\)/);
   assert.equal(normalizeLiveMarkdown([
@@ -572,36 +564,6 @@ if (pluginAvailable) {
   }, config, detailedSession), {
     title: "通知链路测试 · 请求确认",
     body: "指令：neofetch --stdout",
-  });
-  assert.deepEqual(renderApprovalNotification({
-    sessionId: "session-detailed",
-    approvalId: "approval-1",
-    toolName: "Bash",
-    callId: "call-approval",
-    reason: "需要部署到手机",
-  }, config, detailedSession, { allow: allowToken, reject: rejectToken }), {
-    id: "approval-approval-1",
-    title: "通知链路测试 · 请求确认",
-    body: "指令：neofetch --stdout",
-    actions: [
-      { title: "拒绝", token: rejectToken, authenticationRequired: false },
-      { title: "允许一次", token: allowToken, authenticationRequired: true },
-    ],
-  });
-  assert.deepEqual(renderApprovalNotification({
-    sessionId: "session-detailed",
-    approvalId: "approval-without-call",
-    toolName: "Bash",
-    callId: "call-missing",
-    reason: "这条原因不应显示",
-  }, config, detailedSession, { allow: allowToken, reject: rejectToken }), {
-    id: "approval-approval-without-call",
-    title: "通知链路测试 · 请求确认",
-    body: "工具：Bash",
-    actions: [
-      { title: "拒绝", token: rejectToken, authenticationRequired: false },
-      { title: "允许一次", token: allowToken, authenticationRequired: true },
-    ],
   });
   assert.deepEqual(renderSessionNotification({
     type: "tool/call",

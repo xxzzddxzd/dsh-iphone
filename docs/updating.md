@@ -158,8 +158,9 @@ rg -n 'rc\.[0-9]+|0\.1\.0-rc|ioscompat=[0-9]+' \
 | 终端 | Apple `posix_spawn` 后端、helper 路径、iPhoneOS 头文件声明 | `scripts/build-node-pty.sh`、`shims/native/` |
 | 附件 | `sharp` 的导入位置和 DSH 实际调用面 | `shims/ios-sharp-shim.mjs` |
 | Windows 隔离 | `koffi` 是否仍然只在 Win32 路径使用 | `shims/ios-koffi-stub.mjs` |
+| 会话锁 | `node-addon-system/flock` 的 linux/darwin 平台判断与官方 C 源 | `scripts/build-ios-flock.sh`、`scripts/patch-dsh.mjs` |
 | profile 与插件 | HMR loader、pnpm 启动方式、Cordis patch 结构 | `scripts/patch-dsh.mjs` |
-| 通知与授权 | 事件名、mux 路径、`rpcId`、`/api/respond` 响应格式 | `ios/notifications/`、`tests/test-ios-notifications.mjs` |
+| 通知与授权 | `approval/asked` / `approval/decided` 会话事件与官方 Web 审批界面 | `ios/notifications/`、`tests/test-ios-notifications.mjs` |
 | Live Activity | turn、goal、agent、tool 事件语义和终态生命周期 | `ios/notifications/`、`ios/activity/` |
 | WebKit | hashed bundle 名、入口 hash、polyfill、module import 和 cache key | `web/index.ios.html`、`tests/test-ios16-frontend.mjs` |
 | 持久化 | session/workspace/config 的格式版本和迁移说明 | 上游差异、`/var/root/.dsh` 备份与回滚方案 |

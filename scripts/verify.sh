@@ -44,22 +44,18 @@ rg -F '<string>/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:' \
   "$ROOT/launchd/ai.deepseek.dsh.plist" >/dev/null
 
 node "$ROOT/tests/test-lockfile.mjs"
+node "$ROOT/tests/test-provider-history.mjs"
 node "$ROOT/tests/test-shims.mjs"
 node "$ROOT/tests/test-ios-image-tool.mjs"
 node "$ROOT/tests/test-vless-config.mjs"
 node "$ROOT/tests/test-ios-notifications.mjs"
-node "$ROOT/tests/test-ios-floating-sidebar.mjs"
 "$ROOT/tests/test-xray-package.sh"
 
-VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-D22_Mp1f.js"
-INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-ClqxG24t.js"
+VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-CCJJTK99.js"
+INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-BKQ_L1z6.js"
 if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios16-frontend.mjs" "$VENDOR" "$INDEX"
-  node "$ROOT/tests/test-ios-floating-sidebar.mjs" \
-    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js" \
-    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-sidebar/lib/client.js" \
-    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js" \
-    "$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js"
+  node "$ROOT/tests/test-official-web-ui.mjs"
   node "$ROOT/scripts/patch-dsh.mjs" --root "$ROOT/build/dsh-runtime" --check
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js')"
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-sandbox-windows-acl/lib/index.js')"
@@ -69,6 +65,7 @@ fi
 
 PTY_NODE="$ROOT/build/dsh-runtime/node_modules/node-pty/prebuilds/ios-arm64/pty.node"
 PTY_HELPER="$ROOT/build/dsh-runtime/node_modules/node-pty/prebuilds/ios-arm64/spawn-helper"
+FLOCK_NODE="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/node-addon-system/prebuilds/ios-arm64/system.node"
 if [ -f "$PTY_NODE" ] || [ -f "$PTY_HELPER" ]; then
   require_command file
   require_command vtool
@@ -77,6 +74,14 @@ if [ -f "$PTY_NODE" ] || [ -f "$PTY_HELPER" ]; then
   file "$PTY_HELPER" | rg 'Mach-O 64-bit executable arm64' >/dev/null
   vtool -show-build "$PTY_NODE" | rg 'platform IOS' >/dev/null
   vtool -show-build "$PTY_NODE" | rg "minos $NODE_IOS_MIN_VERSION" >/dev/null
+fi
+
+if [ -f "$FLOCK_NODE" ]; then
+  require_command file
+  require_command vtool
+  file "$FLOCK_NODE" | rg 'Mach-O 64-bit bundle arm64' >/dev/null
+  vtool -show-build "$FLOCK_NODE" | rg 'platform IOS' >/dev/null
+  vtool -show-build "$FLOCK_NODE" | rg "minos $NODE_IOS_MIN_VERSION" >/dev/null
 fi
 
 IMAGE_TOOL="$ROOT/build/ios-image-tool/dsh-image-tool"
@@ -112,8 +117,6 @@ actual_upstream=$(git -C "$ROOT/upstream/deepseek-harness" rev-parse HEAD)
   die "upstream submodule is $actual_upstream, expected $DSH_UPSTREAM_COMMIT"
 [ -z "$(git -C "$ROOT/upstream/deepseek-harness" status --porcelain)" ] || \
   die "upstream submodule has local changes; iOS compatibility must stay outside official DSH"
-git -C "$ROOT/upstream/deepseek-harness" apply --check \
-  "$ROOT/patches/dsh-rc2-ios-floating-sidebar.patch"
 upstream_version=$(node -p "require('$ROOT/upstream/deepseek-harness/package.json').version")
 [ "$upstream_version" = "$DSH_VERSION" ] || \
   die "upstream package version is $upstream_version, expected $DSH_VERSION"

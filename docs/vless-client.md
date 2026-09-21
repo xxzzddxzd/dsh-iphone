@@ -40,7 +40,7 @@ chmod 600 /安全路径/dsh-vless.json
 
 ```bash
 VLESS_CONFIG_PATH=/安全路径/dsh-vless.json \
-DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 \
+DEVICE_HOST=10.99.1.41 DEVICE_PORT=22 \
 ./scripts/deploy-vless.sh
 ```
 
@@ -51,9 +51,9 @@ DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 \
 ## 实机检查
 
 ```bash
-ssh -p 22 root@10.99.6.77 'launchctl print user/foreground/ai.deepseek.dsh-vless | head -80'
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/lib/dsh-vless/xray version'
-ssh -p 22 root@10.99.6.77 'tail -n 100 /var/root/dsh-vless-error.log; tail -n 100 /var/root/dsh-vless-access.log'
+ssh -p 22 root@10.99.1.41 'launchctl print user/foreground/ai.deepseek.dsh-vless | head -80'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/lib/dsh-vless/xray version'
+ssh -p 22 root@10.99.1.41 'tail -n 100 /var/root/dsh-vless-error.log; tail -n 100 /var/root/dsh-vless-access.log'
 ```
 
 Shadowrocket 关闭时，Xray 的 VLESS socket 直接使用手机当前 Wi-Fi 或蜂窝网络。Shadowrocket 开启时，该 socket 可能再次进入 Shadowrocket 的系统隧道，形成代理套代理，因此固定出口运行时建议关闭 Shadowrocket。
@@ -65,11 +65,11 @@ Shadowrocket 关闭时，Xray 的 VLESS socket 直接使用手机当前 Wi-Fi �
 停止服务不会改变系统路由：
 
 ```bash
-ssh -p 22 root@10.99.6.77 'launchctl bootout user/foreground/ai.deepseek.dsh-vless'
+ssh -p 22 root@10.99.1.41 'launchctl bootout user/foreground/ai.deepseek.dsh-vless'
 ```
 
 配置损坏时，可先测试再恢复上一份：
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/lib/dsh-vless/xray run -test -config /var/root/.config/dsh-vless/config.json.previous'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/lib/dsh-vless/xray run -test -config /var/root/.config/dsh-vless/config.json.previous'
 ```

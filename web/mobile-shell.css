@@ -1,0 +1,84 @@
+/* DSH 0.1.5 mobile shell. The official plugin bundles remain unchanged. */
+/* Touch focus persists after tapping; hover hints must never cover the page. */
+html [role="tooltip"] { display: none !important; pointer-events: none !important; }
+.dsh-ios-sidebar-backdrop { display: none; }
+@media (max-width: 1023px) {
+  .pI_x6G_frame[data-dsh-ios-shell] {
+    grid-template-columns: 0 minmax(0, 1fr) 0 !important;
+  }
+  [data-dsh-ios-shell] > .pI_x6G_sidebarCol {
+    position: absolute;
+    z-index: 10;
+    top: max(8px, env(safe-area-inset-top));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: var(--dsh-ios-drawer-width, 280px);
+    max-width: calc(100% - 24px);
+    border: 1px solid var(--dsw-alias-border-l1);
+    border-radius: 20px;
+    box-shadow: var(--dsw-shadow-lv3);
+    background: var(--dsw-specific-sidebar-fill);
+  }
+  [data-dsh-ios-shell] > .pI_x6G_centerCol { grid-column: 2; }
+  [data-dsh-ios-shell] > .pI_x6G_rightbarCol { grid-column: 3; }
+  [data-dsh-ios-shell] > .pI_x6G_handle[data-side="sidebar"] { display: none; }
+  [data-dsh-ios-shell] .hHd-Xa_root { width: 100% !important; border-radius: inherit; }
+  [data-dsh-ios-shell][data-sidebar-collapsed] > .pI_x6G_sidebarCol {
+    width: 48px;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    overflow: visible;
+    pointer-events: none;
+  }
+  [data-dsh-ios-shell][data-sidebar-collapsed] .hHd-Xa_root {
+    --dsh-mobile-sidebar-launcher-size: 48px;
+    padding: 2px;
+    background: transparent;
+    pointer-events: none;
+    overflow: visible;
+  }
+  [data-dsh-ios-shell][data-sidebar-collapsed] .hHd-Xa_root > :not(.hHd-Xa_logoRow) { display: none; }
+  [data-dsh-ios-shell][data-sidebar-collapsed] .hHd-Xa_logoRow { height: 44px; margin: 0; }
+  [data-dsh-ios-shell][data-sidebar-collapsed] .hHd-Xa_toggle {
+    width: 44px;
+    height: 44px;
+    pointer-events: auto;
+  }
+  [data-dsh-ios-shell][data-sidebar-collapsed] .hHd-Xa_panelIcon { display: none !important; }
+  [data-dsh-ios-shell][data-sidebar-collapsed] .hHd-Xa_railMark { display: inline-flex !important; }
+  [data-dsh-ios-shell] .wSkVaW_header {
+    padding-left: max(68px, calc(env(safe-area-inset-left) + 64px));
+  }
+  .dsh-ios-sidebar-backdrop:not([hidden]) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    background: var(--dsw-alias-bg-mask-1);
+    -webkit-backdrop-filter: var(--dsw-mask-blur);
+    backdrop-filter: var(--dsw-mask-blur);
+  }
+}
+@media (max-width: 680px) {
+  /* Plugin styles are injected after this sheet: the html prefix keeps the
+     mobile overrides effective independently of plugin load order. */
+  html .VOzbGW_overlay { box-sizing: border-box; align-items: stretch; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  html .VOzbGW_panel { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 18px; flex-direction: column; }
+  html .VOzbGW_nav { width: 100%; flex-shrink: 0; gap: 10px; padding: 12px 12px 10px; border-bottom: 1px solid var(--dsw-alias-border-l2); }
+  html .VOzbGW_navTitle { padding: 0 48px 0 4px; font-size: 18px; line-height: 28px; }
+  html .VOzbGW_navList { flex-direction: row; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  html .VOzbGW_navList::-webkit-scrollbar { display: none; }
+  html .VOzbGW_navCell { flex: none; height: 44px; padding: 10px 12px; border-radius: 10px; }
+  html .VOzbGW_content { min-height: 0; }
+  html .VOzbGW_header { height: 44px; align-items: center; padding: 8px 12px 4px; }
+  html .VOzbGW_actions { justify-content: flex-start; width: 100%; margin-left: 0; }
+  html .VOzbGW_close { position: absolute; top: 4px; right: 6px; width: 44px; height: 44px; }
+  html .VOzbGW_options { padding: 4px 12px 16px; overscroll-behavior: contain; }
+}
+@media (max-width: 390px) {
+  .VOzbGW_options [data-slot="settings.general.item"] > [class$="_row"] { align-items: stretch; flex-direction: column; gap: 10px; }
+  .VOzbGW_options [data-slot="settings.general.item"] > [class$="_row"] > [class$="_rowText"] { padding-right: 0; }
+  .VOzbGW_options [data-slot="settings.general.item"] > [class$="_row"] > :last-child { align-self: flex-start; }
+}

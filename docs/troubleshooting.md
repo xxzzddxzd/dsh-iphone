@@ -1,19 +1,27 @@
 # 部署与运行排障
 
-以下命令默认设备为 `10.99.6.77:22`，服务端口为 3080，Mac 转发端口为 3081。
+以下命令默认设备为 `10.99.1.41:22`，服务端口为 3080，Mac 转发端口为 3081。
 
 ## 先检查服务
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/node22 --version; launchctl print user/foreground/ai.deepseek.dsh | head -80'
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/node22 -e '\''require("node:http").get("http://127.0.0.1:3080/", response => { console.log(response.statusCode); response.resume(); }).on("error", error => { console.error(error.message); process.exit(1); })'\'''
-ssh -p 22 root@10.99.6.77 'tail -n 200 /var/root/dsh.log'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/node22 --version; launchctl print user/foreground/ai.deepseek.dsh | head -80'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/node22 -e '\''require("node:http").get("http://127.0.0.1:3080/", response => { console.log(response.statusCode); response.resume(); }).on("error", error => { console.error(error.message); process.exit(1); })'\'''
+ssh -p 22 root@10.99.1.41 'tail -n 200 /var/root/dsh.log'
 ```
+
+DSH 0.1.5 在浏览器尚未取得认证 cookie 时返回 `401`，这表示服务已经监听。保持手机解锁，运行以下命令为 Safari 打开当前启动地址，并刷新独立 DSH WebClip 的启动地址；命令不会输出 token：
+
+```bash
+./scripts/open-device.sh
+```
+
+认证 cookie 会在 DSH 重启后继续有效；清除浏览器数据、签名密钥更换或 cookie 过期后再运行一次即可。独立应用若仍显示旧页面，退出后重新点 DSH 图标。`deploy.sh` 会在部署成功后自动执行此步骤。Mac 端使用 `node ./scripts/open-browser.mjs mac` 或 `node ./scripts/open-browser.mjs iphone`。完整机制见 [Web 认证](./web-authentication.md)。
 
 重新加载服务：
 
 ```bash
-ssh -p 22 root@10.99.6.77 'launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true; while launchctl print user/foreground/ai.deepseek.dsh >/dev/null 2>&1; do sleep 1; done; launchctl bootstrap system /var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist; launchctl kickstart -k user/foreground/ai.deepseek.dsh'
+ssh -p 22 root@10.99.1.41 'launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true; while launchctl print user/foreground/ai.deepseek.dsh >/dev/null 2>&1; do sleep 1; done; launchctl bootstrap system /var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist; launchctl kickstart -k user/foreground/ai.deepseek.dsh'
 ```
 
 如果 `launchctl bootstrap` 报服务已存在，先执行 `bootout`；如果持续退出，日志中的第一条 JavaScript 或 dyld 错误比 KeepAlive 的重复输出更有用。
@@ -23,42 +31,43 @@ ssh -p 22 root@10.99.6.77 'launchctl bootout user/foreground/ai.deepseek.dsh >/d
 确认设备 SSH 和本地端口：
 
 ```bash
-nc -vz 10.99.6.77 22
+nc -vz 10.99.1.41 22
 lsof -nP -iTCP:3081 -sTCP:LISTEN
 ```
 
 重建转发：
 
 ```bash
-DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 ./scripts/start-tunnel.sh
+DEVICE_HOST=10.99.1.41 DEVICE_PORT=22 ./scripts/start-tunnel.sh
 ```
 
-打开：
+在 Safari 中完成转发端口的认证：
 
-```text
-http://127.0.0.1:3081/?ioscompat=9
+```bash
+node ./scripts/open-browser.mjs iphone
 ```
 
 ## Mac 有回复，iPhone 没有回复
 
-Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先确认 compatibility 9 入口：
+Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先验证认证，再确认手机安装了 compatibility 13：
 
 ```bash
-curl -sS 'http://127.0.0.1:3081/?ioscompat=9' | rg 'dsh-ios-compat|ioscompat=9'
+node ./scripts/check-web-auth.mjs iphone
+ssh root@10.99.1.41 "grep 'dsh-ios-compat' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
 ```
 
 如果 Mac 能看到新消息而手机仍保留空白或旧内容：
 
 1. 关闭对应页面的所有标签页。
 2. 清除 `127.0.0.1` 的网站数据，或重置刚打开的 Safari Experimental Features。
-3. 重新打开带 `?ioscompat=9` 的地址。
+3. 清理网站数据后重新运行 `./scripts/open-device.sh` 建立认证。
 4. 确认服务返回 `Cache-Control: no-store`。
 
 ```bash
-curl -i 'http://127.0.0.1:3081/?ioscompat=9' | head -30
+curl -i 'http://127.0.0.1:3081/?ioscompat=13' | head -30
 ```
 
-如果整个页面在打开实验功能后无法显示，先恢复 Safari 实验功能默认值，再清理网站数据；服务端无需重新安装。
+如果整个页面在打开实验功能后无法显示，先恢复 Safari 实验功能默认值，再清理网站数据并重新认证。
 
 ## JavaScript API 报错
 
@@ -69,19 +78,21 @@ AbortSignal.any is not a function
 authorityMessages.toReversed is not a function
 Array.prototype.toSpliced is not a function
 Invalid regular expression: invalid group specifier name
+SyntaxError: Unexpected token '{'
+Can't find variable: Iterator
 ```
 
 检查部署文件：
 
 ```bash
-ssh -p 22 root@10.99.6.77 "grep -nE 'dsh-ios-compat|ioscompat=9' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
+ssh -p 22 root@10.99.1.41 "grep -nE 'dsh-ios-compat|ioscompat=13' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
 ```
 
 本地重新生成并部署 DSH 包：
 
 ```bash
 ./scripts/package-dsh.sh
-DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 ./scripts/deploy.sh
+DEVICE_HOST=10.99.1.41 DEVICE_PORT=22 ./scripts/deploy.sh
 ```
 
 ## permission preset read-only
@@ -97,8 +108,8 @@ DEVICE_HOST=10.99.6.77 DEVICE_PORT=22 ./scripts/deploy.sh
 确认两个原生产物是 iPhoneOS arm64 且已签名：
 
 ```bash
-ssh -p 22 root@10.99.6.77 'file /var/jb/usr/local/lib/dsh/node_modules/node-pty/prebuilds/ios-arm64/pty.node /var/jb/usr/local/lib/dsh/node_modules/node-pty/prebuilds/ios-arm64/spawn-helper'
-ssh -p 22 root@10.99.6.77 'ldid -e /var/jb/usr/local/lib/dsh/node_modules/node-pty/prebuilds/ios-arm64/pty.node'
+ssh -p 22 root@10.99.1.41 'file /var/jb/usr/local/lib/dsh/node_modules/node-pty/prebuilds/ios-arm64/pty.node /var/jb/usr/local/lib/dsh/node_modules/node-pty/prebuilds/ios-arm64/spawn-helper'
+ssh -p 22 root@10.99.1.41 'ldid -e /var/jb/usr/local/lib/dsh/node_modules/node-pty/prebuilds/ios-arm64/pty.node'
 ```
 
 本地重新编译：
@@ -113,7 +124,7 @@ ssh -p 22 root@10.99.6.77 'ldid -e /var/jb/usr/local/lib/dsh/node_modules/node-p
 确认 pnpm 固定使用 Node 22，而不是系统 Node 18：
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/pnpm --version; /var/jb/usr/local/lib/nodejs22/node --version'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/pnpm --version; /var/jb/usr/local/lib/nodejs22/node --version'
 ```
 
 `dsh plugin` 会把参数原样转发给由 Node 22 直接加载的 `pnpm.cjs`，并在成功后更新 profile bundle 列表。安装 registry 中的预构建 bundle 不需要设备上的 `curl` 或 `gzip`；pnpm 通过 Node HTTPS 自行下载和解包。若直接运行包装器成功，但 `dsh plugin` 报 `spawnSync pnpm EPERM`，说明 DSH 包没有包含当前仓库的 iOS pnpm 启动补丁，应重新构建并安装 DSH deb。若失败信息指向 `node-gyp`、不支持的 `os`/`cpu` 或缺少原生产物，则是目标插件没有适配 iPhoneOS，不是 pnpm 本身不可运行。
@@ -121,7 +132,7 @@ ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/pnpm --version; /var/jb/usr/loc
 profile 的 store 和 lockfile 位于 `/var/root/.dsh/profiles/<profile>` 所管理的 pnpm 状态中。不要删除整个 profile 来修复单个插件；先运行：
 
 ```bash
-ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web why <package>'
+ssh -t -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/dsh22 plugin --profile web why <package>'
 ```
 
 ## 独立 VLESS 服务失败
@@ -129,14 +140,14 @@ ssh -t -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/dsh22 plugin --profile web w
 服务固定注册在 Dopamine 的 `user/foreground` domain；即使通过 `launchctl bootstrap system` 加载，也要用以下标识查询和重启：
 
 ```bash
-ssh -p 22 root@10.99.6.77 'launchctl print user/foreground/ai.deepseek.dsh-vless | head -100'
-ssh -p 22 root@10.99.6.77 'tail -n 100 /var/root/dsh-vless-error.log; tail -n 100 /var/root/dsh-vless-launchd.log'
+ssh -p 22 root@10.99.1.41 'launchctl print user/foreground/ai.deepseek.dsh-vless | head -100'
+ssh -p 22 root@10.99.1.41 'tail -n 100 /var/root/dsh-vless-error.log; tail -n 100 /var/root/dsh-vless-launchd.log'
 ```
 
 出现 `EX_CONFIG` 时，先确认 plist 通过 `/var/jb/bin/sh` 启动包装器，并检查 `/var/root/.config/dsh-vless/config.json` 是否为 root 可读的 0600 文件。直接校验配置：
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/lib/dsh-vless/xray run -test -config /var/root/.config/dsh-vless/config.json'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/lib/dsh-vless/xray run -test -config /var/root/.config/dsh-vless/config.json'
 ```
 
 如果 Xray 被 `SIGKILL` 且没有错误日志，检查 entitlement。空的 `ldid -S` 签名不足；正式包应包含 `platform-application` 和 `com.apple.private.security.no-sandbox`。若端口正常但 GPT 请求没有 access log，问题在 DSH 的域名分流，而不是 VLESS 服务。

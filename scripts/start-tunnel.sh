@@ -8,13 +8,13 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 load_versions
 require_command ssh
 
-DEVICE_HOST=${DEVICE_HOST:-10.99.6.77}
+DEVICE_HOST=${DEVICE_HOST:-10.99.1.41}
 DEVICE_PORT=${DEVICE_PORT:-22}
 DEVICE_USER=${DEVICE_USER:-root}
 LOCAL_PORT=${LOCAL_PORT:-3081}
 REMOTE_PORT=${REMOTE_PORT:-3080}
 
-printf 'Open http://127.0.0.1:%s/?ioscompat=%s\n' "$LOCAL_PORT" "$IOS_COMPAT_VERSION"
+printf 'Once connected, run in another terminal: LOCAL_PORT=%s node ./scripts/open-browser.mjs iphone\n' "$LOCAL_PORT"
 exec ssh \
   -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=30 \

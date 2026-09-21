@@ -37,7 +37,7 @@ reset_build_dir() {
 }
 
 build_deb() {
-  local stage output temp_dir gtar_bin ar_bin
+  local stage output temp_dir gtar_bin ar_bin members
   stage=$1
   output=$2
   mkdir -p "$(dirname -- "$output")"
@@ -48,7 +48,17 @@ build_deb() {
   fi
 
   gtar_bin=$(command -v gtar || true)
-  ar_bin=$(command -v ar || true)
+  if command -v llvm-ar >/dev/null 2>&1; then
+    ar_bin=$(command -v llvm-ar)
+  elif [ -x /opt/homebrew/opt/llvm/bin/llvm-ar ]; then
+    ar_bin=/opt/homebrew/opt/llvm/bin/llvm-ar
+  elif [ -x /usr/local/opt/llvm/bin/llvm-ar ]; then
+    ar_bin=/usr/local/opt/llvm/bin/llvm-ar
+  elif command -v gar >/dev/null 2>&1; then
+    ar_bin=$(command -v gar)
+  else
+    ar_bin=$(command -v ar || true)
+  fi
   [ -n "$gtar_bin" ] || die "install dpkg or GNU tar: brew install dpkg gnu-tar"
   [ -n "$ar_bin" ] || die "required command not found: ar"
 
@@ -61,8 +71,21 @@ build_deb() {
     -cJf "$temp_dir/data.tar.xz" .
   (
     cd "$temp_dir"
-    "$ar_bin" -rc package.deb debian-binary control.tar.xz data.tar.xz
+    if [ "$(basename -- "$ar_bin")" = llvm-ar ]; then
+      "$ar_bin" --format=gnu rc package.deb debian-binary control.tar.xz data.tar.xz
+    else
+      "$ar_bin" rc package.deb debian-binary control.tar.xz data.tar.xz
+    fi
   )
+  members=$("$ar_bin" t "$temp_dir/package.deb")
+  [ "$members" = $'debian-binary\ncontrol.tar.xz\ndata.tar.xz' ] || \
+    die "ar did not create a valid Debian archive; install LLVM or GNU binutils"
+  "$ar_bin" p "$temp_dir/package.deb" control.tar.xz > "$temp_dir/control.check.tar.xz"
+  "$ar_bin" p "$temp_dir/package.deb" data.tar.xz > "$temp_dir/data.check.tar.xz"
+  "$gtar_bin" -tJf "$temp_dir/control.check.tar.xz" >/dev/null || \
+    die "generated Debian control archive is corrupt"
+  "$gtar_bin" -tJf "$temp_dir/data.check.tar.xz" >/dev/null || \
+    die "generated Debian data archive is corrupt"
   mv "$temp_dir/package.deb" "$output"
   rm -rf "$temp_dir"
 }

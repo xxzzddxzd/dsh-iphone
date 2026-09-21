@@ -27,7 +27,11 @@ assert.equal(packages["node_modules/node-addon-api"].version, versions.NODE_ADDO
 
 for (const [path, metadata] of Object.entries(packages)) {
   if (/^node_modules\/@deepseek-ai\/dsh-[^/]+$/.test(path)) {
-    assert.equal(metadata.version, versions.DSH_VERSION, `${path} drifted from ${versions.DSH_VERSION}`);
+    assert.equal(
+      metadata.version,
+      versions.DSH_INTERNAL_VERSION,
+      `${path} drifted from ${versions.DSH_INTERNAL_VERSION}`,
+    );
   }
 }
 

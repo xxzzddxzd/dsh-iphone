@@ -4,6 +4,7 @@ set -eu
 dsh_root=/var/jb/usr/local/lib/dsh
 dsh_plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist
 pty_root="$dsh_root/node_modules/node-pty/prebuilds/ios-arm64"
+flock_node="$dsh_root/node_modules/@deepseek-ai/node-addon-system/prebuilds/ios-arm64/system.node"
 notifier_bridge=/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib
 notifier_state=/var/mobile/Library/DSHNotifier
 notifier_app=/var/jb/Applications/DSH.app
@@ -15,6 +16,11 @@ activity_worker=/var/jb/usr/local/lib/dsh/ios/DSHActivityOp
 activity_plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh-activity.plist
 activity_host="$notifier_app/DSHActivityHost"
 activity_extension="$notifier_app/PlugIns/DSHLiveActivity.appex/DSHLiveActivity"
+
+# Packages built before the GNU archive fix could leave AppleDouble sidecars.
+# Remove those inert files so obsolete npm package directories disappear cleanly.
+find "$dsh_root" -type f -name '._*' -exec rm -f {} +
+find "$dsh_root" -depth -type d -empty -delete
 
 chmod 0755 /var/jb/usr/local/bin/dsh22
 chmod 0755 /var/jb/usr/local/bin/dsh-image-tool
@@ -47,6 +53,9 @@ launchctl bootstrap system "$activity_plist"
 /var/jb/usr/bin/uicache -p "$notifier_app"
 if [ -f "$pty_root/pty.node" ]; then
   ldid -S "$pty_root/pty.node"
+fi
+if [ -f "$flock_node" ]; then
+  ldid -S "$flock_node"
 fi
 if [ -f "$pty_root/spawn-helper" ]; then
   chmod 0755 "$pty_root/spawn-helper"

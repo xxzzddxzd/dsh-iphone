@@ -57,7 +57,7 @@ launchctl kickstart -k "$domain/$LABEL"
 
 for attempt in 1 2 3 4 5; do
   if curl -fs --max-time 2 "http://127.0.0.1:$LOCAL_PORT/" >/dev/null; then
-    printf 'DSH USB proxy is ready: http://127.0.0.1:%s/?ioscompat=9\n' "$LOCAL_PORT"
+    printf 'DSH USB proxy is ready: http://127.0.0.1:%s/?ioscompat=13\n' "$LOCAL_PORT"
     exit 0
   fi
   sleep 1

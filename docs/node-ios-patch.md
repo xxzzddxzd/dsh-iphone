@@ -56,8 +56,8 @@ iOS 16.1.1 上 `MAP_JIT` 和 `pthread_jit_write_protect_np` 不能作为这套�
 
 ```bash
 ./scripts/build-jit-probe.sh
-scp -P 22 build/ios-jit-probe.ios-arm64 root@10.99.6.77:/var/root/ios-jit-probe
-ssh -p 22 root@10.99.6.77 'ldid -S/var/jb/usr/local/lib/nodejs22/entitlements.xml /var/root/ios-jit-probe; chmod 755 /var/root/ios-jit-probe; /var/root/ios-jit-probe'
+scp -P 22 build/ios-jit-probe.ios-arm64 root@10.99.1.41:/var/root/ios-jit-probe
+ssh -p 22 root@10.99.1.41 'ldid -S/var/jb/usr/local/lib/nodejs22/entitlements.xml /var/root/ios-jit-probe; chmod 755 /var/root/ios-jit-probe; /var/root/ios-jit-probe'
 ```
 
 成功结果包含 `executed generated code: result=42`。
@@ -75,5 +75,5 @@ Package: com.xxzzddxzd.nodejs22
 它不声明替换旧 `node`，也不修改用户 shell 配置，因此 Node 18 可以继续保留。设备端检查命令：
 
 ```bash
-ssh -p 22 root@10.99.6.77 '/var/jb/usr/local/bin/node22 --version'
+ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/node22 --version'
 ```

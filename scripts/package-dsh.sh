@@ -14,6 +14,7 @@ OUTPUT="$ROOT/dist/dsh_${DSH_DEBIAN_VERSION}_iphoneos-arm64.deb"
 
 "$SCRIPT_DIR/prepare-dsh.sh" >/dev/null
 DSH_RUNTIME_ROOT="$RUNTIME_ROOT" "$SCRIPT_DIR/build-node-pty.sh"
+DSH_RUNTIME_ROOT="$RUNTIME_ROOT" "$SCRIPT_DIR/build-ios-flock.sh"
 "$SCRIPT_DIR/build-ios-notifier.sh" >/dev/null
 "$SCRIPT_DIR/build-ios-image-tool.sh" >/dev/null
 node "$SCRIPT_DIR/patch-dsh.mjs" --root "$RUNTIME_ROOT" --check
