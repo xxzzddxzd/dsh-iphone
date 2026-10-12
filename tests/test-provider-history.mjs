@@ -10,7 +10,7 @@ import { migrateProviderRows, SEARCH_EVENT } from "../scripts/migrate-provider-h
 
 const runtime = fileURLToPath(new URL("../dsh-runtime/", import.meta.url));
 const require = createRequire(join(runtime, "package.json"));
-const { sessionFormatCatalog: catalog } = await import(pathToFileURL(require.resolve("@deepseek-ai/dsh-session-format-catalog")));
+const { historicalSessionFormatCatalog: catalog } = await import(pathToFileURL(require.resolve("@deepseek-ai/dsh-session-format-catalog")));
 const request = {
   endpoint: "https://chatgpt.com/backend-api/codex/alpha/search",
   body: { id: "fixture", model: "fixture", input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "preserve this search" }] }],

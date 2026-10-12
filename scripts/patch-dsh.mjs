@@ -111,7 +111,7 @@ async function readJson(relativePath) {
 }
 
 const dshPackage = await readJson("package.json");
-if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.1.5-rc.1") {
+if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.2.0-rc.2") {
   throw new Error(
     `unsupported DSH package: ${dshPackage.name ?? "unknown"}@${dshPackage.version ?? "unknown"}`,
   );
@@ -126,15 +126,23 @@ if (nodeAddonApiPackage.version !== "7.1.1") {
   throw new Error(`unsupported node-addon-api version: ${nodeAddonApiPackage.version}`);
 }
 
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner-launch-B2zsQ1Dz.js",
+  '\tif (platform === "darwin") return new MacProcessInspector(internals);',
+  '\t// iOS provides the same BSD ps fields and POSIX signal semantics.\n\tif (platform === "darwin" || platform === "ios") return new MacProcessInspector(internals);',
+  "iOS BSD terminal process inspection",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-terminal-bash/lib/index.js",
+  'const DEFAULT_BASH_SHELL = "/bin/bash";',
+  'const DEFAULT_BASH_SHELL = process.platform === "ios" ? "/var/jb/bin/bash" : "/bin/bash";',
+  "iOS rootless default Bash path",
+);
+
 await installNewFile(
   "node_modules/ios-sharp-shim.mjs",
   resolve(repositoryRoot, "shims/ios-sharp-shim.mjs"),
   "sharp iOS shim",
-);
-await installNewFile(
-  "node_modules/ios-koffi-stub.mjs",
-  resolve(repositoryRoot, "shims/ios-koffi-stub.mjs"),
-  "koffi iOS stub",
 );
 await installNewFile(
   "node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs",
@@ -143,9 +151,40 @@ await installNewFile(
 );
 
 await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-client-connection/lib/client.js",
+  `\t\t\tconst initiallyAvailable = browser?.navigator?.onLine;`,
+  `\t\t\t// iOS: lack of Internet access does not disconnect the on-device Host.
+\t\t\tconst localHost = typeof location !== "undefined" && isLoopbackHostname(location.hostname);
+\t\t\tconst initiallyAvailable = localHost ? true : browser?.navigator?.onLine;`,
+  "local Host network availability",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-client-connection/lib/client.js",
+  `\t\t\tconst offline = () => {
+\t\t\t\tcontroller.setNetworkAvailable(false);
+\t\t\t};`,
+  `\t\t\tconst offline = () => {
+\t\t\t\tcontroller.setNetworkAvailable(localHost);
+\t\t\t};`,
+  "local Host offline events",
+);
+await replaceExactlyOnce(
+  "node_modules/@deepseek-ai/dsh-api-gateway/lib/client.js",
+  `\t\t\t\tif (connection.rpc.open === void 0) this.streams.start();
+\t\t\t\tlet disposed = false;`,
+  `\t\t\t\tif (connection.rpc.open === void 0) this.streams.start();
+\t\t\t\tif (connection.rpc.open === void 0 && window.__DSH_IOS_CONNECTION_RECOVERY__ !== void 0) ctx.effect(() => window.__DSH_IOS_CONNECTION_RECOVERY__.install({
+\t\t\t\t\tconnection,
+\t\t\t\t\topenProbe: (signal) => this.streams.open("session/control", { args: {} }, signal)
+\t\t\t\t}), "iOS connection recovery");
+\t\t\t\tlet disposed = false;`,
+  "iOS event stream recovery",
+);
+
+await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
-  'import sharp from "sharp";',
-  '// iOS patch: ImageIO/CoreGraphics facade replaces native libvips\nimport sharp from "../../../ios-sharp-shim.mjs";',
+  'const requireSharp = createLazyRequire("sharp", import.meta.url);',
+  '// iOS patch: ImageIO/CoreGraphics facade replaces native libvips\nimport sharp from "../../../ios-sharp-shim.mjs";\nconst requireSharp = () => sharp;',
   "attachment image backend",
 );
 await replaceExactlyOnce(
@@ -171,8 +210,8 @@ await replaceExactlyOnce(
 );
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js",
-  `const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v5";`,
-  `const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v5-ios-imageio-1";`,
+  `const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v6";`,
+  `const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v6-ios-imageio-1";`,
   "attachment request-image transform identity",
 );
 await replaceExactlyOnce(
@@ -185,38 +224,6 @@ await replaceExactlyOnce(
 \t\t\tjpegQualities: IMAGE_ENCODING_QUALITIES,
 \t\t\torder: ["alpha:png", "opaque:jpeg"],`,
   "attachment request-image descriptor",
-);
-
-await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner-launch-COYGu0Dl.js",
-  'import koffi from "koffi";',
-  '// iOS patch: Win32 process inspection stays inert on iOS\nimport koffi from "../../../ios-koffi-stub.mjs";',
-  "subprocess Win32 koffi import",
-);
-
-await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/lib/types-DuU3lSVe.js",
-  'import koffi from "koffi";',
-  '// iOS patch: Win32-only FFI stays inert on iOS\nimport koffi from "../../../ios-koffi-stub.mjs";',
-  "Win32 koffi import",
-);
-await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-win32-process/lib/index.js",
-  'import koffi from "koffi";',
-  '// iOS patch: Win32 process FFI stays inert on iOS\nimport koffi from "../../../ios-koffi-stub.mjs";',
-  "Win32 process koffi import",
-);
-await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-win32-process/lib/index.js",
-  "if (STARTUPINFOW.size !== 104)",
-  "if (STARTUPINFOW.size !== void 0 && STARTUPINFOW.size !== 104)",
-  "STARTUPINFOW inert-size guard",
-);
-await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-win32-process/lib/index.js",
-  "if (PROCESS_INFORMATION.size !== 24)",
-  "if (PROCESS_INFORMATION.size !== void 0 && PROCESS_INFORMATION.size !== 24)",
-  "PROCESS_INFORMATION inert-size guard",
 );
 
 await replaceExactlyOnce(
@@ -243,26 +250,10 @@ await replaceExactlyOnce(
 );
 
 await replaceExactlyOnce(
-  "lib/profile-boot-Dk-7KqJc.js",
-  'if (composed.profile.patchReload === "live" && !signalShutdown.signal.aborted && ctx.fiber.state === 2 && ctx.get("loader") !== void 0) try {',
-  'if (composed.profile.patchReload === "live" && !signalShutdown.signal.aborted && ctx.fiber.state === 2 && ctx.get("loader") !== void 0 && ctx.loader.internal) try {',
-  "profile HMR loader guard",
-);
-
-await replaceExactlyOnce(
-  "lib/plugin-Ddi42qoW.js",
-  `\tconst result = spawnSync("pnpm", args.map((argument) => anchorPathSpec(argument, process.cwd())), {
-\t\tcwd: dir,
-\t\tstdio: "inherit",
-\t\tshell: process.platform === "win32"
-\t});`,
-  `\tconst pnpmArgs = args.map((argument) => anchorPathSpec(argument, process.cwd()));
-\tconst result = spawnSync(process.execPath, ["/var/jb/usr/local/lib/pnpm10/bin/pnpm.cjs", ...pnpmArgs], {
-\t\tcwd: dir,
-\t\tstdio: "inherit",
-\t\tshell: false
-\t});`,
-  "iOS pnpm launcher",
+  "lib/bin.js",
+  "if (import.meta.main) await runCli();",
+  'if (import.meta.main) await runCli({ packageManager: { command: process.execPath, args: ["/var/jb/usr/local/lib/pnpm10/bin/pnpm.cjs"] } });',
+  "iOS installation-owned pnpm launcher",
 );
 
 await replaceExactlyOnce(
@@ -310,9 +301,9 @@ await replaceExactlyOnce(
   "Safari 16 GFM email regexp",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-BKQ_L1z6.js",
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-5SrrfWpU.js",
   'from"./vendor-CCJJTK99.js"',
-  'from"./vendor-CCJJTK99.js?ioscompat=13"',
+  'from"./vendor-CCJJTK99.js?ioscompat=17"',
   "frontend vendor cache key",
 );
 await installNewFile(
@@ -327,10 +318,15 @@ for (const extension of ["js", "css"]) {
     `iPhone floating sidebar ${extension}`,
   );
 }
+await installNewFile(
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/dsh-ios-connection-recovery.js",
+  resolve(repositoryRoot, "web/connection-recovery.js"),
+  "iOS connection recovery helper",
+);
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
   resolve(repositoryRoot, "web/index.ios.html"),
-  "08feea36f5f7a805fe3b2b8cb70c286f54f3536eb036f5cc266d2981c4d57cc4",
+  "2146ac6dd90f5b6f3896d79e6b9a933eaecb6d90525a18f8fabfc364016a5da5",
   "Safari 16 entry document",
 );
 

@@ -56,8 +56,10 @@ launchctl bootstrap "$domain" "$plist_path"
 launchctl kickstart -k "$domain/$LABEL"
 
 for attempt in 1 2 3 4 5; do
-  if curl -fs --max-time 2 "http://127.0.0.1:$LOCAL_PORT/" >/dev/null; then
-    printf 'DSH USB proxy is ready: http://127.0.0.1:%s/?ioscompat=13\n' "$LOCAL_PORT"
+  status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:$LOCAL_PORT/" || true)
+  # DSH 0.2.0 answers 401 until the browser session handshake completes.
+  if [ "$status" = "200" ] || [ "$status" = "401" ]; then
+    printf 'DSH USB proxy is ready: http://127.0.0.1:%s/?ioscompat=17\n' "$LOCAL_PORT"
     exit 0
   fi
   sleep 1

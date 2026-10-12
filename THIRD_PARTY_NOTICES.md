@@ -36,6 +36,18 @@ The build uses node-pty's upstream Apple `posix_spawn` backend, supplies the
 `openpty` declaration omitted by the iPhoneOS SDK, and compiles the native
 module and helper for iPhoneOS. The npm package retains its upstream license.
 
+## node-addon-require-builtin
+
+- Project: <https://github.com/deepseek-ai/dsh-node-addon-require-builtin>
+- Version: 0.1.6
+- Source commit: `ed3747ea17f5f2b332d218c6c54e2effa3e9babb`
+- License: MIT
+
+The build verifies the official source archive and node-addon-api 8.9.0 header
+archive, then compiles the unmodified N-API backend for iPhoneOS arm64. Its
+runtime probes remain intact. The upstream LICENSE is installed beside the
+binary; source archives and compiled output are not tracked.
+
 ## pnpm
 
 - Project: <https://github.com/pnpm/pnpm>

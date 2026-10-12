@@ -135,8 +135,9 @@ function truncate(value, maxChars) {
 
 function sessionTitle(session) {
   if (session === undefined) return undefined;
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index];
+  const events = session.snapshotEvents();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
     if (event.type !== "session/title") continue;
     const title = event.data?.title;
     if (typeof title === "string" && title.trim() !== "") return title.trim();
@@ -232,8 +233,9 @@ function assistantChunkProgressDetail(event) {
 
 function assistantSummary(session, turn) {
   if (session === undefined) return undefined;
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index];
+  const events = session.snapshotEvents();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
     if (event.type !== "assistant/message" || event.data?.turn !== turn) continue;
     const detail = assistantMessageDetail(event);
     if (detail !== undefined) return detail;
@@ -242,9 +244,10 @@ function assistantSummary(session, turn) {
 }
 
 function activeGoalDetail(session) {
-  if (session === undefined || !Array.isArray(session.events)) return "";
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index];
+  if (session === undefined) return "";
+  const events = session.snapshotEvents();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
     if (event.type !== "goal/change") continue;
     if (event.data?.operation === "clear") return "";
     return event.data?.goal?.phase === "active"
@@ -415,8 +418,9 @@ function sessionEventNotificationKind(event) {
 }
 
 function activeTurn(session) {
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index];
+  const events = session.snapshotEvents();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
     if (event.type === "turn/end") return undefined;
     if (event.type === "turn/start") return event.data.turn;
   }
@@ -428,9 +432,10 @@ function turnNotificationKey(session, turn) {
 }
 
 function subagentMode(session) {
-  const seedLength = Number.isSafeInteger(session.header?.seedLength) ? session.header.seedLength : 0;
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index];
+  const seedLength = session.inheritedEventCount;
+  const events = session.snapshotEvents();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
     if (event.type !== "subagent/descriptor" || event.seq < seedLength) continue;
     const mode = event.data?.mode;
     if (mode === "one-shot" || mode === "continuable") return mode;
@@ -523,7 +528,7 @@ function approvalNotificationTitle(session) {
 }
 
 function approvalCommand(session, callId) {
-  if (!Array.isArray(session?.events)) return undefined;
+  if (session === undefined) return undefined;
   const call = findToolCall(session, callId);
   if (call === undefined) return undefined;
   const args = parseToolArguments(call.data?.arguments);
@@ -758,9 +763,10 @@ function toolStatusDetail(name, status) {
 }
 
 function findToolCall(session, callId) {
-  if (typeof callId !== "string" || !Array.isArray(session?.events)) return undefined;
-  for (let index = session.events.length - 1; index >= 0; index -= 1) {
-    const event = session.events[index];
+  if (typeof callId !== "string" || session === undefined) return undefined;
+  const events = session.snapshotEvents();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
     if (event.type === "tool/call" && event.data?.callId === callId) return event;
   }
   return undefined;

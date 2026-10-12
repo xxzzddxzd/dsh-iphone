@@ -1,6 +1,6 @@
-# 0.1.5 历史会话恢复
+# DSH 0.2.0 的历史会话恢复
 
-0.1.5 使用 session format v3。官方冻结的旧版迁移器不接受自定义的
+0.2.0 使用 session format v4；本工具先恢复未生成版本的旧会话到冻结的 v3 中间世代。官方冻结的旧版迁移器不接受自定义的
 `web/openai-codex-search-llm-request`，即使事件带有 `ignorable`。
 旧版 `subagent/descriptor` v2 也会被 v0 迁移入口拒绝。这两种情况会导致
 历史加载失败，并让模型选择器停留在“正在加载模型”。
@@ -34,3 +34,5 @@ python3 scripts/migrate-provider-history.py \
 发布前执行当前格式的完整往返校验。持有官方文件锁后，以排他硬链接提交
 `session.v3.jsonl`，不覆盖任何已有版本。原始 `session.jsonl` 始终保留，写入前后
 核对 SHA-256。输出只包含会话 ID、计数和校验值，不打印对话内容或凭据。
+
+DSH 0.2.0 的官方持久化层负责后续 v3 → v4 转换，包含真实的子会话 catalog 事实。恢复器从新版 runtime 导入 `historicalSessionFormatCatalog`，不绕过这项要求，也不覆盖已经提交的 v3 或 v4 世代。

@@ -32,7 +32,7 @@ const patchedAttachment = await readFile(new URL(
   import.meta.url,
 ), "utf8").catch(() => "");
 if (patchedAttachment !== "") {
-  assert.match(patchedAttachment, /request-image-v5-ios-imageio-1/);
+  assert.match(patchedAttachment, /request-image-v6-ios-imageio-1/);
   assert.match(patchedAttachment, /pngForAlpha: true/);
   assert.match(patchedAttachment, /order: \["alpha:png", "opaque:jpeg"\]/);
   assert.doesNotMatch(patchedAttachment, /webpQualities: REQUEST_IMAGE_QUALITIES/);

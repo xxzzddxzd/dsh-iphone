@@ -93,7 +93,7 @@ async function main() {
   const [runtime, source, mode, lockFd] = process.argv.slice(2);
   assert.ok(runtime && source, "usage: migrate-provider-history.mjs <dsh-runtime> <session.jsonl> [--apply <locked-fd>]");
   const require = createRequire(resolve(runtime, "package.json"));
-  const { sessionFormatCatalog } = await import(pathToFileURL(require.resolve("@deepseek-ai/dsh-session-format-catalog")).href);
+  const { historicalSessionFormatCatalog: sessionFormatCatalog } = await import(pathToFileURL(require.resolve("@deepseek-ai/dsh-session-format-catalog")).href);
   const original = await readFile(source);
   const rows = original.toString("utf8").trimEnd().split("\n").map(line => JSON.parse(line));
   const result = migrateProviderRows(rows, sessionFormatCatalog);

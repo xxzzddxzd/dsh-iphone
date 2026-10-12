@@ -1,10 +1,10 @@
-# DSH 0.1.5 Web 认证
+# DSH 0.2.0 Web 认证
 
-Mac 与 iPhone 保留官方 `dsh-client-connection` 认证实现，没有免认证补丁。当前 CLI 是 `0.1.5-rc.1`，内部连接包是 `0.1.5-rc.2`。
+Mac 与 iPhone 保留官方 `dsh-client-connection` 认证实现，没有免认证补丁。当前 CLI 是 `0.2.0-rc.2`，内部连接包是 `0.2.0-rc.2`。
 
 ## 认证流程
 
-每次进程启动生成一个随机 launch token，启动日志中的 `/?token=…` 只能在 `GET /` 交换浏览器会话。交换返回 `303 /` 和签名 Cookie，页面最终地址不带 token。同一进程的 token 可重复使用；重启后旧 token 失效，但此前签发的 Cookie 仍有效。
+每次进程启动生成一个随机 launch token，启动日志中的 `/?token=…` 只能在 `GET /` 交换浏览器会话。交换返回 `303`、指向根地址的相对 Location（0.2.0 为 `./`）和签名 Cookie，页面最终地址不带 token。同一进程的 token 可重复使用；重启后旧 token 失效，但此前签发的 Cookie 仍有效。设备启动器在新进程日志尚未写入 token 时重试认证，验证成功后才更新 WebClip 和打开 Safari。
 
 Cookie 由 DSH 凭据存储中的 `client-connection/browser-session` 密钥签名，默认有效期 30 天，属性为 `HttpOnly; SameSite=Strict; Path=/`。本机 HTTP 不设置 `Secure`。Cookie 名称和签名内容都绑定 hostname 与 port，因此 `127.0.0.1:3080`、`127.0.0.1:3081`、`localhost:3080` 必须分别交换。Mac 的两个端口分别连接不同的 DSH，也使用各自的签名密钥。
 
@@ -40,7 +40,7 @@ node ./scripts/check-web-auth.mjs
 
 检查两个运行中的服务：根页面/index、启动交换、Cookie 属性、RPC、WebSocket，以及未认证、错误 token、篡改 Cookie、错误 hostname、跨来源、非浏览器会话 Bearer/query token 的拒绝路径。该检查不调用模型、不修改会话，也不输出 token 或 Cookie。
 
-认证后白屏应检查 WebKit Console。iOS 16.1 不支持新版主 bundle 的 class static block；compatibility 13 使用锁定的 esbuild 将官方主 bundle 与文档预览 bundle 转成 Safari 16.1 语法，并在启动前加载 core-js 标准 API polyfill，提供文档预览插件所需的 Iterator 等 API。布局、对话和侧栏逻辑继续使用官方实现。若出现历史事件迁移错误，见 [历史恢复](./history-migration.md)。
+认证后白屏应检查 WebKit Console。iOS 16.1 不支持新版主 bundle 的 class static block；compatibility 17 使用锁定的 esbuild 将官方主 bundle 与文档预览 bundle 转成 Safari 16.1 语法，并在启动前加载 core-js 标准 API polyfill，提供文档预览插件所需的 Iterator 等 API。布局、对话和侧栏逻辑继续使用官方实现。若出现历史事件迁移错误，见 [历史恢复](./history-migration.md)。
 
 ## 安装插件后持续重启
 

@@ -157,8 +157,9 @@ rg -n 'rc\.[0-9]+|0\.1\.0-rc|ioscompat=[0-9]+' \
 | 包与原生依赖 | DSH、`node-pty`、`node-addon-api` 版本，Node engine | `versions.env`、`scripts/patch-dsh.mjs`、`scripts/build-node-pty.sh` |
 | 终端 | Apple `posix_spawn` 后端、helper 路径、iPhoneOS 头文件声明 | `scripts/build-node-pty.sh`、`shims/native/` |
 | 附件 | `sharp` 的导入位置和 DSH 实际调用面 | `shims/ios-sharp-shim.mjs` |
-| Windows 隔离 | `koffi` 是否仍然只在 Win32 路径使用 | `shims/ios-koffi-stub.mjs` |
+| Windows 隔离 | `koffi` 是否仍然只在 Win32 路径延迟加载 | 官方发布包与 `scripts/verify.sh` 的 import 验证 |
 | 会话锁 | `node-addon-system/flock` 的 linux/darwin 平台判断与官方 C 源 | `scripts/build-ios-flock.sh`、`scripts/patch-dsh.mjs` |
+| 内部模块加载 | `node-addon-require-builtin` 源码、独立 C++ wrapper 头文件、N-API ABI、签名和官方缓存开关 | `scripts/build-ios-require-builtin.sh`、`packaging/dsh/dsh22`、`tests/test-require-builtin.mjs` |
 | profile 与插件 | HMR loader、pnpm 启动方式、Cordis patch 结构 | `scripts/patch-dsh.mjs` |
 | 通知与授权 | `approval/asked` / `approval/decided` 会话事件与官方 Web 审批界面 | `ios/notifications/`、`tests/test-ios-notifications.mjs` |
 | Live Activity | turn、goal、agent、tool 事件语义和终态生命周期 | `ios/notifications/`、`ios/activity/` |
@@ -191,7 +192,7 @@ node scripts/patch-dsh.mjs --root build/dsh-runtime --check
 ./scripts/verify.sh
 ```
 
-`package-dsh.sh` 会重新执行 `npm ci`、严格补丁、node-pty 编译和 iOS 通知组件构建。`verify.sh` 会检查 shell/JavaScript/plist、lockfile、shims、VLESS 配置、通知、Safari 16、移动端悬浮侧栏、原生产物、子模块 commit/版本/洁净度和 Git 污染。
+`package-dsh.sh` 会重新执行 `npm ci`、严格补丁、node-pty、flock、require-builtin 编译和 iOS 通知组件构建。`verify.sh` 会检查 shell/JavaScript/plist、lockfile、shims、VLESS 配置、通知、Safari 16、移动端悬浮侧栏、原生产物、子模块 commit/版本/洁净度和 Git 污染。require-builtin 的源码与 C++ wrapper 头文件各自锁定 archive/hash，不与 node-pty 的头文件版本混用；构建保持官方运行时探测不变。
 
 检查生成包：
 
@@ -252,7 +253,7 @@ DEVICE_USER="$dsh_device_user" \
 ./scripts/deploy.sh
 ```
 
-当前 `deploy.sh` 会安装仓库锁定的 Node、pnpm 和 DSH 三个 deb，执行包内签名/launchd 安装，并等待 3080 返回成功。即使本次只升级 DSH，Node 和 pnpm 的版本也必须仍与 `versions.env` 及 deb 依赖一致；它们不需要无理由升版。
+当前 `deploy.sh` 会安装仓库锁定的 Node、pnpm 和 DSH 三个 deb，并用 `DSH_DEPLOY_DEFER_START=1` 延迟 DSH 启动。使用本地自包含 tarball 的 `--offline` 安装完成 Provider bundle 和历史恢复检查后只 bootstrap 一次 DSH，再等待 3080 返回成功。即使本次只升级 DSH，Node 和 pnpm 的版本也必须仍与 `versions.env` 及 deb 依赖一致；它们不需要无理由升版。
 
 部署会重载 DSH 服务，因此不要在部署之后再执行一遍手工重启。只有以下原生通知内容发生变化时，才额外 respring 一次让 SpringBoard 载入新代码：
 
@@ -387,3 +388,43 @@ dsh plugin --profile web why <已安装插件>
 ```
 
 pnpm 能运行不代表含原生模块的任意插件已经适配 iPhoneOS。
+
+## Mac 端同步升级
+
+Mac 与 iPhone 使用同一个 DSH npm 完整版本、release cutoff 和共享 Provider checkout。升级前同样确认空闲，bootout `gui/$(id -u)/ai.deepseek.dsh-mac` 并备份 `~/.dsh`、LaunchAgent 和全局 DSH 程序目录；不要清除既有 profile、凭据或会话。
+
+```bash
+. ./versions.env
+npm install -g "@deepseek-ai/dsh@$DSH_VERSION" --before="$DSH_RELEASE_CUTOFF" --no-audit --no-fund
+./scripts/install-mac-pnpm.sh
+PATH="$HOME/.local/share/dsh-iphone/bin:$PATH" dsh plugin --profile web add --workspace-root "link:../dsh-codex"
+PATH="$HOME/.local/share/dsh-iphone/bin:$PATH" dsh plugin --profile web add --workspace-root "dsh-cline-pass@$DSH_CLINE_PASS_VERSION"
+```
+
+Mac DSH 的 LaunchAgent 使用锁定的 pnpm 10.34.5，确保 profile 中 `nodeLinker: hoisted` 和 `autoInstallPeers: false` 生效。pnpm 9 不读取这些 workspace 设置，会为第三方 bundle 解析旧的 DSH peer，不能用于新 profile 的安装。原来启用 Schedule 的 profile 使用 `@deepseek-ai/dsh-experimental-schedule-bundle`，删除针对已移出默认组合的 `ui-schedule` 的旧启用行；保留既有任务库。
+
+官方 Settings 会将旧 `settings.yaml` 导入当前 profile 并重命名为 `.imported`。Provider 自有设置从两种文件名都能导入；验收时检查旧会话、默认模型、模型显示与容量、Provider 登录和出口选择，不能只核对 CLI 版本。
+
+## 2026-10-12：0.2.0-rc.2 升级记录
+
+| 项目 | 最终值 |
+| --- | --- |
+| Mac / iPhone DSH | `0.2.0-rc.2` |
+| iPhone Debian 包 | `0.2.0~rc.2-4` |
+| 官方源码 commit | `639ed015397290b3745d163aafe02ffee4aa3f84` |
+| npm 发布截点 | `2026-09-30T00:00:00.000Z`，覆盖该版所有内部依赖的发布 |
+| Provider bundle | `dsh-codex 0.2.7` / pi-ai `0.87.1` / Cline Pass `0.2.8` |
+| Web compatibility | `17` |
+| 最终 deb SHA-256 | `571a0bc2ce2c54f5cb45688ee542c1d432d0435c3ba2e08ae80e441f7b0670c9` |
+
+本次对齐 Settings/storage domain、pi-ai transcript、PTC 图片上下文和 v4 会话格式，更新 Safari 16 语法、缓存、重连、通知与图片处理适配。iOS 新增官方 require-builtin 的 N-API v9 构建与签名，使用官方缓存开关；终端复用设备已验证的 BSD process inspector，并将默认 Bash 路径设为 `/var/jb/bin/bash`。保留上游运行时探测、PID 身份复查和权限边界。Mac profile 使用安装归属的 pnpm 10.34.5，并迁移已启用的 Schedule 与本机余额插件到新版接口。
+
+验证结果：
+
+- `package-dsh.sh`、`verify.sh`、Provider 的 70 项测试、类型检查与打包检查通过；官方子模块保持干净。
+- 两端均通过认证读取旧会话，并完成真实流式对话；Bash 返回验收标记及退出码 0。
+- iPhone 原生 builtin loader、PTY、进程身份校验、透明 PNG、JPEG 缩放与非法图片拒绝验证通过；系统通知桥接和 WebClip 认证通过。
+- Mac 升级前的 119 个会话、iPhone 升级前的 141 个会话可见；122 份 Mac 历史压缩会话文件和 227 份 iPhone 历史 JSONL 文件均与备份逐字节一致。
+- Provider tarball 包含锁定的纯 JavaScript 生产闭包，无嵌套 DSH peer 或原生模块；手机离线安装通过。Cline Pass 的入口为「设置 → 插件 → Cline Pass」。
+
+数据备份为 Mac 的 `~/.dsh.before-upgrade-0.2.0-rc.2-20261012` 和手机的 `/var/root/.dsh.before-upgrade-0.2.0-rc.2-20261012`。保留上一版 `dsh_0.1.5~rc.1-1_iphoneos-arm64.deb`，SHA-256 为 `4890be7015045770532724e4b2055243b0860149cb9488419ec95a7cf2bbfea8`。本次不需要 respring。

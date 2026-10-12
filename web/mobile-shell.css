@@ -1,8 +1,19 @@
-/* DSH 0.1.5 mobile shell. The official plugin bundles remain unchanged. */
+/* DSH 0.2.0 mobile shell. The official plugin bundles remain unchanged. */
 /* Touch focus persists after tapping; hover hints must never cover the page. */
 html [role="tooltip"] { display: none !important; pointer-events: none !important; }
 .dsh-ios-sidebar-backdrop { display: none; }
 @media (max-width: 1023px) {
+  html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
+  #root { min-width: 0; max-width: 100%; }
+  /* iOS zooms focused text below 16px. Keep larger user font preferences. */
+  html [data-composer-card] {
+    font-size: max(16px, var(--dsh-content-font-size, 14px));
+    line-height: max(26px, calc(24px + var(--dsh-content-font-delta, 0px)));
+  }
+  html input:not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  html textarea, html select, html [contenteditable="true"] {
+    font-size: max(16px, var(--dsh-content-font-size, 14px)) !important;
+  }
   .pI_x6G_frame[data-dsh-ios-shell] {
     grid-template-columns: 0 minmax(0, 1fr) 0 !important;
   }

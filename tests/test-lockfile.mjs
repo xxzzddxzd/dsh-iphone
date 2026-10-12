@@ -24,6 +24,7 @@ assert.equal(dsh.version, versions.DSH_VERSION);
 assert.equal(dsh.integrity, versions.DSH_NPM_INTEGRITY);
 assert.equal(packages["node_modules/node-pty"].version, versions.NODE_PTY_VERSION);
 assert.equal(packages["node_modules/node-addon-api"].version, versions.NODE_ADDON_API_VERSION);
+assert.equal(packages["node_modules/node-addon-require-builtin"].version, versions.REQUIRE_BUILTIN_VERSION);
 
 for (const [path, metadata] of Object.entries(packages)) {
   if (/^node_modules\/@deepseek-ai\/dsh-[^/]+$/.test(path)) {

@@ -10,7 +10,7 @@ ssh -p 22 root@10.99.1.41 '/var/jb/usr/local/bin/node22 -e '\''require("node:htt
 ssh -p 22 root@10.99.1.41 'tail -n 200 /var/root/dsh.log'
 ```
 
-DSH 0.1.5 在浏览器尚未取得认证 cookie 时返回 `401`，这表示服务已经监听。保持手机解锁，运行以下命令为 Safari 打开当前启动地址，并刷新独立 DSH WebClip 的启动地址；命令不会输出 token：
+DSH 0.2.0 在浏览器尚未取得认证 cookie 时返回 `401`，这表示服务已经监听。保持手机解锁，运行以下命令为 Safari 打开当前启动地址，并刷新独立 DSH WebClip 的启动地址；命令不会输出 token：
 
 ```bash
 ./scripts/open-device.sh
@@ -49,22 +49,21 @@ node ./scripts/open-browser.mjs iphone
 
 ## Mac 有回复，iPhone 没有回复
 
-Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先验证认证，再确认手机安装了 compatibility 13：
+Safari 和 iOS Chrome 共用 WebKit。不要靠更换 Chrome 处理 JavaScript 兼容问题。先验证认证，再确认手机安装了 compatibility 17：
 
 ```bash
 node ./scripts/check-web-auth.mjs iphone
 ssh root@10.99.1.41 "grep 'dsh-ios-compat' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
 ```
 
-如果 Mac 能看到新消息而手机仍保留空白或旧内容：
+如果锁屏活动窗还在更新而对话页面停住，后台任务通常仍在运行。compatibility 17 会在回到前台时重建事件连接，并在前台检测同一条 WebSocket 是否仍能返回会话控制快照；连接无响应时，通常在 20 秒内开始恢复。网络离线提示不会阻断本机 `127.0.0.1` 的同步。
 
-1. 关闭对应页面的所有标签页。
-2. 清除 `127.0.0.1` 的网站数据，或重置刚打开的 Safari Experimental Features。
-3. 清理网站数据后重新运行 `./scripts/open-device.sh` 建立认证。
-4. 确认服务返回 `Cache-Control: no-store`。
+更新兼容文件后需重新打开页面一次。后续自动恢复保留草稿和已有会话，通过官方事件游标续接，不会再次发送当前问题。若仍然停住，记录是否发生在锁屏或切后台后、能否点击按钮、切换会话是否恢复，以及 Web Inspector 的首条错误；优先排查连接状态或渲染错误，避免直接清除网站数据丢失现场。连接诊断计数可从 `window.__DSH_IOS_CONNECTION_RECOVERY__.status` 读取，其中不含消息或凭据。
+
+若状态和计时正常、正文一直显示“载入历史…”，并报 `Assistant stream raw chunk must be a lossless JSON object`，检查是否安装 compatibility 17 的 JSON 原型校验修复。这种故障与连接中断不同：Safari 的原生函数字符串换行触发了错误的类型拒绝，刷新仍会在同一处失败。修复应保留原始历史和严格的数据校验。
 
 ```bash
-curl -i 'http://127.0.0.1:3081/?ioscompat=13' | head -30
+curl -i 'http://127.0.0.1:3081/?ioscompat=17' | head -30
 ```
 
 如果整个页面在打开实验功能后无法显示，先恢复 Safari 实验功能默认值，再清理网站数据并重新认证。
@@ -85,7 +84,7 @@ Can't find variable: Iterator
 检查部署文件：
 
 ```bash
-ssh -p 22 root@10.99.1.41 "grep -nE 'dsh-ios-compat|ioscompat=13' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
+ssh -p 22 root@10.99.1.41 "grep -nE 'dsh-ios-compat|ioscompat=17' /var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
 ```
 
 本地重新生成并部署 DSH 包：

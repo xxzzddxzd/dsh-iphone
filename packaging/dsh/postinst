@@ -5,6 +5,7 @@ dsh_root=/var/jb/usr/local/lib/dsh
 dsh_plist=/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist
 pty_root="$dsh_root/node_modules/node-pty/prebuilds/ios-arm64"
 flock_node="$dsh_root/node_modules/@deepseek-ai/node-addon-system/prebuilds/ios-arm64/system.node"
+require_builtin_node="$dsh_root/node_modules/node-addon-require-builtin/build/napi/napi-v9-ios-arm64/require_builtin.node"
 notifier_bridge=/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib
 notifier_state=/var/mobile/Library/DSHNotifier
 notifier_app=/var/jb/Applications/DSH.app
@@ -57,12 +58,15 @@ fi
 if [ -f "$flock_node" ]; then
   ldid -S "$flock_node"
 fi
+ldid -S "$require_builtin_node"
 if [ -f "$pty_root/spawn-helper" ]; then
   chmod 0755 "$pty_root/spawn-helper"
   ldid -S "$pty_root/spawn-helper"
 fi
 launchctl bootout system/ai.deepseek.dsh >/dev/null 2>&1 || \
   launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true
-launchctl bootstrap system "$dsh_plist"
+if [ "${DSH_DEPLOY_DEFER_START:-0}" != 1 ]; then
+  launchctl bootstrap system "$dsh_plist"
+fi
 
 exit 0

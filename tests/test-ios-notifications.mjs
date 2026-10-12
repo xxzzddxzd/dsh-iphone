@@ -127,7 +127,7 @@ const upstreamPackage = JSON.parse(await readFile(
   new URL("../upstream/deepseek-harness/package.json", import.meta.url),
   "utf8",
 ));
-assert.equal(upstreamPackage.version, "0.1.5-rc.1");
+assert.equal(upstreamPackage.version, "0.2.0-rc.2");
 const officialConnectionContract = await readFile(
   new URL(
     "../upstream/deepseek-harness/packages/client/connection/README.md",
@@ -423,6 +423,10 @@ try {
   pluginAvailable = false;
 }
 
+function eventSnapshot(events) {
+  return () => events;
+}
+
 if (pluginAvailable) {
   const {
     apply,
@@ -447,6 +451,26 @@ if (pluginAvailable) {
   assert.equal(config.browserBaseUrl, "http://127.0.0.1:3080/");
   assert.equal(config.notifyFailure, true);
   assert.equal(config.liveActivity, true);
+  // Use the released Session API: plain fixtures with an `events` array hid
+  // the 0.1.5 removal of that property and let every live update fail.
+  const { Session, SessionId } = await import(new URL(
+    "../build/dsh-runtime/node_modules/@deepseek-ai/dsh-session/lib/index.js",
+    import.meta.url,
+  ));
+  const releasedSession = Session.create(SessionId("session-ios-notifier-regression"));
+  releasedSession.append("session/title", { title: "真实 Session 状态窗" });
+  const releasedTasks = new Map();
+  const started = releasedSession.append("turn/start", { turn: 1 });
+  updateLiveTasks(releasedTasks, releasedSession, started);
+  assert.equal(activeTurn(releasedSession), 1);
+  assert.equal(activityCommand(releasedTasks).task.title, "真实 Session 状态窗");
+  assert.equal(activityCommand(releasedTasks).task.agentCount, 1);
+  const ended = releasedSession.append("turn/end", { turn: 1, reason: { kind: "completed" } });
+  updateLiveTasks(releasedTasks, releasedSession, ended);
+  assert.equal(activeTurn(releasedSession), undefined);
+  assert.equal(activityCommand(releasedTasks).task.phase, "已完成");
+  assert.equal(activityCommand(releasedTasks).task.agentCount, 0);
+  assert.match(renderSessionNotification(ended, config, releasedSession).body, /真实 Session 状态窗/);
   assert.throws(() => resolveConfig({ browserBaseUrl: "file:///tmp/dsh" }), /HTTP\(S\)/);
   assert.equal(normalizeLiveMarkdown([
     "### 检查结果",
@@ -465,7 +489,7 @@ if (pluginAvailable) {
   const detailedSession = {
     id: "session-detailed",
     header: {},
-    events: [
+    snapshotEvents: eventSnapshot([
       { type: "session/title", data: { title: "通知链路测试" } },
       {
         type: "assistant/message",
@@ -490,7 +514,7 @@ if (pluginAvailable) {
           }),
         },
       },
-    ],
+    ]),
   };
 
   assert.deepEqual(renderGoalNotification({
@@ -586,22 +610,22 @@ if (pluginAvailable) {
     body: "会话：通知链路测试\n状态：计划已准备好，等待你确认\n计划摘要：部署方案 - 构建 - 安装",
   });
 
-  const rootSession = { id: "session-root", header: {}, events: [] };
+  const rootSession = { id: "session-root", header: {}, snapshotEvents: eventSnapshot([]) };
   assert.equal(activeTurn(rootSession), undefined);
   assert.equal(activeTurn({
     ...rootSession,
-    events: [
+    snapshotEvents: eventSnapshot([
       { type: "turn/end", data: { turn: 3, reason: { kind: "completed" } } },
       { type: "turn/start", data: { turn: 4 } },
       { type: "assistant/message", data: {} },
-    ],
+    ]),
   }), 4);
   assert.equal(activeTurn({
     ...rootSession,
-    events: [
+    snapshotEvents: eventSnapshot([
       { type: "turn/start", data: { turn: 4 } },
       { type: "turn/end", data: { turn: 4, reason: { kind: "completed" } } },
-    ],
+    ]),
   }), undefined);
   assert.equal(navigationUrl(rootSession, config), "http://127.0.0.1:3080/?session=session-root");
   assert.equal(
@@ -629,8 +653,8 @@ if (pluginAvailable) {
       goal: { objective: "交付完整的 Live Activity", phase: "active" },
     },
   };
-  assert.equal(activeGoalDetail({ events: [activeGoalEvent] }), "交付完整的 Live Activity");
-  assert.equal(activeGoalDetail({ events: [activeGoalEvent, {
+  assert.equal(activeGoalDetail({ snapshotEvents: eventSnapshot([activeGoalEvent]) }), "交付完整的 Live Activity");
+  assert.equal(activeGoalDetail({ snapshotEvents: eventSnapshot([activeGoalEvent, {
     type: "goal/change",
     data: {
       kind: "goal/change",
@@ -638,20 +662,20 @@ if (pluginAvailable) {
       operation: "pause",
       goal: { objective: "交付完整的 Live Activity", phase: "paused" },
     },
-  }] }), "");
-  assert.equal(activeGoalDetail({ events: [activeGoalEvent, {
+  }]) }), "");
+  assert.equal(activeGoalDetail({ snapshotEvents: eventSnapshot([activeGoalEvent, {
     type: "goal/change",
     data: { kind: "goal/change", version: 1, operation: "clear" },
-  }] }), "");
+  }]) }), "");
 
   const runningTasks = new Map();
   const firstRunningSession = {
     id: "running-a",
     header: {},
-    events: [
+    snapshotEvents: eventSnapshot([
       { type: "session/title", data: { title: "较早任务" } },
       activeGoalEvent,
-    ],
+    ]),
   };
   updateLiveTasks(runningTasks, firstRunningSession, {
     type: "turn/start", time: 1_700_000_000_000, data: { turn: 1 },
@@ -692,7 +716,7 @@ if (pluginAvailable) {
   const secondRunningSession = {
     id: "running-b",
     header: {},
-    events: [{ type: "session/title", data: { title: "最后启动任务" } }],
+    snapshotEvents: eventSnapshot([{ type: "session/title", data: { title: "最后启动任务" } }]),
   };
   updateLiveTasks(runningTasks, secondRunningSession, {
     type: "turn/start", time: 1_700_000_001_000, data: { turn: 4 },
@@ -745,7 +769,7 @@ if (pluginAvailable) {
       }),
     },
   };
-  secondRunningSession.events.push(bashCall);
+  secondRunningSession.snapshotEvents().push(bashCall);
   updateLiveTasks(runningTasks, secondRunningSession, bashCall);
   assert.equal(activityCommand(runningTasks).task.phase, "正在执行 Bash");
   assert.equal(activityCommand(runningTasks).task.detail, "等待四十五秒完成通知测试");
@@ -815,7 +839,7 @@ if (pluginAvailable) {
       arguments: JSON.stringify({ query: "飞书数据获取方式" }),
     },
   };
-  secondRunningSession.events.push(searchCall);
+  secondRunningSession.snapshotEvents().push(searchCall);
   updateLiveTasks(runningTasks, secondRunningSession, searchCall);
   assert.equal(activityCommand(runningTasks).task.phase, "正在执行 网络搜索");
   assert.equal(activityCommand(runningTasks).task.detail, "权限已确认，继续等待测试完成。");
@@ -836,7 +860,7 @@ if (pluginAvailable) {
   const childRunningSession = {
     id: "running-b-child",
     header: { origin: "subagent", parentSession: "running-b" },
-    events: [],
+    snapshotEvents: eventSnapshot([]),
   };
   updateLiveTasks(runningTasks, childRunningSession, {
     type: "turn/start", data: { turn: 1 },
@@ -847,7 +871,7 @@ if (pluginAvailable) {
   const nestedRunningSession = {
     id: "running-b-grandchild",
     header: { origin: "subagent", parentSession: "running-b-child" },
-    events: [],
+    snapshotEvents: eventSnapshot([]),
   };
   updateLiveTasks(runningTasks, nestedRunningSession, {
     type: "turn/start", data: { turn: 1 },
@@ -893,7 +917,7 @@ if (pluginAvailable) {
   const nextSession = {
     id: "running-c",
     header: {},
-    events: [{ type: "session/title", data: { title: "后续任务" } }],
+    snapshotEvents: eventSnapshot([{ type: "session/title", data: { title: "后续任务" } }]),
   };
   updateLiveTasks(runningTasks, nextSession, {
     type: "turn/start", time: 1_700_000_020_000, data: { turn: 1 },
@@ -905,7 +929,7 @@ if (pluginAvailable) {
   const continuedRootSession = {
     id: "continued-root",
     header: {},
-    events: [{ type: "session/title", data: { title: "跨轮次子代理" } }],
+    snapshotEvents: eventSnapshot([{ type: "session/title", data: { title: "跨轮次子代理" } }]),
   };
   updateLiveTasks(continuedTasks, continuedRootSession, {
     type: "turn/start", time: 1_700_000_030_000, data: { turn: 1 },
@@ -913,7 +937,7 @@ if (pluginAvailable) {
   const continuedChildSession = {
     id: "continued-child",
     header: { origin: "subagent", parentSession: "continued-root" },
-    events: [],
+    snapshotEvents: eventSnapshot([]),
   };
   updateLiveTasks(continuedTasks, continuedChildSession, {
     type: "turn/start", data: { turn: 1 },
@@ -929,7 +953,7 @@ if (pluginAvailable) {
   const interleavedRootSession = {
     id: "interleaved-root",
     header: {},
-    events: [{ type: "session/title", data: { title: "交错根任务" } }],
+    snapshotEvents: eventSnapshot([{ type: "session/title", data: { title: "交错根任务" } }]),
   };
   updateLiveTasks(continuedTasks, interleavedRootSession, {
     type: "turn/start", time: 1_700_000_031_500, data: { turn: 1 },
@@ -957,7 +981,7 @@ if (pluginAvailable) {
   const interruptedSession = {
     id: "interrupted-live",
     header: {},
-    events: [{ type: "session/title", data: { title: "异常中断任务" } }],
+    snapshotEvents: eventSnapshot([{ type: "session/title", data: { title: "异常中断任务" } }]),
   };
   updateLiveTasks(interruptedTasks, interruptedSession, {
     type: "turn/start", time: 1_700_000_030_000, data: { turn: 1 },
@@ -978,11 +1002,12 @@ if (pluginAvailable) {
 
   const childSession = {
     id: "child-1",
-    header: { origin: "subagent", parentSession: "parent-1", seedLength: 2 },
-    events: [
+    header: { origin: "subagent", parentSession: "parent-1" },
+    inheritedEventCount: 2,
+    snapshotEvents: eventSnapshot([
       { type: "subagent/descriptor", seq: 1, data: { mode: "one-shot" } },
       { type: "subagent/descriptor", seq: 2, data: { mode: "continuable" } },
-    ],
+    ]),
   };
   assert.equal(
     navigationUrl(childSession, config),
@@ -1054,10 +1079,10 @@ if (pluginAvailable) {
   const goalSession = {
     id: "session-goal",
     header: {},
-    events: [
+    snapshotEvents: eventSnapshot([
       { type: "session/title", data: { title: "去重测试" } },
       { type: "turn/start", data: { turn: 5 } },
-    ],
+    ]),
   };
   handlers.get("goal/changed")({
     agent: { session: goalSession },
@@ -1075,7 +1100,7 @@ if (pluginAvailable) {
   const blockedGoalSession = {
     id: "session-blocked-goal",
     header: {},
-    events: [{ type: "turn/start", data: { turn: 6 } }],
+    snapshotEvents: eventSnapshot([{ type: "turn/start", data: { turn: 6 } }]),
   };
   handlers.get("goal/changed")({
     agent: { session: blockedGoalSession },

@@ -2,14 +2,14 @@
 
 DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不启动 TUN、不改变网络出口，也不依赖 Shadowrocket；通知发布和 Live Activity 都只发生在手机本机。
 
-## 与官方 DSH 0.1.5 的边界
+## 与官方 DSH 0.2.0 的边界
 
-本项目是官方 `dsh-v0.1.5-rc.1` 的 iOS 适配层，不要求 DSH 反向兼容本项目：
+本项目是官方 `dsh-v0.2.0-rc.2` 的 iOS 适配层，不要求 DSH 反向兼容本项目：
 
-- `upstream/deepseek-harness` 子模块固定在官方 0.1.5 提交，构建和验证都要求子模块工作区干净。
+- `upstream/deepseek-harness` 子模块固定在官方 0.2.0 提交，构建和验证都要求子模块工作区干净。
 - 授权仍由官方 `approval/request` waterfall 和官方 Web 组件处理。通知插件只观察持久化的 `approval/asked` / `approval/decided` 会话事件，不接管应答者位置。
-- 0.1.5 把浏览器事件流迁移到经过浏览器会话认证的 `/api/remote.mux` 和 `$events` 逻辑流。iOS 插件不再建立第二条私有浏览器连接，也不改写该协议。
-- iOS 打包阶段只在生成的运行时副本中加入插件及加载项；`scripts/patch-dsh.mjs` 对 0.1.5 版本和每个官方预像做精确校验，未知版本直接停止构建。
+- 0.2.0 把浏览器事件流迁移到经过浏览器会话认证的 `/api/remote.mux` 和 `$events` 逻辑流。iOS 插件不再建立第二条私有浏览器连接，也不改写该协议。
+- iOS 打包阶段只在生成的运行时副本中加入插件及加载项；`scripts/patch-dsh.mjs` 对 0.2.0 版本和每个官方预像做精确校验，未知版本直接停止构建。
 
 ## 通知覆盖范围
 
@@ -37,7 +37,7 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 
 ## 授权处理
 
-点击授权通知会打开对应 session，由 DSH 0.1.5 官方审批面板返回 `allowed-once` 或 `rejected`。系统通知不再直接提交授权结果，因而不会与 Mac 或另一个浏览器争用 waterfall 中唯一的决定位置。用户问答和计划确认同样在官方会话界面完成。
+点击授权通知会打开对应 session，由 DSH 0.2.0 官方审批面板返回 `allowed-once` 或 `rejected`。系统通知不再直接提交授权结果，因而不会与 Mac 或另一个浏览器争用 waterfall 中唯一的决定位置。用户问答和计划确认同样在官方会话界面完成。
 
 ## Live Activity
 
@@ -49,6 +49,8 @@ DSH Web profile 在 rootless iOS 上内置 `ios-notifier` Host 插件。它不�
 - `进展` 区块优先展示最近一条有效的 ASSISTANT 文本；尚无模型文本时才回退到 Think 摘要、搜索/工具动作或计划进度。待用户处理的问题以及阻塞、失败等终态原因仍具有更高优先级；无目标时最多显示四行，有目标时最多显示三行；
 - `TOOL` 区块只显示最近一次工具的类型与状态（运行中、已完成、执行失败或等待授权），并区分网络搜索、网页读取、文件搜索、内容搜索等类型，不再重复 `进展` 的动作正文；
 - 等待回答、计划确认或操作授权时使用醒目的等待状态和“打开处理”入口。
+
+插件通过 DSH 0.2.0 的 `Session.snapshotEvents()` 读取事件快照，并使用 `inheritedEventCount` 区分子会话继承的事件；旧的 `session.events` 和 `header.seedLength` 已不再使用。回归检查包含真实发布包 Session 的开始、结束和通知摘要，防止仅用旧版测试对象掩盖接口变化。
 
 三个内容区使用同一组左右两列：左列固定显示 `GOAL`、`PROG`、`TOOL`，右列显示内容，进展可占三至四行。三个标签使用同一套圆角字体、字号与列宽；单行的目标和工具内容保持垂直居中。进展正文会去掉 Markdown 的标题、引用、代码围栏和链接地址，将列表转换为项目符号，并由原生 `AttributedString` 渲染粗体、删除线和行内代码；解析失败时回退为去除常见标记的纯文本。
 
@@ -72,7 +74,7 @@ Live Activity 请求进入独立的 launchd broker `DSHActivityD`。broker 本�
 http://127.0.0.1:3080/?session=session-…
 ```
 
-compatibility 入口会在 DSH module graph 启动前把目标写入 `dsh.sessions.current`，随后从地址栏移除一次性参数，最终按 0.1.5 正常恢复路径打开 session。subagent 通知还携带 `parent` 与 `mode`，因此可以恢复直接父地址后选择子会话。
+compatibility 入口会在 DSH module graph 启动前把目标写入 `dsh.sessions.current`，随后从地址栏移除一次性参数，最终按 0.2.0 正常恢复路径打开 session。subagent 通知还携带 `parent` 与 `mode`，因此可以恢复直接父地址后选择子会话。
 
 此地址只适用于 iPhone 本机，因为 DSH 服务监听 `127.0.0.1:3080`。Mac 通过 SSH 转发访问的端口与通知点击无关。
 
@@ -90,7 +92,7 @@ uikittools
 
 | 路径 | 用途 |
 | --- | --- |
-| `/var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs` | 0.1.5 Host 插件、任务状态与官方授权协议适配 |
+| `/var/jb/usr/local/lib/dsh/node_modules/@deepseek-ai/dsh-ios-notifier/index.mjs` | 0.2.0 Host 插件、任务状态与官方授权协议适配 |
 | `/var/jb/usr/local/bin/dsh-notify` | 通知发布、撤回 helper |
 | `/var/jb/usr/local/bin/dsh-activity` | Live Activity 调试 helper |
 | `/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.dylib` | SpringBoard Bulletin 发布与点击 bridge；不包含 ActivityKit |
@@ -109,7 +111,7 @@ uikittools
 
 ## 配置与开关
 
-0.1.5 的插件设置页可以呈现浏览器侧插件注册的设置卡片，但当前 iOS 通知插件只有 Host 侧，因此暂时没有 Web 表单。通知开关仍由 Web profile 的 Cordis patch 控制；修改 `$DSH_HOME/cordis.patch.yml` 后，DSH 配置 watcher 会热重载。
+0.2.0 的插件设置页可以呈现浏览器侧插件注册的设置卡片，但当前 iOS 通知插件只有 Host 侧，因此暂时没有 Web 表单。通知开关仍由 Web profile 的 Cordis patch 控制；修改 `$DSH_HOME/cordis.patch.yml` 后，DSH 配置 watcher 会热重载。
 
 关闭全部通知和 Live Activity：
 

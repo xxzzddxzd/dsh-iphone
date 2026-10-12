@@ -17,12 +17,13 @@
 
 | 组件 | 版本 |
 | --- | --- |
-| DSH | `0.1.5-rc.1`（内部包 `0.1.5-rc.2`） |
-| dsh-codex | `0.2.6`（pi-ai `0.85.1`） |
-| dsh-cline-pass | `0.1.1` |
+| DSH | `0.2.0-rc.2` |
+| dsh-codex | `0.2.7`（pi-ai `0.87.1`） |
+| dsh-cline-pass | `0.2.8` |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
 | node-pty | `1.2.0-beta.15` |
+| node-addon-require-builtin | `0.1.6`（iOS N-API v9） |
 | 系统 | iOS 15.0+、rootless 越狱 |
 
 已在 iPhone 13 Pro Max（iOS 16.1.1）实机验收。精确版本见 [`versions.env`](./versions.env)。
@@ -78,9 +79,11 @@ node ./scripts/open-browser.mjs iphone
 
 USB 重连后 LaunchAgent 会自动恢复。连接多台 iPhone 时先设置 `DEVICE_UDID`。通过 Wi-Fi 则运行 `./scripts/start-tunnel.sh`，再运行同一个 `open-browser.mjs iphone`。Mac 本机 DSH 使用 `node ./scripts/open-browser.mjs mac`。默认在 Safari 打开；设置 `DSH_BROWSER='Google Chrome'` 可切换浏览器。
 
-DSH 0.1.5 使用官方浏览器会话认证。Safari、Chrome 和独立 WebClip 分别保存 Cookie；3080 与 3081 也分别认证。完成后可以直接访问普通根地址。详细流程和检查命令见 [Web 认证](./docs/web-authentication.md)。
+DSH 0.2.0 使用官方浏览器会话认证。Safari、Chrome 和独立 WebClip 分别保存 Cookie；3080 与 3081 也分别认证。完成后可以直接访问普通根地址。详细流程和检查命令见 [Web 认证](./docs/web-authentication.md)。
 
-Mac 与 iPhone 使用同一份 `dsh-codex` checkout：Mac profile 链接该目录，`deploy.sh` 则从同一目录检查、打包并安装到手机。`dsh-cline-pass` 从 Mac Web profile 已安装的 `0.1.1` 打包进手机，配置与 `CLINE_PASS_API_KEY` 需另行同步，不覆盖 iPhone 默认模型。iPhone 保留浮动边栏：收起时只显示鲸鱼按钮，展开时覆盖对话、点击遮罩或 Escape 收起，设置页适配窄屏。该适配通过独立 mobile shell 加在官方组件外，不覆盖布局、侧栏、对话或设置 bundle；平台差异集中在 Node、原生模块、Safari 16 和系统集成层。
+Mac 与 iPhone 使用同一份 `dsh-codex` checkout：Mac profile 链接该目录，`deploy.sh` 则从同一目录检查、打包并安装到手机。`dsh-cline-pass` 从 Mac Web profile 已安装的 `0.2.8` 打包进手机，配置与 `CLINE_PASS_API_KEY` 需另行同步，不覆盖 iPhone 默认模型。iPhone 保留浮动边栏：收起时只显示鲸鱼按钮，展开时覆盖对话、点击遮罩或 Escape 收起，设置页适配窄屏。该适配通过独立 mobile shell 加在官方组件外，不覆盖布局、侧栏、对话或设置 bundle；平台差异集中在 Node、原生模块、Safari 16 和系统集成层。
+
+Cline Pass 的账号池、上游通道和工具开关位于「设置 → 插件 → Cline Pass」。
 
 iPhoneDS 页面关闭 hover/focus 提示浮框及原生 `title` 提示，避免触摸后焦点停留导致提示一直遮挡；按钮的无障碍名称仍保留。
 

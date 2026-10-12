@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the official per-session flock while publishing a new v3 generation."""
+"""Keep the official per-session flock while publishing a historical v3 generation for the official v4 migration."""
 import argparse
 import fcntl
 import json

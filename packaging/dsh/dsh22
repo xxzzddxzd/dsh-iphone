@@ -4,12 +4,14 @@ export DSH_HOME="${DSH_HOME:-/var/root/.dsh}"
 export PATH="/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:${PATH:-}"
 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--no-jitless --disable-wasm-trap-handler"
 export NODE_PATH=/var/jb/usr/local/lib/dsh/node_modules
+# Rootless iOS can load signed code under /var/jb; the upstream temporary
+# native-cache copy under /var/tmp cannot be mapped as executable code.
+export NARB_DISABLE_NATIVE_CACHE=1
 export SHELL=/var/jb/bin/bash
 
 exec /var/jb/usr/local/lib/nodejs22/node \
   --no-jitless \
   --disable-wasm-trap-handler \
-  --expose-internals \
   --no-wasm-code-gc \
   --no-opt \
   --no-sparkplug \

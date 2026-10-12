@@ -32,7 +32,10 @@ export async function launchUrl(target) {
 export async function exchange(url) {
   const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(10000) });
   const header = response.headers.get("set-cookie");
-  if (response.status !== 303 || response.headers.get("location") !== "/" || !header) {
+  const location = response.headers.get("location");
+  const root = new URL("/", url);
+  const destination = location === null ? undefined : new URL(location, url);
+  if (response.status !== 303 || destination?.href !== root.href || !header) {
     throw new Error(`launch exchange failed (HTTP ${response.status}); check service and current log`);
   }
   await response.arrayBuffer();

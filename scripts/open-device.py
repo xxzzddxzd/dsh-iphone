@@ -22,24 +22,36 @@ def write_plist(path, data):
 
 
 def main():
-    log = Path("/var/root/dsh.log").read_text(errors="replace")
-    urls = re.findall(r"http://127\.0\.0\.1:3080/\?token=[A-Za-z0-9_-]{43}", log)
-    if not urls:
-        raise RuntimeError("no current DSH launch URL in service log")
-    launch_url = urls[-1]
-    connection = http.client.HTTPConnection("127.0.0.1", 3080, timeout=10)
-    connection.request("GET", "/?" + urlsplit(launch_url).query)
-    response = connection.getresponse()
-    cookie = response.getheader("Set-Cookie")
-    response.read()
-    if response.status != 303 or not cookie:
-        raise RuntimeError("DSH launch exchange failed; check the running service")
-    connection.request("GET", "/", headers={"Cookie": cookie.split(";", 1)[0]})
-    response = connection.getresponse()
-    response.read()
-    if response.status != 200:
-        raise RuntimeError("DSH rejected its new browser session")
-    connection.close()
+    # The HTTP listener can become ready before the new launch token reaches
+    # the log. Re-read it after an unsuccessful exchange instead of opening
+    # a previous process's URL during an in-place upgrade.
+    launch_url = None
+    for attempt in range(10):
+        log = Path("/var/root/dsh.log").read_text(errors="replace")
+        urls = re.findall(r"http://127\.0\.0\.1:3080/\?token=[A-Za-z0-9_-]{43}", log)
+        connection = http.client.HTTPConnection("127.0.0.1", 3080, timeout=3)
+        try:
+            if urls:
+                candidate = urls[-1]
+                connection.request("GET", "/?" + urlsplit(candidate).query)
+                response = connection.getresponse()
+                cookie = response.getheader("Set-Cookie")
+                response.read()
+                if response.status == 303 and cookie:
+                    connection.request("GET", "/", headers={"Cookie": cookie.split(";", 1)[0]})
+                    response = connection.getresponse()
+                    response.read()
+                    if response.status == 200:
+                        launch_url = candidate
+                        break
+        except (OSError, http.client.HTTPException):
+            pass
+        finally:
+            connection.close()
+        if attempt < 9:
+            time.sleep(1)
+    if launch_url is None:
+        raise RuntimeError("DSH browser session did not become ready")
 
     count = 0
     for path in Path("/var/mobile/Library/WebClips").glob("*.webclip/Info.plist"):
@@ -80,9 +92,10 @@ def main():
     print(f"Safari authentication requested; {count} DSH WebClip launch URL(s) refreshed. Reopen the DSH icon if its old page remains.")
 
 
-try:
-    main()
-except Exception:
-    # Errors from system launchers can contain their URL argument.
-    print("Device authentication setup failed; check SSH, DSH service and WebClip files.")
-    raise SystemExit(1)
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        # Errors from system launchers can contain their URL argument.
+        print("Device authentication setup failed; check SSH, DSH service and WebClip files.")
+        raise SystemExit(1)

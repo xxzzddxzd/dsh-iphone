@@ -2,6 +2,8 @@
 // iOS Safari/WKWebView reports same-origin POST JSON as TypeError: Load failed.
 // Prefer an absolute panel URL and fall back to XHR when fetch throws.
 import { readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { dirname, resolve } from 'node:path'
 
 const file = process.argv[2]
 if (!file) {
@@ -68,11 +70,21 @@ const NEW = `      panelUrl() {
 `
 
 const text = readFileSync(file, 'utf8')
-if (text.includes('postPanel(body)')) {
+const metadata = JSON.parse(readFileSync(resolve(dirname(file), '../package.json'), 'utf8'))
+if (metadata.name !== 'dsh-cline-pass' || metadata.version !== '0.2.8') {
+  throw new Error('unsupported Cline Pass package; expected dsh-cline-pass@0.2.8')
+}
+const patchedCount = text.split(NEW).length - 1
+const canonical = patchedCount === 1 ? text.replace(NEW, OLD) : text
+const canonicalHash = createHash('sha256').update(canonical).digest('hex')
+if (canonicalHash !== '62f0df32226f67db1286e2968a3c5a9e6ff2d2e0a8574cb3bc36dd9f01b6d54f') {
+  throw new Error('unknown Cline Pass client preimage')
+}
+if (patchedCount === 1) {
   process.stdout.write(file + ': already patched\n')
   process.exit(0)
 }
-if (!text.includes(OLD)) {
+if (text.split(OLD).length - 1 !== 1 || patchedCount !== 0) {
   console.error(file + ': expected Cline Pass fetch client was not found')
   process.exit(1)
 }

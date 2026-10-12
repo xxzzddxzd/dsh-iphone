@@ -44,23 +44,24 @@ scp "${SCP_OPTIONS[@]}" "$DSH_DEB" "$REMOTE:$REMOTE_DSH_DEB"
 scp "${SCP_OPTIONS[@]}" "$DSH_CODEX_TGZ" "$REMOTE:$REMOTE_DSH_CODEX_TGZ"
 scp "${SCP_OPTIONS[@]}" "$DSH_CLINE_PASS_TGZ" "$REMOTE:$REMOTE_DSH_CLINE_PASS_TGZ"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
-  "dpkg -i '$REMOTE_NODE_DEB' '$REMOTE_PNPM_DEB' '$REMOTE_DSH_DEB'"
+  "DSH_DEPLOY_DEFER_START=1 dpkg -i '$REMOTE_NODE_DEB' '$REMOTE_PNPM_DEB' '$REMOTE_DSH_DEB'"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
   "test \"\$(/var/jb/usr/local/bin/pnpm --version)\" = '$PNPM_VERSION'"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
-  "/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root '$REMOTE_DSH_CODEX_TGZ'"
+  "/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root --offline '$REMOTE_DSH_CODEX_TGZ'"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
   "/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
-  "/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root '$REMOTE_DSH_CLINE_PASS_TGZ'"
+  "/var/jb/usr/local/bin/dsh22 plugin --profile web add --workspace-root --offline '$REMOTE_DSH_CLINE_PASS_TGZ'"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
   "/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-cline-pass"
+bash "$SCRIPT_DIR/migrate-device-history.sh" --apply
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
-  'launchctl bootout user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || true; for attempt in 1 2 3 4 5 6 7 8 9 10; do launchctl print user/foreground/ai.deepseek.dsh >/dev/null 2>&1 || break; sleep 1; done; ! launchctl print user/foreground/ai.deepseek.dsh >/dev/null 2>&1; launchctl bootstrap system /var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist; launchctl kickstart -k user/foreground/ai.deepseek.dsh'
+  'launchctl bootstrap system /var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist'
 
 service_ready=0
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
-  # DSH 0.1.5 returns 401 until the browser completes its authenticated handshake.
+  # DSH 0.2.0 returns 401 until the browser completes its authenticated handshake.
   if ssh "${SSH_OPTIONS[@]}" "$REMOTE" \
     "/var/jb/usr/local/lib/nodejs22/node -e \"const http = require('node:http'); const request = http.get('http://127.0.0.1:3080/', response => { response.resume(); response.on('end', () => process.exit(response.statusCode >= 200 && response.statusCode < 500 ? 0 : 1)); }); request.on('error', () => process.exit(1)); request.setTimeout(2000, () => { request.destroy(); process.exit(1); });\""; then
     service_ready=1
@@ -72,7 +73,6 @@ done
 [ "$service_ready" -eq 1 ] || \
   die "DSH did not answer on device port 3080; inspect /var/root/dsh.log"
 
-bash "$SCRIPT_DIR/migrate-device-history.sh" --apply
 "$SCRIPT_DIR/open-device.sh"
 
 printf 'DSH is running on %s. Start ./scripts/start-tunnel.sh and open:\n' "$REMOTE"

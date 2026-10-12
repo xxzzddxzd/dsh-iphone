@@ -19,7 +19,7 @@ done < <(rg --files scripts packaging tests -g '*.sh' -g 'node22' -g 'dsh22' -g 
 
 while IFS= read -r module; do
   node --check "$ROOT/$module"
-done < <(rg --files scripts shims tests ios -g '*.mjs')
+done < <(rg --files scripts shims tests ios web -g '*.mjs' -g '*.js')
 
 plutil -lint \
   "$ROOT/launchd/ai.deepseek.dsh.plist" \
@@ -40,6 +40,10 @@ rg -F 'export PATH="/var/jb/usr/local/lib/nodejs22:' \
   "$ROOT/packaging/dsh/dsh22" >/dev/null
 rg -F 'export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--no-jitless --disable-wasm-trap-handler"' \
   "$ROOT/packaging/dsh/dsh22" >/dev/null
+rg -F 'export NARB_DISABLE_NATIVE_CACHE=1' "$ROOT/packaging/dsh/dsh22" >/dev/null
+if rg -F -- '--expose-internals' "$ROOT/packaging/dsh/dsh22"; then
+  die "DSH must use the native builtin loader without exposing internal modules"
+fi
 rg -F '<string>/var/jb/usr/local/lib/nodejs22:/var/jb/usr/local/bin:' \
   "$ROOT/launchd/ai.deepseek.dsh.plist" >/dev/null
 
@@ -49,13 +53,19 @@ node "$ROOT/tests/test-shims.mjs"
 node "$ROOT/tests/test-ios-image-tool.mjs"
 node "$ROOT/tests/test-vless-config.mjs"
 node "$ROOT/tests/test-ios-notifications.mjs"
+node "$ROOT/tests/test-ios-connection.mjs"
+node "$ROOT/tests/test-ios-json-values.mjs"
+node "$ROOT/tests/test-web-auth.mjs"
+python3 -B "$ROOT/tests/test-open-device.py"
 "$ROOT/tests/test-xray-package.sh"
 
 VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-CCJJTK99.js"
-INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-BKQ_L1z6.js"
+INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-5SrrfWpU.js"
 if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios16-frontend.mjs" "$VENDOR" "$INDEX"
   node "$ROOT/tests/test-official-web-ui.mjs"
+  node "$ROOT/tests/test-require-builtin.mjs"
+  node "$ROOT/tests/test-ios-subprocess.mjs"
   node "$ROOT/scripts/patch-dsh.mjs" --root "$ROOT/build/dsh-runtime" --check
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js')"
   node --input-type=module -e "await import('$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-sandbox-windows-acl/lib/index.js')"
@@ -66,6 +76,7 @@ fi
 PTY_NODE="$ROOT/build/dsh-runtime/node_modules/node-pty/prebuilds/ios-arm64/pty.node"
 PTY_HELPER="$ROOT/build/dsh-runtime/node_modules/node-pty/prebuilds/ios-arm64/spawn-helper"
 FLOCK_NODE="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/node-addon-system/prebuilds/ios-arm64/system.node"
+REQUIRE_BUILTIN_NODE="$ROOT/build/dsh-runtime/node_modules/node-addon-require-builtin/build/napi/napi-v9-ios-arm64/require_builtin.node"
 if [ -f "$PTY_NODE" ] || [ -f "$PTY_HELPER" ]; then
   require_command file
   require_command vtool
@@ -82,6 +93,13 @@ if [ -f "$FLOCK_NODE" ]; then
   file "$FLOCK_NODE" | rg 'Mach-O 64-bit bundle arm64' >/dev/null
   vtool -show-build "$FLOCK_NODE" | rg 'platform IOS' >/dev/null
   vtool -show-build "$FLOCK_NODE" | rg "minos $NODE_IOS_MIN_VERSION" >/dev/null
+fi
+
+if [ -f "$PTY_NODE" ] || [ -f "$FLOCK_NODE" ]; then
+  [ -f "$REQUIRE_BUILTIN_NODE" ] || die "missing iOS require-builtin native module; rebuild DSH"
+  file "$REQUIRE_BUILTIN_NODE" | rg 'Mach-O 64-bit bundle arm64' >/dev/null
+  vtool -show-build "$REQUIRE_BUILTIN_NODE" | rg 'platform IOS' >/dev/null
+  vtool -show-build "$REQUIRE_BUILTIN_NODE" | rg "minos $NODE_IOS_MIN_VERSION" >/dev/null
 fi
 
 IMAGE_TOOL="$ROOT/build/ios-image-tool/dsh-image-tool"
