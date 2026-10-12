@@ -95,6 +95,8 @@ iPhoneDS 页面关闭 hover/focus 提示浮框及原生 `title` 提示，避免�
 cp -a /var/root/.dsh "/var/root/.dsh.before-upgrade-$(date +%Y%m%d-%H%M%S)"
 ```
 
+后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，使用官方版本检查、升级前后基线比较和真实会话验收工具。
+
 详细说明：[更新 SOP](./docs/updating.md) · [兼容说明](./docs/dsh-compatibility.md) · [历史恢复](./docs/history-migration.md) · [通知](./docs/notifications.md) · [排障](./docs/troubleshooting.md) · [VLESS](./docs/vless-client.md)
 
 本仓库集成代码采用 [MIT License](./LICENSE)，第三方组件适用各自许可证。

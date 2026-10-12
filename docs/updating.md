@@ -1,11 +1,11 @@
-# DSH 更新标准 SOP
+# DSH 双端更新标准 SOP
 
-本 SOP 用于把官方 DSH 新版本升级到本项目维护的 iPhoneOS 运行时。默认只升级 DSH；只有新 DSH 的运行条件确实变化时，才进入后面的 Node 或 pnpm 升级流程。
+本 SOP 用于把官方 DSH 新版本同步升级到 Mac 与本项目维护的 iPhoneOS 运行时。日常入口与分级检查见 [双端快速更新流程](./upgrade-workflow.md)。默认只升级 DSH；只有运行条件确实变化时，才升级 Node 或 pnpm。
 
 更新分成两个阶段：
 
 1. **审计与构建**：检查上游、更新锁定信息、适配 iOS、完成本地验证，不接触手机。
-2. **部署与验收**：确认没有正在运行的任务，备份数据，再安装到手机并做真实会话验证。
+2. **双端部署与验收**：确认空闲并备份数据，先升级 Mac，再将同一份共享 Provider 和锁定运行时部署到 iPhone，分别做真实会话验证。
 
 部署前必须通过第一阶段。查看到新版本不等于应立即安装。
 
@@ -13,7 +13,7 @@
 
 - `upstream/deepseek-harness` 是只读的官方 Git 子模块。本项目兼容上游，不要求上游兼容本项目，也不在子模块里保留任何本地修改。
 - Git tag/commit 与 npm 发布包是两份独立证据：子模块固定到准确 commit，实际打包使用准确 npm 版本、integrity 和带时间截点的完整 lock。
-- 只有 npm `dist-tags.latest` 与当前 `DSH_VERSION` 不同时才启动升级。`next`、单独出现的新 tag 或 `master` 新提交只做观察，不构建、不部署。
+- 默认只有 npm `dist-tags.latest` 与当前 `DSH_VERSION` 不同时才启动升级。`next`、单独出现的新 tag 或 `master` 新提交只做观察；用户明确指定目标版本时按其指令建立候选，仍执行全部验证门禁。
 - iOS 改动只存在于本仓库的 `scripts/`、`shims/`、`ios/`、`web/` 和 `packaging/` 中，并且只修改 `build/dsh-runtime` 内的发布包副本。
 - 补丁必须 fail-closed。上游预像、文件名或 hash 变化时停止构建并逐项审计，不能为了让构建通过而放宽成模糊匹配。
 - 新的上游版本把 Debian revision 重置为 `-1`；同一上游版本的本地修订依次使用 `-2`、`-3`，不能复用已经部署过的版本号。
@@ -49,6 +49,7 @@ printf 'DSH=%s\nDebian=%s\nUpstream=%s\n' \
 先只读取官方 Git 和 npm 信息：
 
 ```bash
+node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 git -C upstream/deepseek-harness fetch --tags origin
 git -C upstream/deepseek-harness log --oneline --decorate -20 origin/master
 git -C upstream/deepseek-harness tag --sort=-version:refname | head -20
@@ -108,12 +109,13 @@ git submodule status
   - `DSH_DEBIAN_VERSION`：例如 `0.1.0~rc.8-1`；
   - `DSH_UPSTREAM_COMMIT`：目标 tag 的完整 commit；
   - `DSH_NPM_INTEGRITY`：`npm view` 返回的 integrity；
-  - `DSH_RELEASE_CUTOFF`：目标版已经发布、下一版尚未发布的 UTC 时间；
-  - 上游依赖改变时同步核对 `NODE_PTY_VERSION`、`NODE_ADDON_API_VERSION`；
+  - `DSH_RELEASE_CUTOFF`：覆盖目标完整闭包各包的实际发布时间，避开下一版；不能直接使用 CLI 发布时间；
+  - 上游依赖改变时同步核对 `NODE_PTY_VERSION`、`NODE_ADDON_API_VERSION` 和 require-builtin 的源码、独立 wrapper 头文件与 hash；
   - 浏览器兼容代码或缓存语义改变时才递增 `IOS_COMPAT_VERSION`。
 - `dsh-runtime/package.json`：`@deepseek-ai/dsh` 使用完全版本，不用 `^`、`~` 或 `latest`。
 - `scripts/patch-dsh.mjs`：支持版本、依赖版本、严格补丁预像、bundle 名和原始 hash。
-- `web/plugins/`：重新生成 iOS 专用的布局、侧栏与会话标题 bundle，并更新补丁器中的官方预像 hash。
+- 官方布局、侧栏、对话和设置 bundle 保持原样；核对 mobile shell 依赖的 DOM 类名、Safari 转译与入口 cache key，并验证官方产物一致性。
+- 共享 `dsh-codex`：同步 DSH peers/dev dependencies、锁文件和发生变化的 API，执行完整 check；不要把旧 DSH peer 打进手机 tarball。
 - 受版本影响的测试、README、兼容和通知文档。
 
 Debian prerelease 使用 `~`，这样排序仍低于将来的正式版。上游版本没变而只发布本项目修正时，不改 `DSH_VERSION`，只增加 Debian revision。
@@ -155,7 +157,7 @@ rg -n 'rc\.[0-9]+|0\.1\.0-rc|ioscompat=[0-9]+' \
 | 兼容面 | 必查内容 | 本项目入口 |
 | --- | --- | --- |
 | 包与原生依赖 | DSH、`node-pty`、`node-addon-api` 版本，Node engine | `versions.env`、`scripts/patch-dsh.mjs`、`scripts/build-node-pty.sh` |
-| 终端 | Apple `posix_spawn` 后端、helper 路径、iPhoneOS 头文件声明 | `scripts/build-node-pty.sh`、`shims/native/` |
+| 终端 | Apple `posix_spawn`、rootless Bash 路径、BSD inspector、PID 身份、PTY 退出清理 | `scripts/build-node-pty.sh`、`scripts/patch-dsh.mjs`、`tests/test-ios-subprocess.mjs` |
 | 附件 | `sharp` 的导入位置和 DSH 实际调用面 | `shims/ios-sharp-shim.mjs` |
 | Windows 隔离 | `koffi` 是否仍然只在 Win32 路径延迟加载 | 官方发布包与 `scripts/verify.sh` 的 import 验证 |
 | 会话锁 | `node-addon-system/flock` 的 linux/darwin 平台判断与官方 C 源 | `scripts/build-ios-flock.sh`、`scripts/patch-dsh.mjs` |
@@ -186,8 +188,6 @@ git -C upstream/deepseek-harness status --porcelain
 兼容审计完成后依次执行：
 
 ```bash
-./scripts/prepare-dsh.sh
-node scripts/patch-dsh.mjs --root build/dsh-runtime --check
 ./scripts/package-dsh.sh
 ./scripts/verify.sh
 ```
@@ -229,7 +229,7 @@ dsh_device_port=2224
 dsh_device_user=root
 ssh -p "$dsh_device_port" \
   "$dsh_device_user@$dsh_device_host" \
-  'dpkg-query -W com.xxzzddxzd.dsh com.xxzzddxzd.nodejs22 com.xxzzddxzd.pnpm10; tail -n 40 /var/root/dsh.log'
+  'dpkg-query -W com.xxzzddxzd.dsh com.xxzzddxzd.nodejs22 com.xxzzddxzd.pnpm10; /var/jb/usr/local/bin/dsh22 --version'
 ```
 
 通过局域网连接时只替换 host 和 port。确认磁盘空间和旧版本后，停止 DSH 并做一致性备份：
@@ -270,10 +270,12 @@ DEVICE_USER="$dsh_device_user" \
 ```bash
 ssh -p "$dsh_device_port" \
   "$dsh_device_user@$dsh_device_host" \
-  'dpkg-query -W com.xxzzddxzd.dsh com.xxzzddxzd.nodejs22 com.xxzzddxzd.pnpm10; /var/jb/usr/local/bin/dsh22 --version; /var/jb/usr/local/bin/pnpm --version; /var/jb/usr/local/bin/dsh-activity status; tail -n 120 /var/root/dsh.log'
+  'dpkg-query -W com.xxzzddxzd.dsh com.xxzzddxzd.nodejs22 com.xxzzddxzd.pnpm10; /var/jb/usr/local/bin/dsh22 --version; /var/jb/usr/local/bin/pnpm --version; /var/jb/usr/local/bin/dsh-activity status'
 ```
 
 随后至少完成一轮真实 Web 会话，而不是只检查首页 200：
+
+两端使用 `check-upgrade-host.mjs --save` 保存升级前基线，部署后用 `--compare` 核对原会话与默认模型，再运行 `smoke-upgrade-host.mjs mac|iphone`。具体环境变量和命令见 [快速更新流程](./upgrade-workflow.md)。验收同时检查 `tool/result.isError`、真实输出、退出码、流式帧和完成状态；`turn/end` 本身不代表工具成功。测试结束必须先退出持久 shell，再恢复测试会话权限。
 
 1. 3080 首页可打开，Safari 使用当前 `ioscompat` 入口，没有旧 bundle 或白屏。
 2. 工作区和升级前已有会话仍可见，能打开一条旧会话。
@@ -310,15 +312,17 @@ ssh -p "$dsh_device_port" \
 git diff --check
 git diff --submodule=log
 git status --short
-git add .gitmodules upstream/deepseek-harness versions.env \
-  dsh-runtime packaging patches scripts shims ios web tests docs \
-  README.md THIRD_PARTY_NOTICES.md
+git add upstream/deepseek-harness versions.env \
+  dsh-runtime/package.json dsh-runtime/package-lock.json
+# 再逐项添加本次已审查的兼容脚本、测试与文档；不把其他任务的草稿一起 stage。
 git diff --cached --stat
 git commit -m "Update DSH to <version>"
 git push origin main
 ```
 
 提交应包含子模块 gitlink、版本文件、npm lock、兼容修改、测试和文档；不包含 `build/`、`dist/`、`.cache/`、`node_modules/` 或 deb。
+
+共享 Provider 的相关修改先在其仓库提交并推送，再推送本仓库，保证两端依赖的 checkout 可以恢复到同一份已发布源码。
 
 ## 完成标准
 
@@ -331,8 +335,8 @@ git push origin main
 - [ ] `package-dsh.sh` 与 `verify.sh` 完整通过；
 - [ ] 上一版 deb、SHA-256 和手机数据备份路径已记录；
 - [ ] 部署前没有活动任务，部署后未做无必要的额外重启/respring；
-- [ ] 旧会话、工作区、新对话、工具、通知及受影响功能已实机验证；
-- [ ] 最终提交只含源码、锁、测试和文档，并已 push 到 `main`。
+- [ ] Mac 与 iPhone 的旧会话、默认模型、工作区、新对话、工具、通知及受影响功能分别验证通过；
+- [ ] 最终提交只含相关源码、锁、测试和文档；共享 Provider 和本仓库均已推送，其他草稿保留。
 
 ## Node 或 pnpm 何时跟随升级
 

@@ -56,6 +56,8 @@ node "$ROOT/tests/test-ios-notifications.mjs"
 node "$ROOT/tests/test-ios-connection.mjs"
 node "$ROOT/tests/test-ios-json-values.mjs"
 node "$ROOT/tests/test-web-auth.mjs"
+node "$ROOT/tests/test-upgrade-validation.mjs"
+node "$ROOT/tests/test-release-report.mjs"
 python3 -B "$ROOT/tests/test-open-device.py"
 "$ROOT/tests/test-xray-package.sh"
 
