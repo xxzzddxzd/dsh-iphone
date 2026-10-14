@@ -22,8 +22,10 @@ export function validateProviderComponents(info, pins, visibleModels) {
     if (!catalog.includes(id)) throw new Error(`Required model ${id} is missing from the Provider catalog`);
     if (visibleModels && !visibleModels.includes(id)) throw new Error(`Required model ${id} is not visible in the running Host catalog`);
   }
+  if (visibleModels !== undefined && info.settings?.ready !== true) throw new Error("Provider durable settings are not initialized");
   return { bundleVersion: info.bundle.version, piAiVersion: info.piAi.version,
-    codexModels: catalog, requiredModels: required, xaiImageModels: info.xaiImageModels };
+    codexModels: catalog, requiredModels: required, xaiImageModels: info.xaiImageModels,
+    ...info.settings === undefined ? {} : { settingsReady: info.settings.ready === true } };
 }
 
 export function validateProviderDependencyPins(metadata, lock, pins) {

@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { combineUpdateReports, componentUpdateReport, validateProviderComponents, validateProviderDependencyPins } from "../scripts/provider-components.mjs";
 
 const pins = { DSH_CODEX_VERSION: "0.2.8", DSH_CODEX_PI_AI_VERSION: "1.2.0", DSH_CODEX_PI_AI_INTEGRITY: "sha512-fixture", DSH_CODEX_REQUIRED_MODELS: "gpt-6.1-sol", DSH_CLINE_PASS_VERSION: "0.2.8" };
-const info = { schema: 1, bundle: { name: "dsh-codex", version: "0.2.8" }, piAi: { version: "1.2.0", declaredVersion: "1.2.0" }, catalogs: { "provider-codex": ["gpt-6-sol", "gpt-6.1-sol"] }, xaiImageModels: [] };
+const info = { schema: 1, bundle: { name: "dsh-codex", version: "0.2.8" }, piAi: { version: "1.2.0", declaredVersion: "1.2.0" }, catalogs: { "provider-codex": ["gpt-6-sol", "gpt-6.1-sol"] }, xaiImageModels: [], settings: { ready: true } };
 assert.equal(validateProviderComponents(info, pins, ["gpt-6.1-sol"]).piAiVersion, "1.2.0");
 assert.throws(() => validateProviderComponents({ ...info, piAi: { version: "0.87.1", declaredVersion: "1.2.0" } }, pins), /loaded pi-ai/);
 assert.throws(() => validateProviderComponents({ ...info, catalogs: { "provider-codex": ["gpt-6-sol"] } }, pins), /missing/);
 assert.throws(() => validateProviderComponents(info, pins, ["gpt-6-sol"]), /not visible/);
 assert.throws(() => validateProviderComponents(undefined, pins), /metadata/);
+assert.throws(() => validateProviderComponents({ ...info, settings: { ready: false } }, pins, ["gpt-6.1-sol"]), /settings are not initialized/);
+assert.throws(() => validateProviderComponents({ ...info, settings: undefined }, pins, ["gpt-6.1-sol"]), /settings are not initialized/);
 const metadata = { version: "0.2.8", dependencies: { "@earendil-works/pi-ai": "1.2.0" } };
 const lock = { importers: { ".": { dependencies: { "@earendil-works/pi-ai": { specifier: "1.2.0", version: "1.2.0(peer@1)" } } } }, packages: { "@earendil-works/pi-ai@1.2.0": { resolution: { integrity: "sha512-fixture" } } } };
 assert.doesNotThrow(() => validateProviderDependencyPins(metadata, lock, pins));

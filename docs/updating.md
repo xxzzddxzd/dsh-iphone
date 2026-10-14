@@ -460,3 +460,23 @@ Mac DSH 的 LaunchAgent 使用锁定的 pnpm 10.34.5，确保 profile 中 `nodeL
 - 两端当前启动后的日志未发现 error/fatal/exception/unhandled；iPhone Safari 认证与现有 DSH WebClip 启动 URL 已刷新。
 
 数据备份为 Mac 的 `~/.dsh.before-pi-ai-1.2.0-20261014` 和 iPhone 的 `/var/root/.dsh.before-pi-ai-1.2.0-20261014`。旧 Provider `0.2.7` 离线包、编译产物、升级前基线和本次验收报告保留在 `.cache/upgrades/provider-pi-ai-20261014/`，不提交凭据或运行数据。本次无需重装核心、编译 Node 或 respring。
+
+## 2026-10-14：Provider 0.2.9 设置保存修复
+
+`0.2.8` 的模型目录与真实调用验收通过后，发现真实 Host 中保存 Provider 设置会返回 `Provider settings service is unavailable`。根因是设置消费者只注入 `storageDomain`，却通过 `ctx.storage.domain` 访问未声明的 `storage` 服务，导致设置初始化失败；根 Context 中的直接调用测试没有复现插件依赖限制。
+
+共享 Provider `0.2.9` 同时注入两个存储服务。Loader 回归先复现原报错，再验证延迟挂载存储服务、保存模型与 Responses 设置，以及卸载重载后保留。组件端点新增持久化设置就绪状态，运行中组件检查要求 `settingsReady: true`；新增 `check-provider-settings.mjs` 按当前有效值实际保存并重读 Codex/xAI 模型、图片工具和 Responses 开关，核对默认模型及有效设置没有改变。
+
+| 项目 | 结果 |
+| --- | --- |
+| Mac / iPhone Provider | `0.2.9`，pi-ai 保持 `1.2.0` |
+| Provider 源码提交 | `77b2e75`，维护 fork 的 `main` |
+| 已部署离线包 SHA-256 | `e7c05db357a9914a66e343d3820519bd9865ec93b630de3d9620287d0755a569` |
+| 本地门禁 | Provider 73 项测试、类型检查、构建、导入、离线打包及父仓库 `verify.sh` 通过 |
+| 双端设置验收 | 设置服务就绪；四组设置实际保存、重读通过，偏好文件已写入各自 `storages` |
+| 会话与默认模型 | Mac 原 131 个、iPhone 原 146 个会话全部保留；新增验收后为 132、147 个；两端默认模型不变 |
+| GPT-6.1 Sol 再验收 | Mac / iPhone 均完成真实流式对话和 Bash，退出码 0；分别为 94、90 个流式帧 |
+
+真实验收会话分别为 `session-upgrade-mac-1fe6dfcd-b7a5-45d6-bbb1-7266686799c6`、`session-upgrade-iphone-85aea930-9bab-4c35-84d9-48b352ce723e`。测试权限和默认模型均恢复；Mac 保留用户选择的 GPT-6.1 Sol（max）。Mac 部署时按已有授权暂停同一个运行会话，未中断其他会话。
+
+停止服务后的数据备份为 Mac 的 `~/.dsh.before-settings-fix-0.2.9-20261014`、iPhone 的 `/var/root/.dsh.before-settings-fix-0.2.9-20261014`。原 Provider `0.2.8` 包、编译产物、基线和验收报告位于 `.cache/upgrades/provider-settings-20261014/`。两端启动后的运行日志未发现新错误，Mac 浏览器与 iPhone WebClip 认证已刷新。DSH 核心、子模块、Node、Cline Pass 和原生组件保持原版本。

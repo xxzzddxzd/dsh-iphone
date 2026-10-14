@@ -113,8 +113,11 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
 
 ```bash
 node scripts/check-provider-components.mjs mac
+node scripts/check-provider-settings.mjs mac --save "$dsh_upgrade_run/mac-settings.json"
 DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
   node scripts/check-provider-components.mjs iphone
+DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
+  node scripts/check-provider-settings.mjs iphone --save "$dsh_upgrade_run/iphone-settings.json"
 node scripts/smoke-upgrade-host.mjs mac \
   --provider provider-codex --model gpt-6.1-sol --reasoning-effort low \
   --save "$dsh_upgrade_run/mac-gpt61.json"
@@ -125,6 +128,8 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
 ```
 
 组件检查读取运行中插件的 `/plugins/dsh-openai-codex/components`，同时核对真实 Host 的模型选择目录。它区分“文件已安装”“进程仍加载旧版本”和“模型被隐藏/未登录”。指定模型验收还核对真实 `request/header` 中的 provider/model；只有目录出现新名称不算可用。DSH 的模型选择 API 会异步保存默认模型，验收器等待保存完成，并在结束或异常时恢复升级前默认值，再检查基线。
+
+组件检查还要求持久化设置就绪。`check-provider-settings.mjs` 只在 Host 空闲时执行，按当前值实际保存 Codex/xAI 模型设置、图片工具和 Responses 开关，再重读并核对有效设置及默认模型未改变。Provider 的 Loader 回归测试同时覆盖存储服务延迟挂载、设置保存和重新加载后保留，不能用根 Context 里的直接调用测试替代真实插件依赖检查。
 
 基线比较要求原会话全部仍存在，默认模型没有意外改变。真实验收器会新建一个有明确标题的 `/tmp` 测试会话，调用一次 Bash 打印随机标记并 `exit`，要求匹配的 `tool/result` 为成功、输出含标记、退出码 0、存在流式帧且 turn 完成。标记只出现在提示词、没有工具结果或工具报错，均判失败。
 

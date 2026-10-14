@@ -20,7 +20,7 @@ profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外�
 
 ## Provider bundle
 
-DSH `0.2.0-rc.2` 当前验证版本固定为 `dsh-codex@0.2.8`。Mac 与 iPhone 共用
+DSH `0.2.0-rc.2` 当前验证版本固定为 `dsh-codex@0.2.9`。Mac 与 iPhone 共用
 同一个 checkout 和版本；插件适配了 0.2.0 的 provider 图片预算、持久化 auth 注入、replay，以及
 `prepareCall()` 冻结调用路径下的原生 Codex compaction；Provider 页还提供 pi-ai
 OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页；锁定 pi-ai
