@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import { combineUpdateReports, componentUpdateReport, validateProviderComponents, validateProviderDependencyPins } from "../scripts/provider-components.mjs";
+
+const pins = { DSH_CODEX_VERSION: "0.2.8", DSH_CODEX_PI_AI_VERSION: "1.2.0", DSH_CODEX_PI_AI_INTEGRITY: "sha512-fixture", DSH_CODEX_REQUIRED_MODELS: "gpt-6.1-sol", DSH_CLINE_PASS_VERSION: "0.2.8" };
+const info = { schema: 1, bundle: { name: "dsh-codex", version: "0.2.8" }, piAi: { version: "1.2.0", declaredVersion: "1.2.0" }, catalogs: { "provider-codex": ["gpt-6-sol", "gpt-6.1-sol"] }, xaiImageModels: [] };
+assert.equal(validateProviderComponents(info, pins, ["gpt-6.1-sol"]).piAiVersion, "1.2.0");
+assert.throws(() => validateProviderComponents({ ...info, piAi: { version: "0.87.1", declaredVersion: "1.2.0" } }, pins), /loaded pi-ai/);
+assert.throws(() => validateProviderComponents({ ...info, catalogs: { "provider-codex": ["gpt-6-sol"] } }, pins), /missing/);
+assert.throws(() => validateProviderComponents(info, pins, ["gpt-6-sol"]), /not visible/);
+assert.throws(() => validateProviderComponents(undefined, pins), /metadata/);
+const metadata = { version: "0.2.8", dependencies: { "@earendil-works/pi-ai": "1.2.0" } };
+const lock = { importers: { ".": { dependencies: { "@earendil-works/pi-ai": { specifier: "1.2.0", version: "1.2.0(peer@1)" } } } }, packages: { "@earendil-works/pi-ai@1.2.0": { resolution: { integrity: "sha512-fixture" } } } };
+assert.doesNotThrow(() => validateProviderDependencyPins(metadata, lock, pins));
+assert.throws(() => validateProviderDependencyPins(metadata, lock, { ...pins, DSH_CODEX_PI_AI_INTEGRITY: "other" }), /integrity/);
+assert.throws(() => validateProviderDependencyPins({ ...metadata, dependencies: { "@earendil-works/pi-ai": "0.87.1" } }, lock, pins), /dependency lock/);
+assert.throws(() => validateProviderDependencyPins(metadata, { ...lock, importers: { ".": { dependencies: { "@earendil-works/pi-ai": { specifier: "1.2.0" } } } } }, pins), /dependency lock/);
+const components = await componentUpdateReport(pins, async url => ({ ok: true, json: async () => ({ name: url.includes('pi-ai') ? '@earendil-works/pi-ai' : 'dsh-cline-pass', version: url.includes('pi-ai') ? '1.3.0' : '0.2.8', dist: { integrity: 'fixture' } }) }));
+assert.equal(combineUpdateReports({ status: "current" }, components).status, "update-available", "unchanged DSH must not hide a Provider component update");
+assert.equal(combineUpdateReports({ status: "current" }, []).status, "current");
+await assert.rejects(componentUpdateReport(pins, async () => ({ ok: false, status: 503 })), /registry check failed/);
+await assert.rejects(componentUpdateReport(pins, async url => ({ ok: true, json: async () => ({ name: url.includes('pi-ai') ? '@earendil-works/pi-ai' : 'dsh-cline-pass', version: url.includes('pi-ai') ? '1.2.0' : '0.2.8', dist: { integrity: 'changed' } }) })), /integrity changed/);
+console.log("Provider component checks detect old dependencies, missing/hidden models and independent component releases");

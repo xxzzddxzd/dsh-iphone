@@ -2,8 +2,8 @@
 
 DSH 0.2.0-rc.2 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向桌面系统及更新浏览器。本项目只修改发布包，不修改或伪装官方 Git 子模块。
 
-可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.7`；该版锁定
-pi-ai `0.87.1`，提供 GPT-6 Astra、Grok 4.6 与 xAI Imagine 2.0 / Quality。旧的
+可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.8`；该版锁定
+pi-ai `1.2.0`，提供 GPT-6.1 Sol、GPT-6 Astra、Grok 4.6 与 xAI Imagine 2.0 / Quality。旧的
 `0.2.5-iphone.*` 已停止维护平台分支。该版本的 Google
 Code Assist 路由复用 `@kelvinwww/dsh-oauth 0.1.1`，并强制其 gaxios 传输使用
 Node 原生 fetch，以接入 DSH 的 provider 级 VLESS dispatcher。Kelvin 的 Google
@@ -120,7 +120,7 @@ ssh -p 22 root@10.99.1.41 'cp -a /var/root/.dsh /var/root/.dsh.before-node22'
 
 ## Provider 设置与历史迁移
 
-`dsh-codex 0.2.7` 对齐全部 DSH peer 为 `0.2.0-rc.2`，锁定 pi-ai `0.87.1`。Provider 模型显示、容量、图片工具和 VLESS 设置改用官方 `storage.domain`，首次从 `settings.yaml` 或官方重命名后的 `settings.yaml.imported` 导入，后续写入等待持久化完成，保留原文档。Cline Pass 使用已支持 Config volatile 字段的 `0.2.8`。
+`dsh-codex 0.2.8` 对齐全部 DSH peer 为 `0.2.0-rc.2`，锁定 pi-ai `1.2.0`。Provider 模型显示、容量、图片工具和 VLESS 设置改用官方 `storage.domain`，首次从 `settings.yaml` 或官方重命名后的 `settings.yaml.imported` 导入，后续写入等待持久化完成，保留原文档。Cline Pass 使用已支持 Config volatile 字段的 `0.2.8`。
 
 官方 Session writer 为 v4。历史恢复工具使用当前发布包提供的冻结 `historicalSessionFormatCatalog` 生成 v3 中间世代，再由官方持久化层收集真实子会话事实并完成 v3 → v4，不向缺少子会话事实的迁移器传入伪造的空数组。
 

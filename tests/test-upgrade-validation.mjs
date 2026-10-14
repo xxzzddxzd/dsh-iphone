@@ -22,6 +22,10 @@ assert.throws(() => validateSmokeFrames([event("tool/call", { name: "read_file",
 const mismatched = fixture();
 mismatched[1].event.data.message.toolCallId = "another-call";
 assert.throws(() => validateSmokeFrames(mismatched, marker), /Bash did not/);
+const modelFrames = [event("request/header", { header: { config: { provider: "provider-codex", model: "gpt-6.1-sol" } } }), ...fixture()];
+assert.equal(validateSmokeFrames(modelFrames, marker, { provider: "provider-codex", model: "gpt-6.1-sol" }).bashExitCode, 0);
+assert.throws(() => validateSmokeFrames(modelFrames, marker, { provider: "provider-codex", model: "gpt-6-sol" }), /required model/);
+assert.throws(() => validateSmokeFrames(fixture(), marker, { provider: "provider-codex", model: "gpt-6.1-sol" }), /required model/);
 
 const before = { sessionIds: ["original"], defaultModel: { provider: "provider-a", model: "model-a" } };
 assert.doesNotThrow(() => compareBaseline(before, { ...before, sessionIds: ["original", "smoke"] }));

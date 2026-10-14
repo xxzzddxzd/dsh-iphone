@@ -20,11 +20,11 @@ profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外�
 
 ## Provider bundle
 
-DSH `0.2.0-rc.2` 当前验证版本固定为 `dsh-codex@0.2.7`。Mac 与 iPhone 共用
+DSH `0.2.0-rc.2` 当前验证版本固定为 `dsh-codex@0.2.8`。Mac 与 iPhone 共用
 同一个 checkout 和版本；插件适配了 0.2.0 的 provider 图片预算、持久化 auth 注入、replay，以及
 `prepareCall()` 冻结调用路径下的原生 Codex compaction；Provider 页还提供 pi-ai
 OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页；锁定 pi-ai
-`0.87.1` 后，OpenAI Codex 目录包含 GPT-6 Astra，xAI 对话目录包含 Grok 4.6，图片设置提供 Imagine 2.0 / Quality，并为三者分别保存
+`1.2.0` 后，OpenAI Codex 目录包含 GPT-6.1 Sol、GPT-6 Astra，xAI 对话目录包含 Grok 4.6，图片设置提供 Imagine 2.0 / Quality，并为三者分别保存
 直连/VLESS 出口。对应模型路由分别为 `provider-codex`、`provider-xai` 与
 `provider-google`，不会覆盖“模型”页的 `openai-codex`、`xai` API Key 路由；未登录的
 OAuth 路由不会出现在聊天模型选择器中。`deploy.sh` 会先运行完整检查，从同级

@@ -121,8 +121,22 @@ export function compareBaseline(before, after) {
   if (!isDeepStrictEqual(before.defaultModel, after.defaultModel)) throw new Error("Default model changed; verify the migration before accepting the upgrade");
 }
 
-export function validateSmokeFrames(frames, marker) {
+export async function waitForDefaultModel(host, expected, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const catalog = await host.rpc("session/modelCatalog", {});
+    if (isDeepStrictEqual(catalog.default, expected)) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error("Default model persistence did not settle to the expected selection");
+}
+
+export function validateSmokeFrames(frames, marker, expectedModel) {
   const events = frames.filter(frame => frame.type === "event").map(frame => frame.event);
+  if (expectedModel) {
+    const header = events.find(event => event.type === "request/header")?.data.header.config;
+    if (header?.provider !== expectedModel.provider || header.model !== expectedModel.model) throw new Error("The real request did not use the required model");
+  }
   const calls = events.filter(event => event.type === "tool/call");
   if (calls.length !== 1 || calls[0].data.name !== "bash") throw new Error("Smoke test must execute exactly one Bash call");
   const result = events.find(event => event.type === "tool/result" && event.data.message.toolCallId === calls[0].data.callId)?.data.message;

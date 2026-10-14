@@ -27,6 +27,7 @@ package_version=$(node -p "require('$SOURCE/package.json').version")
   die "dsh-codex is $package_version, expected $DSH_CODEX_VERSION"
 
 "${PNPM[@]}" --dir "$SOURCE" run check
+node "$SCRIPT_DIR/check-provider-components.mjs" local --source "$SOURCE"
 mkdir -p "$ROOT/dist"
 rm -f "$OUTPUT"
 "${PNPM[@]}" --dir "$SOURCE" pack --pack-destination "$ROOT/dist" >/dev/null

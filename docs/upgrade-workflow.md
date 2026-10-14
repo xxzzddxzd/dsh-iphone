@@ -20,7 +20,9 @@ flowchart LR
 node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 ```
 
-这个命令只读取官方 npm 和 Git：对照 `latest`、准确 tag/commit、integrity、Node engine 和直接依赖变化，生成候选报告；不移动子模块、不改版本、不安装、不重启。`status: current` 时结束本次检查，较高的 `next` 只作观察。网络失败、tag 尚未发布完整或已锁定版本的 commit/integrity 不符时停止，不能按“没有更新”处理。
+这个命令读取官方 DSH npm/tag，以及 Provider 的 pi-ai、Cline Pass 的独立 npm 发布：对照准确版本、commit、integrity、Node engine 和依赖变化。`dshStatus` 表示 DSH 本身是否变化，顶层 `status` 汇总组件变化；只有两者及组件都为 current 才结束检查。较高的 `next` 只作观察。网络失败、发布不完整或锁定信息不符时停止，不能按“没有更新”处理。
+
+**DSH 主版本不变，也可能需要更新 Provider 和模型目录。** pi-ai 有自己的发布周期和静态模型数据，升级 DSH 不会自动把本地 Provider 的 pi-ai 升到最新版本。
 
 报告中的 engine 为 `null` 表示 CLI manifest 未声明，仍需检查完整闭包和官方启动实现，不能据此认定运行条件没有变化。
 
@@ -32,6 +34,7 @@ node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 | --- | --- | --- | --- |
 | 1. 候选 | 官方 npm/tag 检查、依赖与 engine 差异 | release notes、准确 Git 差异；不能用 master 代替发布 tag | 候选版本、commit、integrity |
 | 2. 版本闭包 | 更新 runtime lock、严格预像检查 | 内部包版本、完整发布时间截点、Provider peer/API | `versions.env` 与 lock 一致 |
+| 2a. Provider 组件与目录 | pi-ai/Cline Pass 发布检查，Provider manifest、lock integrity、编译版本与模型清单核对 | 新增/删除模型、默认容量、图片/聊天 API 变化；本次要求的模型 ID | 本地与两端实际加载的组件、目录一致 |
 | 3. 本地门禁 | Provider check、iOS 构建、`verify.sh` | 失败补丁与新增兼容面；上游已修复的旧补丁应移除 | 检查成功、deb/tarball SHA |
 | 4. 保护数据 | 保存两端会话与默认模型基线 | Web 中确认队列、后台任务、审批和问答已处理；停止服务后备份 | 基线、数据与程序备份 |
 | 5. Mac | 精确 npm 安装、锁定 pnpm、共享 Provider 更新、健康与对话验收 | 已启用的额外插件与配置迁移 | Mac 版本与验收结果 |
@@ -65,9 +68,12 @@ Node、pnpm、Xray 和原生通知组件按依赖变化升级，普通 DSH 更�
 ./scripts/verify.sh
 ./scripts/package-dsh-codex.sh
 ./scripts/package-dsh-cline-pass.sh
+node scripts/check-provider-components.mjs local
 ```
 
 `package-dsh.sh` 内部已经执行 prepare、严格补丁和原生构建。只在排查预像时单独调用 `prepare-dsh.sh`，不把它再重复当作常规构建前置。Provider 打包内部执行共享 checkout 的 check。Cline Pass 打包默认读取 Mac 已安装的准确版本；需要先构建候选时，用 `DSH_CLINE_PASS_SOURCE` 指向审计过的解包目录。
+
+Provider 代码更新时同步 `DSH_CODEX_VERSION`、`DSH_CODEX_PI_AI_VERSION`、`DSH_CODEX_PI_AI_INTEGRITY` 和 `DSH_CODEX_REQUIRED_MODELS`。打包器强制检查 manifest、pnpm lock 和编译产物中的版本及必需模型，不能只改版本文件。pi-ai 1.2.0 的图片目录使用统一 `Provider.getAllModels()` 并按 `type` 过滤；DSH 自带 pi-ai 与 Provider 的版本可不同，不能整体覆盖 DSH 的内部依赖。
 
 ## 保存双端基线
 
@@ -103,7 +109,26 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
   node scripts/smoke-upgrade-host.mjs iphone
 ```
 
+组件和指定模型必须单独验证。例如这次要求 GPT-6.1 Sol：
+
+```bash
+node scripts/check-provider-components.mjs mac
+DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
+  node scripts/check-provider-components.mjs iphone
+node scripts/smoke-upgrade-host.mjs mac \
+  --provider provider-codex --model gpt-6.1-sol --reasoning-effort low \
+  --save "$dsh_upgrade_run/mac-gpt61.json"
+DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
+  node scripts/smoke-upgrade-host.mjs iphone \
+  --provider provider-codex --model gpt-6.1-sol --reasoning-effort low \
+  --save "$dsh_upgrade_run/iphone-gpt61.json"
+```
+
+组件检查读取运行中插件的 `/plugins/dsh-openai-codex/components`，同时核对真实 Host 的模型选择目录。它区分“文件已安装”“进程仍加载旧版本”和“模型被隐藏/未登录”。指定模型验收还核对真实 `request/header` 中的 provider/model；只有目录出现新名称不算可用。DSH 的模型选择 API 会异步保存默认模型，验收器等待保存完成，并在结束或异常时恢复升级前默认值，再检查基线。
+
 基线比较要求原会话全部仍存在，默认模型没有意外改变。真实验收器会新建一个有明确标题的 `/tmp` 测试会话，调用一次 Bash 打印随机标记并 `exit`，要求匹配的 `tool/result` 为成功、输出含标记、退出码 0、存在流式帧且 turn 完成。标记只出现在提示词、没有工具结果或工具报错，均判失败。
+
+用户在升级期间主动改选默认模型时，保留原始基线，确认新值后单独记录该变更，再核对原会话与最终默认值；不能覆盖升级前文件，也不能擅自把用户的新选择恢复回去。
 
 iPhone 的 Bash 没有 Workspace Write 沙箱后端；验收器只对自己新建的会话使用 Full access，结束 shell 后恢复原会话权限，并核对默认模型。用户既有会话不参与测试。若失败后测试 PTY 未关闭，命令会指出需要清理的唯一测试会话；不通过放宽权限门禁或重启整个服务清理它。
 
@@ -126,4 +151,4 @@ iPhone 的 Bash 没有 Workspace Write 沙箱后端；验收器只对自己新�
 
 一次升级记录至少包含：目标版本/commit/integrity/cutoff、Provider 和 native pins、产物 SHA、双端备份路径、基线比较、真实工具结果、受影响功能验证及两个提交。只 stage 已审查的相关文件；保留其他任务的草稿和修改。记录双端分别完成的状态，手机仍待连接时不把整体标记为完成。
 
-后续可直接使用任务指令：**“检查官方 latest；有更新则按双端 SOP 适配、构建、备份、部署和验收，完成后提交推送。”**
+后续可直接使用任务指令：**“检查 DSH 和 Provider 组件的 latest 及模型目录；有更新则按双端 SOP 适配、构建、备份、部署和验收指定模型，完成后提交推送。”**

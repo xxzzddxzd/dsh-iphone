@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { componentUpdateReport, combineUpdateReports } from "./provider-components.mjs";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -52,7 +53,7 @@ async function main() {
   const { stdout } = await promisify(execFile)("git", ["ls-remote", "--tags",
     "https://github.com/deepseek-ai/deepseek-harness.git", tag, `${tag}^{}`],
     { timeout: 30000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
-  const report = releaseReport(pins, lock, registry, stdout);
+  const report = combineUpdateReports(releaseReport(pins, lock, registry, stdout), await componentUpdateReport(pins));
   if (args.length) {
     const output = resolve(args[1]);
     await mkdir(dirname(output), { recursive: true });

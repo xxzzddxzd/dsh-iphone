@@ -18,7 +18,7 @@
 | 组件 | 版本 |
 | --- | --- |
 | DSH | `0.2.0-rc.2` |
-| dsh-codex | `0.2.7`（pi-ai `0.87.1`） |
+| dsh-codex | `0.2.8`（pi-ai `1.2.0`） |
 | dsh-cline-pass | `0.2.8` |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
@@ -95,7 +95,7 @@ iPhoneDS 页面关闭 hover/focus 提示浮框及原生 `title` 提示，避免�
 cp -a /var/root/.dsh "/var/root/.dsh.before-upgrade-$(date +%Y%m%d-%H%M%S)"
 ```
 
-后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，使用官方版本检查、升级前后基线比较和真实会话验收工具。
+后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，同时检查 DSH、pi-ai、Cline Pass 和模型目录，再做升级前后基线比较及指定模型的真实会话验收。当前两端已验证 GPT-6.1 Sol 的流式对话与 Bash 调用。
 
 详细说明：[更新 SOP](./docs/updating.md) · [兼容说明](./docs/dsh-compatibility.md) · [历史恢复](./docs/history-migration.md) · [通知](./docs/notifications.md) · [排障](./docs/troubleshooting.md) · [VLESS](./docs/vless-client.md)
 

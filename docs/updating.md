@@ -13,7 +13,7 @@
 
 - `upstream/deepseek-harness` 是只读的官方 Git 子模块。本项目兼容上游，不要求上游兼容本项目，也不在子模块里保留任何本地修改。
 - Git tag/commit 与 npm 发布包是两份独立证据：子模块固定到准确 commit，实际打包使用准确 npm 版本、integrity 和带时间截点的完整 lock。
-- 默认只有 npm `dist-tags.latest` 与当前 `DSH_VERSION` 不同时才启动升级。`next`、单独出现的新 tag 或 `master` 新提交只做观察；用户明确指定目标版本时按其指令建立候选，仍执行全部验证门禁。
+- DSH 主程序默认跟进 npm `dist-tags.latest`；Provider 的 pi-ai、Cline Pass 和模型目录独立检查。`next`、单独出现的新 tag 或 `master` 新提交只做观察；用户明确指定目标时按其指令执行全部验证门禁。
 - iOS 改动只存在于本仓库的 `scripts/`、`shims/`、`ios/`、`web/` 和 `packaging/` 中，并且只修改 `build/dsh-runtime` 内的发布包副本。
 - 补丁必须 fail-closed。上游预像、文件名或 hash 变化时停止构建并逐项审计，不能为了让构建通过而放宽成模糊匹配。
 - 新的上游版本把 Debian revision 重置为 `-1`；同一上游版本的本地修订依次使用 `-2`、`-3`，不能复用已经部署过的版本号。
@@ -59,7 +59,7 @@ dsh_latest_version=$(npm view @deepseek-ai/dsh dist-tags.latest)
 printf 'installed=%s latest=%s\n' "$DSH_VERSION" "$dsh_latest_version"
 ```
 
-如果 `dsh_latest_version` 与 `DSH_VERSION` 相同，到此停止。即使 `next` 或 Git tag 更高，也不继续移动子模块、生成 lock、构建或部署。
+如果 `dsh_latest_version` 与 `DSH_VERSION` 相同，保留 DSH 子模块、runtime lock 和核心包，继续检查报告中的 Provider 组件。组件和模型目录也无需更新时才结束；较高的 `next` 或 Git tag 不触发 DSH 升级。
 
 只有 `latest` 已变化时才建立候选版本：
 
@@ -91,7 +91,7 @@ git -C upstream/deepseek-harness diff \
   --name-status "$DSH_UPSTREAM_COMMIT..$dsh_target_commit"
 ```
 
-如果只有 `origin/master`、`next` 或新 tag 发生变化，而 npm `latest` 没变，不进入打包部署流程。
+如果只有 `origin/master`、`next` 或新 tag 发生变化，而 npm `latest` 没变，不重建 DSH 核心。Provider 独立更新时只构建和部署它自己的 bundle，并验证与当前 DSH 的兼容性。
 
 ## 2. 更新精确锁定信息
 
@@ -116,6 +116,7 @@ git submodule status
 - `scripts/patch-dsh.mjs`：支持版本、依赖版本、严格补丁预像、bundle 名和原始 hash。
 - 官方布局、侧栏、对话和设置 bundle 保持原样；核对 mobile shell 依赖的 DOM 类名、Safari 转译与入口 cache key，并验证官方产物一致性。
 - 共享 `dsh-codex`：同步 DSH peers/dev dependencies、锁文件和发生变化的 API，执行完整 check；不要把旧 DSH peer 打进手机 tarball。
+- Provider 的 pi-ai 独立固定版本与 integrity，记录必需模型 ID；本地构建与双端运行中的 `check-provider-components.mjs` 均通过后，再做指定模型真实调用。
 - 受版本影响的测试、README、兼容和通知文档。
 
 Debian prerelease 使用 `~`，这样排序仍低于将来的正式版。上游版本没变而只发布本项目修正时，不改 `DSH_VERSION`，只增加 Debian revision。
@@ -432,3 +433,30 @@ Mac DSH 的 LaunchAgent 使用锁定的 pnpm 10.34.5，确保 profile 中 `nodeL
 - Provider tarball 包含锁定的纯 JavaScript 生产闭包，无嵌套 DSH peer 或原生模块；手机离线安装通过。Cline Pass 的入口为「设置 → 插件 → Cline Pass」。
 
 数据备份为 Mac 的 `~/.dsh.before-upgrade-0.2.0-rc.2-20261012` 和手机的 `/var/root/.dsh.before-upgrade-0.2.0-rc.2-20261012`。保留上一版 `dsh_0.1.5~rc.1-1_iphoneos-arm64.deb`，SHA-256 为 `4890be7015045770532724e4b2055243b0860149cb9488419ec95a7cf2bbfea8`。本次不需要 respring。
+
+## 2026-10-14：Provider pi-ai 与 GPT-6.1 Sol
+
+本次仅升级共享 Provider。官方 npm `latest` 为 pi-ai `1.2.0`；DSH 和 Cline Pass 的 `latest` 分别仍为 `0.2.0-rc.2`、`0.2.8`。DSH 核心、官方子模块、runtime lock 和 iOS compatibility `17` 保持当前已验证版本。
+
+| 项目 | 最终值 |
+| --- | --- |
+| Mac / iPhone Provider | `dsh-codex 0.2.8` / pi-ai `1.2.0` |
+| 共享 Provider 源码提交 | `f007f04`，已推送至维护用 fork 的 `main` |
+| 必需 Codex 模型 | `gpt-6.1-sol`，两端实际 Host 选择目录均可见 |
+| pi-ai integrity | `versions.env` 中的 `DSH_CODEX_PI_AI_INTEGRITY`，与官方 npm 和 Provider lock 一致 |
+| pi-ai Node engine | `>=22.19.0`；iPhone `22.23.2`、Mac `26.3.1` 满足 |
+| 已部署离线包 | `dsh-codex-0.2.8.tgz` |
+| 离线包 SHA-256 | `9da2c918c0a2253849ca2159fad121bab9f437781f1bb03ca65dfb7a06338b14` |
+
+适配 pi-ai 的统一图片目录 `Provider.getAllModels()`，同时保留聊天和图片模型的路由别名；继续提供 Grok Imagine 2.0 / Quality。DSH 自带 adapter 的 pi-ai 版本与 Provider 分开锁定，没有整体替换核心依赖。新增认证后的只读组件端点，以及 manifest、lock integrity、编译版本、原始模型目录和实际 Host 选择目录检查。日常更新入口同时检查 DSH、pi-ai、Cline Pass，避免 DSH 版本未变时漏掉组件和模型更新。
+
+验证与数据结果：
+
+- Provider 的 73 项测试、类型检查、构建、导入检查与离线打包通过；iPhone 离线包包含纯 JavaScript 生产依赖，没有嵌套 DSH peer 或原生模块。父仓库 `verify.sh` 通过。
+- 两端运行中的组件端点均报告 bundle `0.2.8`、pi-ai `1.2.0`，Codex 原始目录包含 9 个模型；必需模型同时通过 Host 目录检查。
+- Mac 验收会话 `session-upgrade-mac-186e5a83-839d-406b-827d-8acb0d8150e3`、iPhone 验收会话 `session-upgrade-iphone-76f9cf9f-0a76-47b9-ac69-d9a19ba6ad76` 的真实请求均使用 `provider-codex / gpt-6.1-sol / low`。分别观察到 87、90 个流式帧，Bash 输出随机标记并以 0 退出，turn 完成。
+- 指定模型验收等待异步默认模型保存，再恢复测试开始前的默认值；iPhone 测试会话权限也已恢复。Mac 用户在升级期间主动将默认模型改为 GPT-6.1 Sol（max），确认后保留；原基线不覆盖，另存该确认记录。iPhone 默认模型仍为原 Cline Pass 模型。
+- Mac 原有 128 个、iPhone 原有 145 个会话全部保留，旧会话 v4 读取通过；新增验收会话后分别为 129、146 个。Mac 部署前的运行中任务经用户授权停止，之后双端空闲检查通过。
+- 两端当前启动后的日志未发现 error/fatal/exception/unhandled；iPhone Safari 认证与现有 DSH WebClip 启动 URL 已刷新。
+
+数据备份为 Mac 的 `~/.dsh.before-pi-ai-1.2.0-20261014` 和 iPhone 的 `/var/root/.dsh.before-pi-ai-1.2.0-20261014`。旧 Provider `0.2.7` 离线包、编译产物、升级前基线和本次验收报告保留在 `.cache/upgrades/provider-pi-ai-20261014/`，不提交凭据或运行数据。本次无需重装核心、编译 Node 或 respring。
