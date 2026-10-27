@@ -73,6 +73,7 @@ for arch in arm64 arm64e; do
     -O \
     -module-name DSHActivityHost \
     "$ROOT/ios/activity/DSHActivityHost.swift" \
+    "$ROOT/ios/navigation/DSHNavigation.swift" \
     -o "$OUTPUT_DIR/swift/DSHActivityHost-$arch"
 
   "$SWIFTC" \
@@ -85,6 +86,7 @@ for arch in arm64 arm64e; do
     -Xlinker -e \
     -Xlinker _NSExtensionMain \
     "$ROOT/ios/activity/DSHActivityAttributes.swift" \
+    "$ROOT/ios/navigation/DSHNavigation.swift" \
     "$ROOT/ios/activity/DSHLiveActivityWidget.swift" \
     -o "$OUTPUT_DIR/swift/DSHLiveActivity-$arch"
 done

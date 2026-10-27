@@ -8,6 +8,7 @@ const packages = [
   "dsh-client-ui-sidebar",
   "dsh-client-ui-conversation",
   "dsh-client-ui-settings-general",
+  "dsh-client-ui-theme",
 ];
 
 for (const packageName of packages) {
@@ -43,6 +44,17 @@ for (const [packageName, selectors] of [
 ]) {
   const source = await readFile(new URL(`../dsh-runtime/node_modules/@deepseek-ai/${packageName}/lib/client.js`, import.meta.url), "utf8");
   for (const selector of selectors) assert.ok(source.includes(`"${selector}"`), `mobile shell selector changed: ${selector}`);
+}
+
+// The mobile shell also keys off data attributes: the portaled menu surface that
+// owns a search field, and the transcript's scrollport and follow-tail state.
+for (const [entry, needles] of [
+  // Pure primitives are inlined into the published frontend entry in 0.2.1.
+  ["dsh-web-frontend/dist/assets/index-CN7NIWNw.js", ['"data-menu-material"']],
+  ["dsh-client-ui-chat/lib/client.js", ['"data-chat-following-tail"', "[data-conversation-scroll]"]],
+]) {
+  const source = await readFile(new URL(`../dsh-runtime/node_modules/@deepseek-ai/${entry}`, import.meta.url), "utf8");
+  for (const needle of needles) assert.ok(source.includes(needle), `mobile shell hook changed: ${needle}`);
 }
 
 console.log("official Web UI packages remain unchanged on iPhone");

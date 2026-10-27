@@ -13,11 +13,11 @@ const touchIcon = await readFile(new URL("../web/apple-touch-icon.png", import.m
 const inlineScript = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
 
 assert.ok(inlineScript, "compatibility bootstrap script is missing");
-assert.match(html, /name="dsh-ios-compat" content="17"/);
+assert.match(html, /name="dsh-ios-compat" content="18"/);
 assert.match(html, /name="apple-mobile-web-app-title" content="DSH"/);
-assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/apple-touch-icon\.png\?ioscompat=17"/);
-assert.match(html, /index-5SrrfWpU\.js\?ioscompat=17/);
-assert.match(html, /vendor-CCJJTK99\.js\?ioscompat=17/);
+assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/apple-touch-icon\.png\?ioscompat=18"/);
+assert.match(html, /index-CN7NIWNw\.js\?ioscompat=18/);
+assert.match(html, /vendor-DcuzkuQH\.js\?ioscompat=18/);
 assert.equal(touchIcon.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
 assert.equal(touchIcon.readUInt32BE(16), 180, "Home Screen icon width");
 assert.equal(touchIcon.readUInt32BE(20), 180, "Home Screen icon height");
@@ -55,7 +55,7 @@ const context = vm.createContext({
     },
   },
   location: {
-    href: "http://127.0.0.1:3080/?ioscompat=17&session=child-1&parent=parent-1&mode=continuable",
+    href: "http://127.0.0.1:3080/?ioscompat=18&session=child-1&parent=parent-1&mode=continuable",
   },
 });
 context.window = context;
@@ -93,9 +93,9 @@ assert.deepEqual(JSON.parse(storage.get("dsh.sessions.current")), {
     mode: "continuable",
   },
 });
-assert.equal(replacedUrl, "/?ioscompat=17");
+assert.equal(replacedUrl, "/?ioscompat=18");
 assert.equal(vm.runInContext("__DSH_IOS_SESSION_LINK__.sessionId", context), "child-1");
-assert.equal(vm.runInContext("__DSH_IOS_COMPAT__", context), 17);
+assert.equal(vm.runInContext("__DSH_IOS_COMPAT__", context), 18);
 
 const vendorPath = process.argv[2];
 const indexPath = process.argv[3];
@@ -113,7 +113,7 @@ if (vendorPath !== undefined || indexPath !== undefined) {
     '/([-.\\w+]+)@([-\\w]+(?:\\.[-\\w]+)+)/gu';
   assert.equal(vendor.includes(unsupported), false, "Safari lookbehind remains");
   assert.equal(vendor.split(compatible).length - 1, 1, "compatible regexp count");
-  assert.ok(index.includes('from"./vendor-CCJJTK99.js?ioscompat=17"'));
+  assert.ok(index.includes('from"./vendor-DcuzkuQH.js?ioscompat=18"'));
   assert.doesNotMatch(index, /\bstatic\s*\{/, "Safari 16.1 cannot parse class static blocks");
   const root = fileURLToPath(new URL("..", import.meta.url));
   for (const path of syntaxFiles) {

@@ -3,7 +3,7 @@
 build/
 dist/
 artifacts/
-dsh-runtime/node_modules/
+dsh-runtime/node_modules
 tools/frontend/node_modules/
 *.deb
 *.dylib
@@ -13,5 +13,6 @@ tools/frontend/node_modules/
 *.tar.xz
 *.tgz
 *.zip
+*.ipa
 *.log
 .env

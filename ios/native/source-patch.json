@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "commit": "9bf3955c8add4ebffaed5699d59e75ddc86733ad",
+  "sha256": "b0d4ee2b527e3192e6120a634b52175ddec8fe2b2d618b017755f080edcc26be",
+  "version": "1.7.11",
+  "build": "34",
+  "capabilities": [
+    "loopback-pairing-v1",
+    "backend-managed-lifecycle-v1",
+    "composer-return-send-v1"
+  ],
+  "files": [
+    "DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift",
+    "DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift",
+    "DeepSeekHarnessMobile/Core/AppStore.swift",
+    "DeepSeekHarnessMobile/Core/GatewayProfile.swift",
+    "DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift",
+    "DeepSeekHarnessMobile/Views/RootView.swift",
+    "DeepSeekHarnessMobile/Resources/Info.plist",
+    "AgentLiveActivityWidget/Info.plist",
+    "DeepSeekHarnessMobileTests/GatewayProtocolTests.swift",
+    "DeepSeekHarnessMobileTests/MultiGatewayTests.swift",
+    "DeepSeekHarnessMobile/Views/ConversationView.swift"
+  ]
+}

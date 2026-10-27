@@ -4,6 +4,7 @@ import { realpathSync } from "node:fs";
 import { createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { isNativeSessionUrl } from "./native-navigation.mjs";
 
 const SOCKET_PATH = "/var/mobile/Library/DSHNotifier/notify.sock";
 const DEFAULT_BUNDLE_ID = "ai.deepseek.dsh";
@@ -19,7 +20,7 @@ function usage() {
     "Options:",
     `  --bundle-id <id>   Existing app bundle id used for the notification icon (default: ${DEFAULT_BUNDLE_ID})`,
     "  --id <id>          Stable notification id used for replacement and withdrawal",
-    "  --url <url>        HTTP(S) address opened by the notification's default action",
+    "  --url <url>        Web or paired native-session address opened by the default action",
     "  --actions-json <j> Supplementary action array for an actionable notification",
     "  --dismiss-id <id>  Withdraw a previously published stable notification",
     "  --sound-id <id>    Optional integer iOS system sound id",
@@ -147,6 +148,7 @@ function validateActionsJson(value) {
 }
 
 function validateLaunchUrl(value) {
+  if (isNativeSessionUrl(value)) return new URL(value).href;
   let parsed;
   try {
     parsed = new URL(value);

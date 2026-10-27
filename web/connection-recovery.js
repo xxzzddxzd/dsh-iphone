@@ -2,6 +2,9 @@
   const PROBE_INTERVAL_MS = 15_000;
   const PROBE_TIMEOUT_MS = 5_000;
   const RESUME_DEBOUNCE_MS = 1_000;
+  // A hide this long leaves the streams unusable even though the connection
+  // still reports connected; a shorter one usually resumes on the same mux.
+  const STALE_HIDE_MS = 2_000;
   let release;
 
   function install({ connection, openProbe }) {
@@ -10,8 +13,13 @@
     let timer;
     let pending;
     let hidden = document.visibilityState === "hidden";
+    let hiddenAt = hidden ? Date.now() : 0;
     let lastReconnect = -Infinity;
     let lastTick = Date.now();
+    // The on-device Host is reachable without a network path, so radio events
+    // say nothing about this connection.
+    const loopback = typeof location !== "undefined" && typeof location.hostname === "string"
+      && /^(127\.0\.0\.1|localhost|\[::1\]|::1)$/.test(location.hostname);
     const status = { checks: 0, recoveries: 0, lastReason: null, lastCheckedAt: null,
       state: connection.state.getSnapshot() ?? "pending", errors: [] };
     window.__DSH_IOS_CONNECTION_RECOVERY__.status = status;
@@ -68,7 +76,7 @@
       connection.reconnect();
       schedule();
     }
-    async function check() {
+    async function check(failureReason = "event-stream-unresponsive") {
       if (disposed || hidden || pending || connection.state.getSnapshot() !== "connected") return;
       const controller = new AbortController();
       const probe = { controller, generation: connection.generation.getSnapshot(), timeout: undefined };
@@ -93,7 +101,7 @@
       } catch {
         if (pending === probe && connection.state.getSnapshot() === "connected" &&
             connection.generation.getSnapshot() === probe.generation) {
-          reconnect("event-stream-unresponsive");
+          reconnect(failureReason);
         }
       } finally {
         clearTimeout(probe.timeout);
@@ -114,12 +122,20 @@
       const wasHidden = hidden;
       hidden = document.visibilityState === "hidden";
       if (hidden) {
+        hiddenAt = Date.now();
         clearTimeout(timer);
         cancelProbe();
-      } else if (wasHidden) reconnect("page-visible");
+        return;
+      }
+      if (!wasHidden) return;
+      // A long hide suspends the web process and its streams; a short one
+      // usually resumes on the same mux, so prove that mux with a probe
+      // instead of replacing every subscription on each app switch.
+      if (Date.now() - hiddenAt >= STALE_HIDE_MS) reconnect("page-visible");
+      else void check("page-visible");
     };
     const pageShown = event => { if (event.persisted) reconnect("page-restored"); };
-    const online = () => reconnect("network-returned");
+    const online = () => { if (!loopback) reconnect("network-returned"); };
     const focused = () => {
       if (!hidden && Date.now() - lastTick >= PROBE_INTERVAL_MS) void check();
     };

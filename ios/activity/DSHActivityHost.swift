@@ -21,6 +21,7 @@ private final class DSHActivityApplicationDelegate: UIResponder, UIApplicationDe
   }
 
   private func isAllowedBrowserURL(_ url: URL) -> Bool {
+    if DSHNavigation.isNativeSessionURL(url) { return true }
     guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
       return false
     }
@@ -37,7 +38,7 @@ private final class DSHActivityApplicationDelegate: UIResponder, UIApplicationDe
 
   private func openInDefaultBrowser(_ url: URL, application: UIApplication) -> Bool {
     guard isAllowedBrowserURL(url) else {
-      NSLog("[DSHActivityHost] rejected invalid Live Activity URL: %@", url.absoluteString)
+      NSLog("[DSHActivityHost] rejected invalid Live Activity URL")
       scheduleExit(after: 0.1)
       return false
     }

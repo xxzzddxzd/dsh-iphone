@@ -35,7 +35,9 @@ tar -xzf "$ROOT/.cache/$REQUIRE_BUILTIN_ARCHIVE" -C "$SOURCE_DIR" --strip-compon
 tar -xzf "$ROOT/.cache/$REQUIRE_BUILTIN_ADDON_API_ARCHIVE" -C "$API_DIR" --strip-components=1
 
 source_version=$(node -p "require('$SOURCE_DIR/packages/require-builtin/entry/package.json').version")
+loader_version=$(node -p "require('$SOURCE_DIR/packages/loader/package.json').version")
 api_version=$(node -p "require('$API_DIR/package.json').version")
 [ "$source_version" = "$REQUIRE_BUILTIN_VERSION" ] || die "unexpected require-builtin source version: $source_version"
+[ "$loader_version" = "$REQUIRE_BUILTIN_VERSION" ] || die "unexpected native custom loader source version: $loader_version"
 [ "$api_version" = "$REQUIRE_BUILTIN_ADDON_API_VERSION" ] || die "unexpected require-builtin headers: $api_version"
 printf '%s\n' "$SOURCE_DIR"

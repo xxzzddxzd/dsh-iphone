@@ -17,6 +17,9 @@ case "${1:-remove}" in
     if [ -d /var/jb/Applications/DSH.app ]; then
       /var/jb/usr/bin/uicache -u /var/jb/Applications/DSH.app >/dev/null 2>&1 || true
     fi
+    if [ -d /var/jb/Applications/DSHClient.app ]; then
+      /var/jb/usr/bin/uicache -u /var/jb/Applications/DSHClient.app >/dev/null 2>&1 || true
+    fi
     rm -f /var/mobile/Library/DSHNotifier/notify.sock \
       /var/mobile/Library/DSHNotifier/action.sock \
       /var/mobile/Library/DSHNotifier/activity.sock

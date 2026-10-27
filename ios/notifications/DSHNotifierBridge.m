@@ -10,6 +10,7 @@
 #import <sys/wait.h>
 #import <string.h>
 #import <unistd.h>
+#import "../navigation/DSHNavigation.h"
 
 extern char **environ;
 
@@ -109,6 +110,7 @@ static NSURL *DSHLaunchURL(id value) {
     url = [NSURL URLWithString:(NSString *)value];
   }
   NSString *scheme = url.scheme.lowercaseString;
+  if (DSHIsNativeSessionURL(url)) return url;
   if (url == nil || (! [scheme isEqualToString:@"http"] && ! [scheme isEqualToString:@"https"])) {
     return nil;
   }

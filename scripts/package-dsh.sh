@@ -17,6 +17,9 @@ DSH_RUNTIME_ROOT="$RUNTIME_ROOT" "$SCRIPT_DIR/build-node-pty.sh"
 DSH_RUNTIME_ROOT="$RUNTIME_ROOT" "$SCRIPT_DIR/build-ios-flock.sh"
 DSH_RUNTIME_ROOT="$RUNTIME_ROOT" "$SCRIPT_DIR/build-ios-require-builtin.sh"
 "$SCRIPT_DIR/build-ios-notifier.sh" >/dev/null
+if [ "${DSH_INCLUDE_LEGACY_WEB_CLIENT:-0}" = 1 ]; then
+  "$SCRIPT_DIR/build-ios-client.sh" >/dev/null
+fi
 "$SCRIPT_DIR/build-ios-image-tool.sh" >/dev/null
 node "$SCRIPT_DIR/patch-dsh.mjs" --root "$RUNTIME_ROOT" --check
 
@@ -36,6 +39,8 @@ install -m 0755 "$ROOT/build/ios-image-tool/dsh-image-tool" \
   "$STAGE/var/jb/usr/local/bin/dsh-image-tool"
 install -m 0755 "$ROOT/ios/notifications/dsh-notify.mjs" \
   "$STAGE/var/jb/usr/local/lib/dsh/ios/dsh-notify.mjs"
+install -m 0644 "$ROOT/ios/notifications/native-navigation.mjs" \
+  "$STAGE/var/jb/usr/local/lib/dsh/ios/native-navigation.mjs"
 ln -s ../lib/dsh/ios/dsh-notify.mjs "$STAGE/var/jb/usr/local/bin/dsh-notify"
 install -m 0755 "$ROOT/ios/activity/dsh-activity.mjs" \
   "$STAGE/var/jb/usr/local/lib/dsh/ios/dsh-activity.mjs"
@@ -55,6 +60,11 @@ install -m 0755 "$ROOT/build/ios-notifier/DSHNotifierBridge.dylib" \
 install -m 0644 "$ROOT/ios/notifications/DSHNotifierBridge.plist" \
   "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/DSHNotifierBridge.plist"
 cp -R "$ROOT/build/ios-notifier/DSH.app" "$STAGE/var/jb/Applications/DSH.app"
+if [ "${DSH_INCLUDE_LEGACY_WEB_CLIENT:-0}" = 1 ]; then
+  cp -R "$ROOT/build/ios-client/DSHClient.app" "$STAGE/var/jb/Applications/DSHClient.app"
+  install -m 0644 "$ROOT/ios/client/DSHClient.entitlements" \
+    "$STAGE/var/jb/usr/local/lib/dsh/ios/DSHClient.entitlements"
+fi
 install -m 0644 "$ROOT/launchd/ai.deepseek.dsh.plist" \
   "$STAGE/var/jb/Library/LaunchDaemons/ai.deepseek.dsh.plist"
 install -m 0644 "$ROOT/launchd/ai.deepseek.dsh-activity.plist" \

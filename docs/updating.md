@@ -480,3 +480,44 @@ Mac DSH 的 LaunchAgent 使用锁定的 pnpm 10.34.5，确保 profile 中 `nodeL
 真实验收会话分别为 `session-upgrade-mac-1fe6dfcd-b7a5-45d6-bbb1-7266686799c6`、`session-upgrade-iphone-85aea930-9bab-4c35-84d9-48b352ce723e`。测试权限和默认模型均恢复；Mac 保留用户选择的 GPT-6.1 Sol（max）。Mac 部署时按已有授权暂停同一个运行会话，未中断其他会话。
 
 停止服务后的数据备份为 Mac 的 `~/.dsh.before-settings-fix-0.2.9-20261014`、iPhone 的 `/var/root/.dsh.before-settings-fix-0.2.9-20261014`。原 Provider `0.2.8` 包、编译产物、基线和验收报告位于 `.cache/upgrades/provider-settings-20261014/`。两端启动后的运行日志未发现新错误，Mac 浏览器与 iPhone WebClip 认证已刷新。DSH 核心、子模块、Node、Cline Pass 和原生组件保持原版本。
+
+## 2026-10-27：DSH 0.2.1 与原生 iPhone App
+
+按用户要求同时更新 Mac 和 iPhone，保留手机独立的 launchd DSH 服务及原网页入口。原生界面复用 Whaleness，未把 Harness 引擎搬进 App。DSH 目标取当时 npm `latest` 的 `0.2.1-rc.2`，没有用更高的 Git tag 或 `next` 代替发布策略。
+
+| 项目 | 最终值 |
+| --- | --- |
+| Mac / iPhone DSH | `0.2.1-rc.2`；iPhone Debian `0.2.1~rc.2-1` |
+| 官方 commit / 发布截点 | `687f282e8625c6b8d11ff58211a90524be2e4317` / `2026-10-18T00:00:00.000Z` |
+| Provider | `0.2.10` / pi-ai `1.4.0` / zod `4.4.3`，源码提交 `d2fec70` |
+| Cline Pass / Gateway | `0.2.13` / `0.11.1+iphone.1` |
+| 原生 App | Whaleness `1.7.11 / build 34`，iOS `16.1+` |
+| App 上游源码 | `9bf3955c8add4ebffaed5699d59e75ddc86733ad`，MIT 许可随补丁保留 |
+| App 补丁 SHA-256 | `b0d4ee2b527e3192e6120a634b52175ddec8fe2b2d618b017755f080edcc26be` |
+| builtin / Safari compatibility | `0.1.9`（N-API v9）/ `18` |
+| Node / pnpm / Xray | 保留 `22.23.2` / `10.34.5` / `26.3.27` |
+
+已部署产物 SHA-256：
+
+| 产物 | SHA-256 |
+| --- | --- |
+| DSH deb | `8393dabe4da3744d49e571ad4ad6a04a0ba438b7dc7d3732ee7ba613eecff643` |
+| Provider tarball | `9328b1e72a3bf71fcc370ed2b6b40b144795f7990917b213e314807af8740373` |
+| Cline Pass tarball | `02702d9616cbfb1fbae5bd66f085c5031cac54cb22d0a553a4870b070e7803a7` |
+| Gateway tarball | `1698b918d0eaf8ad89723a3b333850c34c3485a6009273c4c882ab6b5558ec6f` |
+| App build 34 IPA | `538dbaac1d866ade1b8ffbe7ccc8bb9be532e4acaea9a992eb10a253e8717e39` |
+
+适配与验证：
+
+- builtin 拆包后仍按 entry 目录加载本地 N-API 产物，锁定新 loader、源码及 30 个编译单元；缓存禁用，stock internal require 仍拒绝。更新 frontend 资产/hash 和 Safari 16 转译，Node client 不打浏览器补丁。
+- Provider 对齐 DSH peers，移除官方退役的空 invariant companion。直接 Zod 与 storage-domain 边界对齐，默认堆下通过类型检查；pi-ai 1.4 退役的 Spark/GPT-5.5 不再由新目录承诺可调用，旧会话内容保留。Mac 退役 schedule bundle 与余额插件按精确预像迁移，任务库不删。
+- Gateway 只挂载 `127.0.0.1:3080/ws/mobile`，不启用额外 LAN/Tunnel 或 fork 重启/停止 DSH；离线生产闭包无嵌套 DSH peers、原生模块或手机 registry 解析。
+- App 经 TrollStoreLite 正常容器安装，真实 Keychain 配对及关闭进程后的自动重连通过，build 34 升级保留同一容器。本机模式不依赖定位/静音音频保活，不重复创建通知或 Activity；Root 后台保留原活动窗样式，通过受信本机 profile 映射跳转原生根会话，缺失映射时回退网页。
+- build 34 键盘回车复用现有发送回调和门禁，保留 marked-text 确认、多行粘贴及硬件 Shift+Return 换行。用户实机确认“发送和活动窗都正常”。新增 UIKit/XCTest 源码语法解析通过，但未运行 Simulator XCTest，不将其记为已执行测试。
+- Provider 73 项测试、类型检查、构建和导入通过；Gateway、Cline、profile 迁移、URL 拒绝条件及 App 安装/映射测试通过。KMP Release framework、build 33/34 两次完整 App archive 成功。
+- 升级前 Mac 159 个、iPhone 152 个会话 ID 和默认模型基线保留，各新增一条验收会话。旧会话 v4 读取通过；手机首次 22 MB 冷日志 follow 曾超时，随后原严格条件下约 1.5 秒通过，未为此放宽检查。
+- Mac 验收会话 `session-upgrade-mac-eb9bf4a1-8695-4c2d-a02c-c1bac2937a43`、iPhone `session-upgrade-iphone-f078050e-9343-471c-8cf3-9b70ef440356` 均使用 `provider-codex / gpt-6.1-sol / low`，分别 90、94 个流式帧；Bash 标记、退出码 0、turn 完成均通过。测试权限与默认模型恢复。
+- Native Gateway 真实配对、token 重连、10 个工作区、旧历史、原子 snapshot 和必需模型通过；只撤销验收器自己的设备，App 配对保留。手机 builtin、flock 实锁竞争、PTY Bash、PNG Alpha/缩放、JPEG 与非法图拒绝均实测通过；5 个原生产物的平台/架构/签名 hash、新网页及 8 个资产 hash 通过，原 3081 服务保留。
+- 新目录门禁暴露手机旧 xAI 授权无法刷新；OAuth 实现及旧凭据未被升级改写。用户完成官方重新授权后目录无失败，grok2api API Key 路由独立保留。通知桥在用户授权后只重载一次 SpringBoard，原生通知链接被桥接受，活动点击经用户确认正常。
+
+数据备份为 Mac `~/.dsh.before-native-0.2.1-20261027`、手机 `/var/root/.dsh.before-native-0.2.1-20261027`；程序备份为本次缓存中的 `mac-program-before`、手机 `/var/root/dsh-program.before-native-0.2.1-20261027`，旧 Provider 源码/lib 另行保留。脱敏报告、日志和产物摘要在 `.cache/upgrades/native-0.2.1-20261027/`，不提交会话正文、Cookie、token、配对串或 App 数据。

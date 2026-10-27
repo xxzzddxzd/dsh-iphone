@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { createConnection } from "node:net";
 import z from "@deepseek-ai/schemastery";
+import { nativeSessionUrl } from "./native-navigation.mjs";
 
 const name = "ios-notifier";
 const inject = ["goals", "subprocess"];
@@ -444,6 +445,8 @@ function subagentMode(session) {
 }
 
 function navigationUrl(session, config) {
+  const native = nativeSessionUrl(session.header?.origin === "subagent" ? session.header.parentSession : session.id);
+  if (native !== undefined) return native;
   const url = new URL(config.browserBaseUrl);
   url.searchParams.set("session", session.id);
   const parentSessionId = session.header?.origin === "subagent"
@@ -1021,6 +1024,7 @@ function activityCommand(tasks) {
     operation: "update",
     task: {
       sessionID: task.sessionID,
+      launchURL: nativeSessionUrl(task.sessionID) ?? `http://127.0.0.1:3080/?session=${encodeURIComponent(task.sessionID)}`,
       title: truncate(task.title, 100),
       phase: truncate(task.phase, 40),
       detail: truncate(normalizeLiveMarkdown(liveProgressDetail(task)), 160),

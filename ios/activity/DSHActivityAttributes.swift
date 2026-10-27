@@ -5,6 +5,7 @@ import Foundation
 struct DSHActivityAttributes: ActivityAttributes {
   struct ContentState: Codable, Hashable {
     var sessionID: String
+    var launchURL: String?
     var title: String
     var phase: String
     var detail: String

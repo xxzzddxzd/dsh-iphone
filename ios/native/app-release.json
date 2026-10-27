@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "repository": "Clarklevis1995/dsh-mobile",
+  "commit": "9bf3955c8add4ebffaed5699d59e75ddc86733ad",
+  "version": "1.7.11",
+  "build": "32",
+  "minimumOS": "16.1",
+  "minimumGatewayVersion": "0.11.1",
+  "url": "https://github.com/Clarklevis1995/dsh-mobile/releases/download/v1.7.11/DshMobile-ios-v1.7.11-unsigned.ipa",
+  "sha256": "67f490dd714c6ee22ab552f36f87f8c99faff2d3bb45004398bed814883915d5",
+  "appDirectory": "DshMobile.app",
+  "bundleId": "com.clark.dshmobile.dev",
+  "executable": "DshMobile",
+  "widgetDirectory": "AgentLiveActivityWidget.appex",
+  "widgetBundleId": "com.clark.dshmobile.dev.AgentLiveActivityWidget",
+  "widgetExecutable": "AgentLiveActivityWidget",
+  "capabilities": []
+}

@@ -33,6 +33,10 @@ plutil -lint \
   "$ROOT/ios/activity/DSHActivity.entitlements" \
   "$ROOT/ios/activity/DSHActivityExtension.entitlements" \
   "$ROOT/ios/activity/DSHActivityWorker.entitlements" >/dev/null
+if [ "${DSH_INCLUDE_LEGACY_WEB_CLIENT:-0}" = 1 ]; then
+  plutil -lint "$ROOT/ios/client/DSHWebClient-Info.plist" "$ROOT/ios/client/DSHClient.entitlements" >/dev/null
+  node "$ROOT/tests/test-ios-client.mjs"
+fi
 
 # Plugin executables use `#!/usr/bin/env node`; they must inherit Node 22 rather
 # than the jailbreak's legacy `/var/jb/usr/local/bin/node` (currently Node 18).
@@ -54,16 +58,24 @@ node "$ROOT/tests/test-ios-image-tool.mjs"
 node "$ROOT/tests/test-vless-config.mjs"
 node "$ROOT/tests/test-ios-notifications.mjs"
 node "$ROOT/tests/test-ios-connection.mjs"
+node "$ROOT/tests/test-ios-mobile-shell.mjs"
 node "$ROOT/tests/test-ios-json-values.mjs"
 node "$ROOT/tests/test-web-auth.mjs"
 node "$ROOT/tests/test-upgrade-validation.mjs"
 node "$ROOT/tests/test-release-report.mjs"
 node "$ROOT/tests/test-provider-components.mjs"
+node "$ROOT/tests/test-native-navigation.mjs"
+node "$ROOT/tests/test-native-gateway.mjs"
+node "$ROOT/tests/test-deploy-native.mjs"
+node "$ROOT/tests/test-profile-migration.mjs"
+node "$ROOT/tests/test-cline-pass.mjs"
+node "$ROOT/tests/test-mobile-gateway.mjs"
+python3 -B "$ROOT/tests/test-native-app.py"
 python3 -B "$ROOT/tests/test-open-device.py"
 "$ROOT/tests/test-xray-package.sh"
 
-VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-CCJJTK99.js"
-INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-5SrrfWpU.js"
+VENDOR="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-DcuzkuQH.js"
+INDEX="$ROOT/build/dsh-runtime/node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-CN7NIWNw.js"
 if [ -f "$VENDOR" ] && [ -f "$INDEX" ]; then
   node "$ROOT/tests/test-ios16-frontend.mjs" "$VENDOR" "$INDEX"
   node "$ROOT/tests/test-official-web-ui.mjs"
@@ -143,7 +155,7 @@ upstream_version=$(node -p "require('$ROOT/upstream/deepseek-harness/package.jso
   die "upstream package version is $upstream_version, expected $DSH_VERSION"
 
 if git -C "$ROOT" ls-files --cached --others --exclude-standard | \
-  rg '(^|/)(build|dist|node_modules|\.cache)/|\.(deb|dylib|node|tar|tar\.gz|tar\.xz|tgz|zip)$'; then
+  rg '(^|/)(build|dist|node_modules|\.cache)(/|$)|\.(deb|dylib|node|tar|tar\.gz|tar\.xz|tgz|zip|ipa)$'; then
   die "generated artifact would be tracked"
 fi
 

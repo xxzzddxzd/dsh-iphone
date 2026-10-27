@@ -5,13 +5,13 @@ import { resolve } from "node:path";
 const require = createRequire(new URL("../tools/frontend/package.json", import.meta.url));
 const { transform, build } = require("esbuild");
 export const syntaxFiles = [
-  "@deepseek-ai/dsh-web-frontend/dist/assets/index-5SrrfWpU.js",
+  "@deepseek-ai/dsh-web-frontend/dist/assets/index-CN7NIWNw.js",
   "@deepseek-ai/dsh-client-ui-sidebar-documentpreview/lib/client.js",
 ];
 
 export async function compatibleSource(repositoryRoot, relativePath) {
   let source = await readFile(resolve(repositoryRoot, "dsh-runtime/node_modules", relativePath), "utf8");
-  source = source.replace('from"./vendor-CCJJTK99.js"', 'from"./vendor-CCJJTK99.js?ioscompat=17"');
+  source = source.replace('from"./vendor-DcuzkuQH.js"', 'from"./vendor-DcuzkuQH.js?ioscompat=18"');
   const result = await transform(source, {
     target: "safari16.1", format: "esm", minifyWhitespace: true,
     legalComments: "inline", sourcefile: relativePath,

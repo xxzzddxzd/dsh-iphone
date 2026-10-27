@@ -1,6 +1,6 @@
 # Mac 与 iPhone 双端快速更新流程
 
-所有升级使用一份 `versions.env`、一份官方源码 gitlink、一份 npm lock 和同一份 `dsh-codex` checkout。每个阶段保留结果；USB 中断时从手机部署阶段继续，不重复升级已经验收的 Mac。详细命令和回滚步骤见 [更新 SOP](./updating.md)。
+所有升级使用一份 `versions.env`、一份官方源码 gitlink、DSH npm lock 和同一份 `dsh-codex` checkout；Cline Pass、Mobile Gateway 和原生 App 分别锁定自己的发布输入、依赖与补丁。每个阶段保留结果；USB 中断时从手机部署阶段继续，不重复升级已经验收的 Mac。详细命令和回滚步骤见 [更新 SOP](./updating.md)。
 
 ```mermaid
 flowchart LR
@@ -9,7 +9,8 @@ flowchart LR
   C --> D[两端空闲基线与备份]
   D --> E[Mac 部署与验收]
   E --> F[iPhone 离线部署与验收]
-  F --> G[双端记录与提交推送]
+  F --> N[原生 App 与系统集成验收]
+  N --> G[双端记录与提交推送]
 ```
 
 ## 日常入口
@@ -20,7 +21,7 @@ flowchart LR
 node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 ```
 
-这个命令读取官方 DSH npm/tag，以及 Provider 的 pi-ai、Cline Pass 的独立 npm 发布：对照准确版本、commit、integrity、Node engine 和依赖变化。`dshStatus` 表示 DSH 本身是否变化，顶层 `status` 汇总组件变化；只有两者及组件都为 current 才结束检查。较高的 `next` 只作观察。网络失败、发布不完整或锁定信息不符时停止，不能按“没有更新”处理。
+这个命令读取官方 DSH npm/tag，以及 Provider 的 pi-ai、Cline Pass 的独立 npm 发布：对照准确版本、commit、integrity、Node engine 和依赖变化。`dshStatus` 表示 DSH 本身是否变化，顶层 `status` 汇总组件变化；只有两者及组件都为 current 才结束检查。较高的 `next` 只作观察。原生 App 还需对照其 source commit、最低 iOS、所需 Gateway 版本与本地 build；App 安装包和上游 README 可能不同步，以准确源码和实际 IPA manifest 为准。网络失败、发布不完整或锁定信息不符时停止，不能按“没有更新”处理。
 
 **DSH 主版本不变，也可能需要更新 Provider 和模型目录。** pi-ai 有自己的发布周期和静态模型数据，升级 DSH 不会自动把本地 Provider 的 pi-ai 升到最新版本。
 
@@ -52,6 +53,8 @@ node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 | 会话格式、事件或持久化改变 | 使用备份和官方历史格式目录；确认旧世代保留、子会话事实、插件自有事件和新 writer 格式 |
 | 通知/Live Activity 事件或原生注入改变 | 验证完成、审批、问答、目标和终态；只有注入代码确实改变才 respring |
 
+原生 App 是前端：Host 继续拥有会话、模型认证、工具、审批和执行；Gateway 只适配传输，App 的 KMP/SwiftUI/UIKit 负责客户端投影与交互。先复用上游能力，再审计本项目的本机配对、后台职责和导航补丁，不把旧 WebKit 壳当作原生业务前端。
+
 Node、pnpm、Xray 和原生通知组件按依赖变化升级，普通 DSH 更新复用它们的准确版本与已验证产物。不要每次都重新编译 Node，也不要顺带升级所有第三方库。
 
 ## 候选准备与构建
@@ -65,15 +68,27 @@ Node、pnpm、Xray 和原生通知组件按依赖变化升级，普通 DSH 更�
 
 ```bash
 ./scripts/package-dsh.sh
-./scripts/verify.sh
 ./scripts/package-dsh-codex.sh
 ./scripts/package-dsh-cline-pass.sh
+./scripts/package-mobile-gateway.sh
+./scripts/verify.sh
 node scripts/check-provider-components.mjs local
 ```
 
-`package-dsh.sh` 内部已经执行 prepare、严格补丁和原生构建。只在排查预像时单独调用 `prepare-dsh.sh`，不把它再重复当作常规构建前置。Provider 打包内部执行共享 checkout 的 check。Cline Pass 打包默认读取 Mac 已安装的准确版本；需要先构建候选时，用 `DSH_CLINE_PASS_SOURCE` 指向审计过的解包目录。
+`package-dsh.sh` 内部已经执行 prepare、严格补丁和原生构建。只在排查预像时单独调用 `prepare-dsh.sh`，不把它再重复当作常规构建前置。Provider 打包内部执行共享 checkout 的 check。Cline Pass 默认从 `cline-pass/package-lock.json` 固定的官方包打候选，不先改变 Mac profile；显式 `DSH_CLINE_PASS_SOURCE` 的所有未补丁文件也必须匹配该输入。Gateway 同样通过独立 lock 构建，iPhone 变体只允许本机连接与设备鉴权。
 
-Provider 代码更新时同步 `DSH_CODEX_VERSION`、`DSH_CODEX_PI_AI_VERSION`、`DSH_CODEX_PI_AI_INTEGRITY` 和 `DSH_CODEX_REQUIRED_MODELS`。打包器强制检查 manifest、pnpm lock 和编译产物中的版本及必需模型，不能只改版本文件。pi-ai 1.2.0 的图片目录使用统一 `Provider.getAllModels()` 并按 `type` 过滤；DSH 自带 pi-ai 与 Provider 的版本可不同，不能整体覆盖 DSH 的内部依赖。
+Provider 代码更新时同步 `DSH_CODEX_VERSION`、`DSH_CODEX_PI_AI_VERSION`、`DSH_CODEX_PI_AI_INTEGRITY` 和 `DSH_CODEX_REQUIRED_MODELS`。打包器强制检查 manifest、pnpm lock 和编译产物中的版本及必需模型，不能只改版本文件。pi-ai 1.4.0 的图片目录使用统一 `Provider.getAllModels()` 并按 `type` 过滤；DSH 自带 pi-ai 与 Provider 的版本可不同，不能整体覆盖 DSH 的内部依赖。
+
+iPhone 原生路径还要构建并验证：
+
+```bash
+./scripts/package-mobile-gateway.sh
+NATIVE_APP_SOURCE=/path/to/reviewed-whaleness ./scripts/build-native-app.sh
+python3 -B tests/test-native-app.py
+node tests/test-mobile-gateway.mjs --root build/mobile-gateway/package
+```
+
+源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build 与 SHA。保持 App bundle ID、数据容器和 Keychain 身份；不要把上游 build 32 的校验信息当作本地 build 34 的证明。详见[原生 App 接入](./native-app.md)。
 
 ## 保存双端基线
 
@@ -91,11 +106,11 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
 
 若上游改变 Remote 协议、需要修改验收器，先用当前版本的验收器保存生产基线，再适配工具；保留旧报告，部署前重新确认空闲。基线无需等待所有构建完成，但一致性数据备份必须在服务停止后进行。
 
-随后按 SOP 停止服务，备份 Mac/手机的 DSH home、Mac LaunchAgent、旧程序和可回滚 deb。**程序版本回滚与用户数据回滚是两件事**，格式已经迁移时不能只换回旧程序。
+随后按 SOP 停止服务，备份 Mac/手机的 DSH home、Mac LaunchAgent、旧程序和可回滚 deb。原生路径还保留网关设备/身份文件、App 非敏感 profile 映射及旧 IPA/manifest；App 升级保留真实 Keychain，不以脚本导入或伪造凭据。**程序版本回滚与用户数据回滚是两件事**，格式已经迁移时不能只换回旧程序。
 
 ## 双端部署与验收
 
-标准顺序为 Mac → iPhone：Mac 使用准确 npm 版本和安装归属的 pnpm 10；共享 `dsh-codex` 使用本地 link；iPhone 使用同一 checkout 生成的自包含离线 tarball。手机端安装完 Provider 和历史检查后再 bootstrap，不在部署结束后重复 kickstart。
+标准顺序为 Mac → iPhone：Mac 使用准确 npm 版本和安装归属的 pnpm 10；共享 `dsh-codex` 使用本地 link；iPhone 使用同一 checkout 生成的自包含离线 tarball。手机端安装完核心、Provider/Cline、Gateway 和离线 profile 迁移检查后再 bootstrap，不在部署结束后重复 kickstart。
 
 部署完成后分别执行：
 
@@ -144,6 +159,23 @@ iPhone 的 Bash 没有 Workspace Write 沙箱后端；验收器只对自己新�
 - 完成通知、图片、登录/出口与视觉交互按本次变化实测；CLI 验收器不替代这些检查。
 - 日志只检查当前 boot 的错误并隐藏 token，避免把整份带认证 URL 的日志复制到报告。
 
+## 原生 App 和通知验收
+
+默认后端部署保留已安装 App，只有显式传入匹配的 `NATIVE_APP_IPA` 和 `NATIVE_APP_MANIFEST` 才更新，避免无意回装 stock build 32。先完成 Host 的全部门禁，再按最终 IPA 与生成的 manifest 安装本地 App；同一 bundle ID 覆盖升级，不能删除容器来解决连接问题。`scripts/install-native-profile.mjs` 只负责 Host loopback 配置；真实 App 配对通过受限本机 UI 深链，由网关握手写入 Keychain。API 测试设备、App 的真实设备与非敏感 profile 映射必须区分。
+
+通过 SSH/USB 将手机 3080 转发到一个空闲的 Mac loopback 端口后，可运行：
+
+```bash
+DEVICE_HOST='<iPhone IP>' DEVICE_PORT=22 LOCAL_PORT=13081 \
+  node scripts/check-native-gateway.mjs iphone --save "$dsh_upgrade_run/iphone-native-api.json"
+```
+
+该工具创建自己的短期测试配对，只读取工作区、原会话历史和 snapshot、验证 token 重连及模型目录，完成后撤销自己创建的测试设备；不发送消息、不注入 App Keychain，保留 App 原配对。它不替代 Provider 的完整目录失败门禁，也不代表真实 App 的视觉、键盘与后台行为全部完成。
+
+App 实测需要分别记录：真实 Keychain 配对、冷启动、旧会话、流式与工具结果、中文候选确认、Return/Shift+Enter、软/硬件键盘、横竖屏/安全区、前后台恢复，以及通知/Activity 点击落到原生根会话。build 34 的回车发送改动应独立验证；已有安装或 API 成功不能代替 IME 实机证据。
+
+本机通知和 Live Activity 仍由 root 后台权威链负责，App 对 loopback 主机跳过重复保活/通知/Activity。只有通知桥/SpringBoard 注入代码确实变化时，全部安装结束后统一一次 respring；仅 Node/JS/Web/Gateway/App 内容变化无需额外 respring，也不能用它代替连接恢复。具体结果留在更新记录，不提前写成全通过。
+
 ## 中断恢复与提交
 
 | 当前状态 | 后续动作 |
@@ -152,8 +184,9 @@ iPhone 的 Bash 没有 Workspace Write 沙箱后端；验收器只对自己新�
 | Mac 通过、手机断线 | 保留产物 SHA 和基线，标记 iPhone 待部署；连接恢复后检查空闲并继续手机阶段 |
 | 手机包已安装但启动失败 | 保留当前日志与数据；修正程序、递增 revision、重建验证后再装 |
 | 会话或默认模型基线不符 | 先核对迁移和用户期间新增/修改；不能直接报告完成 |
-| 两端均通过 | 更新记录，先推送共享 Provider，再推送 dsh-iphone |
+| xAI 等旧 OAuth 返回 invalid_grant | 保留凭据，由用户重新授权；不得忽略或隐藏目录失败 |
+| 两端及本次原生功能均通过 | 更新记录，先推送共享 Provider，再推送 dsh-iphone |
 
-一次升级记录至少包含：目标版本/commit/integrity/cutoff、Provider 和 native pins、产物 SHA、双端备份路径、基线比较、真实工具结果、受影响功能验证及两个提交。只 stage 已审查的相关文件；保留其他任务的草稿和修改。记录双端分别完成的状态，手机仍待连接时不把整体标记为完成。
+一次升级记录至少包含：目标版本/commit/integrity/cutoff、Provider 和 native pins、核心/Provider/Gateway/IPA 与源码补丁 SHA、双端备份路径、App 构建和真实配对状态、基线比较、真实工具结果、受影响功能验证及两个提交。只 stage 已审查的相关文件；保留其他任务的草稿和修改。记录双端分别完成的状态，手机仍待连接时不把整体标记为完成。
 
 后续可直接使用任务指令：**“检查 DSH 和 Provider 组件的 latest 及模型目录；有更新则按双端 SOP 适配、构建、备份、部署和验收指定模型，完成后提交推送。”**

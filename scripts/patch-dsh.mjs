@@ -111,7 +111,7 @@ async function readJson(relativePath) {
 }
 
 const dshPackage = await readJson("package.json");
-if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.2.0-rc.2") {
+if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.2.1-rc.2") {
   throw new Error(
     `unsupported DSH package: ${dshPackage.name ?? "unknown"}@${dshPackage.version ?? "unknown"}`,
   );
@@ -149,9 +149,14 @@ await installNewFile(
   resolve(repositoryRoot, "ios/notifications/dsh-ios-notifier.mjs"),
   "iOS notification plugin",
 );
+await installNewFile(
+  "node_modules/@deepseek-ai/dsh-ios-notifier/native-navigation.mjs",
+  resolve(repositoryRoot, "ios/notifications/native-navigation.mjs"),
+  "iOS native session navigation",
+);
 
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-client-connection/lib/client.js",
+  "node_modules/@deepseek-ai/dsh-client-connection/lib/client.browser.js",
   `\t\t\tconst initiallyAvailable = browser?.navigator?.onLine;`,
   `\t\t\t// iOS: lack of Internet access does not disconnect the on-device Host.
 \t\t\tconst localHost = typeof location !== "undefined" && isLoopbackHostname(location.hostname);
@@ -159,7 +164,7 @@ await replaceExactlyOnce(
   "local Host network availability",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-client-connection/lib/client.js",
+  "node_modules/@deepseek-ai/dsh-client-connection/lib/client.browser.js",
   `\t\t\tconst offline = () => {
 \t\t\t\tcontroller.setNetworkAvailable(false);
 \t\t\t};`,
@@ -169,7 +174,7 @@ await replaceExactlyOnce(
   "local Host offline events",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-api-gateway/lib/client.js",
+  "node_modules/@deepseek-ai/dsh-api-gateway/lib/client.browser.js",
   `\t\t\t\tif (connection.rpc.open === void 0) this.streams.start();
 \t\t\t\tlet disposed = false;`,
   `\t\t\t\tif (connection.rpc.open === void 0) this.streams.start();
@@ -295,15 +300,15 @@ const unsupportedEmailRegExp =
 const compatibleEmailRegExp =
   '/([-.\\w+]+)@([-\\w]+(?:\\.[-\\w]+)+)/gu';
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-CCJJTK99.js",
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/vendor-DcuzkuQH.js",
   unsupportedEmailRegExp,
   compatibleEmailRegExp,
   "Safari 16 GFM email regexp",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-5SrrfWpU.js",
-  'from"./vendor-CCJJTK99.js"',
-  'from"./vendor-CCJJTK99.js?ioscompat=17"',
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-CN7NIWNw.js",
+  'from"./vendor-DcuzkuQH.js"',
+  'from"./vendor-DcuzkuQH.js?ioscompat=18"',
   "frontend vendor cache key",
 );
 await installNewFile(
@@ -326,7 +331,7 @@ await installNewFile(
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
   resolve(repositoryRoot, "web/index.ios.html"),
-  "2146ac6dd90f5b6f3896d79e6b9a933eaecb6d90525a18f8fabfc364016a5da5",
+  "3a402b94efa1253d80666438e60ed89d0b5cf1fd07d24a2f59731623e9bd8a49",
   "Safari 16 entry document",
 );
 

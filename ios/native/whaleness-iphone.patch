@@ -1,0 +1,706 @@
+diff --git a/AgentLiveActivityWidget/Info.plist b/AgentLiveActivityWidget/Info.plist
+index 9c09fb3..5d93a06 100644
+--- a/AgentLiveActivityWidget/Info.plist
++++ b/AgentLiveActivityWidget/Info.plist
+@@ -15,9 +15,9 @@
+ 	<key>CFBundlePackageType</key>
+ 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+ 	<key>CFBundleShortVersionString</key>
+-	<string>$(MARKETING_VERSION)</string>
++	<string>1.7.11</string>
+ 	<key>CFBundleVersion</key>
+-	<string>$(CURRENT_PROJECT_VERSION)</string>
++	<string>34</string>
+ 	<key>NSExtension</key>
+ 	<dict>
+ 		<key>NSExtensionPointIdentifier</key>
+diff --git a/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift b/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift
+index de27d9c..7e1313e 100644
+--- a/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift
++++ b/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift
+@@ -46,6 +46,7 @@ final class AgentBackgroundExecutionController {
+ 
+     var onBackgroundAllowanceExpired: (() -> Void)?
+     var onKeepAlivePulse: (() -> Void)?
++    var permitsLongRunningKeepAlive: () -> Bool = { true }
+ 
+     var keepsConnectionAlive: Bool {
+         if applicationIsInBackground && holdsIdleBackgroundAllowance {
+@@ -86,6 +87,7 @@ final class AgentBackgroundExecutionController {
+         traceBackground("become-active")
+         applicationIsInBackground = false
+         holdsIdleBackgroundAllowance = false
++        syncLongRunningKeepAlive()
+         longRunningKeepAlive?.applicationDidBecomeActive()
+         // 前台运行不需要 UIApplication 后台额度。业务 turn 计数继续保留，
+         // 下次进入后台时若仍在执行会重新申请。
+@@ -95,6 +97,7 @@ final class AgentBackgroundExecutionController {
+     func applicationDidEnterBackground() {
+         guard !applicationIsInBackground else { return }
+         applicationIsInBackground = true
++        syncLongRunningKeepAlive()
+         longRunningKeepAlive?.applicationDidEnterBackground()
+         // 空闲连接也申请一次有限额度；它不计入 Agent 任务，不启用定位或音频。
+         holdsIdleBackgroundAllowance = !isAgentWorkActive
+@@ -264,12 +267,13 @@ final class AgentBackgroundExecutionController {
+     }
+ 
+     private func syncLongRunningKeepAlive() {
+-        if isAgentWorkActive {
++        let needsLongRunningKeepAlive = isAgentWorkActive && permitsLongRunningKeepAlive()
++        if needsLongRunningKeepAlive {
+             // MultiGatewayStore 可能短暂创建非活动 AppStore；只有真正开始工作的
+             // controller 才能取得共享保活管理器的心跳回调。
+             longRunningKeepAlive?.onPulse = { [weak self] in self?.onKeepAlivePulse?() }
+         }
+-        longRunningKeepAlive?.setAgentWorkActive(isAgentWorkActive)
++        longRunningKeepAlive?.setAgentWorkActive(needsLongRunningKeepAlive)
+     }
+ 
+     @discardableResult
+diff --git a/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift b/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift
+index 402ce77..083ddff 100644
+--- a/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift
++++ b/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift
+@@ -40,7 +40,8 @@ final class AgentUserNotificationManager: NSObject, @preconcurrency UNUserNotifi
+         requestID: String,
+         sessionID: String,
+         sessionTitle: String,
+-        detail: String?
++        detail: String?,
++        backendManaged: Bool = false
+     ) {
+         let normalizedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+         scheduleOnce(
+@@ -48,6 +49,7 @@ final class AgentUserNotificationManager: NSObject, @preconcurrency UNUserNotifi
+             threadIdentifier: "agent.session.\(gatewayID).\(sessionID)",
+             gatewayID: gatewayID,
+             sessionID: sessionID,
++            backendManaged: backendManaged,
+             title: String(localized: "agent.notification.approval.title", defaultValue: "需要审批"),
+             body: normalizedDetail?.isEmpty == false
+                 ? String(
+@@ -66,13 +68,15 @@ final class AgentUserNotificationManager: NSObject, @preconcurrency UNUserNotifi
+         eventID: String,
+         sessionID: String,
+         sessionTitle: String,
+-        failed: Bool
++        failed: Bool,
++        backendManaged: Bool = false
+     ) {
+         scheduleOnce(
+             identifier: "agent.execution-ended.\(gatewayID).\(eventID)",
+             threadIdentifier: "agent.session.\(gatewayID).\(sessionID)",
+             gatewayID: gatewayID,
+             sessionID: sessionID,
++            backendManaged: backendManaged,
+             title: failed
+                 ? String(localized: "agent.notification.execution.failed.title", defaultValue: "执行失败")
+                 : String(localized: "agent.notification.execution.completed.title", defaultValue: "执行完成"),
+@@ -93,6 +97,7 @@ final class AgentUserNotificationManager: NSObject, @preconcurrency UNUserNotifi
+         threadIdentifier: String,
+         gatewayID: String,
+         sessionID: String,
++        backendManaged: Bool,
+         title: String,
+         body: String
+     ) {
+@@ -107,7 +112,7 @@ final class AgentUserNotificationManager: NSObject, @preconcurrency UNUserNotifi
+         UserDefaults.standard.set(recentIdentifiers, forKey: defaultsKey)
+ 
+         // 前台事件已经在会话界面展示；仍记录标识，避免重连后补弹旧通知。
+-        guard UIApplication.shared.applicationState == .background else { return }
++        guard !backendManaged, UIApplication.shared.applicationState == .background else { return }
+ 
+         let content = UNMutableNotificationContent()
+         content.title = title
+diff --git a/DeepSeekHarnessMobile/Core/AppStore.swift b/DeepSeekHarnessMobile/Core/AppStore.swift
+index 34591b3..fe858a8 100644
+--- a/DeepSeekHarnessMobile/Core/AppStore.swift
++++ b/DeepSeekHarnessMobile/Core/AppStore.swift
+@@ -908,7 +908,10 @@ final class AppStore: ObservableObject {
+             if payload.contains("\"sessions\"") { self.teamStore.sessionsRequested() }
+             return self.teamStore.decorateRequestJson(payload: payload)
+         }
+-        gateway.onFrame = { [weak self] frame in self?.handle(frame) }
++        gateway.onFrame = { [weak self] frame in
++            self?.updateSystemActivityAuthority()
++            self?.handle(frame)
++        }
+         gateway.onCommandFrame = { [weak self] json in
+             guard let self else { return }
+             self.applySlashCommandTransition(self.kmpSlashCommandStore.acceptFrame(json: json))
+@@ -936,6 +939,19 @@ final class AppStore: ObservableObject {
+             if self?.gateway.state.isConnected == true { self?.gateway.ping() }
+             AgentLiveActivityManager.shared.refreshActiveActivities()
+         }
++        self.backgroundExecutionController.permitsLongRunningKeepAlive = { [weak self] in
++            guard let self else { return false }
++            return !self.usesIndependentLocalHost
++        }
++        updateSystemActivityAuthority()
++    }
++
++    private var usesIndependentLocalHost: Bool {
++        GatewayIdentity.isLoopbackEndpoint(gateway.connectedEndpoint ?? endpoint)
++    }
++
++    private func updateSystemActivityAuthority() {
++        AgentLiveActivityManager.shared.setBackendManaged(usesIndependentLocalHost, gatewayID: gatewayLocalID)
+     }
+ 
+     var selectedEvents: [SessionEvent] {
+@@ -3737,7 +3753,8 @@ final class AppStore: ObservableObject {
+                     requestID: request.rpcId,
+                     sessionID: request.sessionId,
+                     sessionTitle: title(for: request.sessionId),
+-                    detail: request.localizedReason ?? request.toolName
++                    detail: request.localizedReason ?? request.toolName,
++                    backendManaged: usesIndependentLocalHost
+                 )
+                 notice(
+                     request.replay ? String(localized: "待审批操作已恢复") : String(localized: "Agent 正在等待审批"),
+@@ -4367,7 +4384,8 @@ final class AppStore: ObservableObject {
+                 eventID: record.id,
+                 sessionID: record.sessionId,
+                 sessionTitle: title(for: record.sessionId),
+-                failed: failed
++                failed: failed,
++                backendManaged: usesIndependentLocalHost
+             )
+             if backgroundMonitoredSessionID == record.sessionId,
+                !backgroundExecutionController.isAgentWorkActive(sessionID: record.sessionId) {
+diff --git a/DeepSeekHarnessMobile/Core/GatewayProfile.swift b/DeepSeekHarnessMobile/Core/GatewayProfile.swift
+index a6bdeee..b8fecf0 100644
+--- a/DeepSeekHarnessMobile/Core/GatewayProfile.swift
++++ b/DeepSeekHarnessMobile/Core/GatewayProfile.swift
+@@ -22,6 +22,15 @@ struct GatewayProfile: Codable, Identifiable, Equatable {
+ }
+ 
+ enum GatewayIdentity {
++    /// Only an on-device server may delegate background execution and alerts
++    /// to the iPhone's independent launchd DSH service.
++    static func isLoopbackEndpoint(_ raw: String) -> Bool {
++        guard let normalized = try? endpoint(raw),
++              let host = URLComponents(string: normalized)?.host?.lowercased()
++                .trimmingCharacters(in: CharacterSet(charactersIn: "[]")) else { return false }
++        return host == "localhost" || host == "::1" || (host.hasPrefix("127.") && isLocal(host))
++    }
++
+     static func isValid(_ value: String) -> Bool {
+         value.range(of: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$", options: .regularExpression) != nil
+     }
+@@ -74,6 +83,30 @@ enum GatewayIdentity {
+     }
+ }
+ 
++/// Private local setup link. It cannot redirect credentials to a LAN/remote host.
++enum LocalGatewayPairingURL {
++    static func payload(from url: URL, now: Date = .now) throws -> String {
++        guard url.scheme == "dshmobile", url.host == "pair", url.path.isEmpty,
++              url.user == nil, url.password == nil, url.port == nil, url.fragment == nil,
++              let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
++              let items = parts.queryItems, items.count == 1,
++              items[0].name == "payload", let raw = items[0].value, raw.count <= 16_384 else {
++            throw GatewayProfileError.address
++        }
++        let payload = try PairingPayloadParser.parse(raw, now: now)
++        guard payload.gatewayId != nil, payload.expirationDate.timeIntervalSince(now) <= 600 else {
++            throw GatewayProfileError.identity
++        }
++        let endpoints = try GatewayIdentity.endpoints(payload)
++        guard !endpoints.isEmpty, endpoints.allSatisfy({ value in
++            guard let endpoint = URLComponents(string: value) else { return false }
++            return endpoint.scheme == "ws" && endpoint.host == "127.0.0.1" &&
++                endpoint.port == 3080 && endpoint.path == "/ws/mobile"
++        }) else { throw GatewayProfileError.address }
++        return raw
++    }
++}
++
+ enum GatewayProfileError: LocalizedError {
+     case identity, address, conflict
+     var errorDescription: String? {
+diff --git a/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift b/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift
+index 0b1faa9..a4a5d7c 100644
+--- a/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift
++++ b/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift
+@@ -28,6 +28,33 @@ final class AgentLiveActivityManager {
+     private var rebuildingActivityKeys: Set<String> = []
+     private var pendingCreations: [String: AgentActivityAttributes] = [:]
+     private var failedCreationKeys: Set<String> = []
++    private var backendManagedGatewayIDs: Set<String> = []
++
++    /// The on-device launchd service owns loopback Live Activities. Only end
++    /// this app's cards for that host; never touch another host's cards.
++    func setBackendManaged(_ enabled: Bool, gatewayID: String) {
++        if enabled {
++            backendManagedGatewayIDs.insert(gatewayID)
++            dismissBackendManagedActivities(gatewayID: gatewayID)
++        } else {
++            backendManagedGatewayIDs.remove(gatewayID)
++        }
++    }
++
++    private func dismissBackendManagedActivities(gatewayID: String) {
++        let owned = Activity<AgentActivityAttributes>.activities.filter { $0.attributes.gatewayID == gatewayID }
++        for activity in owned {
++            let activityKey = key(gatewayID: gatewayID, sessionID: activity.attributes.sessionID)
++            removeTracking(activityKey: activityKey, activityID: activity.id)
++            dismissImmediately(activity)
++        }
++        for (activityKey, attributes) in pendingCreations where attributes.gatewayID == gatewayID {
++            pendingCreations[activityKey] = nil
++            latestStates[activityKey] = nil
++            failedCreationKeys.remove(activityKey)
++            rebuildingActivityKeys.remove(activityKey)
++        }
++    }
+ 
+     init(
+         applicationState: @escaping @MainActor () -> UIApplication.State = { UIApplication.shared.applicationState },
+@@ -465,6 +492,10 @@ final class AgentLiveActivityManager {
+ 
+     /// sessions 快照用于补偿后台重连期间可能漏掉的 turn/end。
+     func reconcileSessions(gatewayID: String, runningBySessionID: [String: Bool]) {
++        if backendManagedGatewayIDs.contains(gatewayID) {
++            dismissBackendManagedActivities(gatewayID: gatewayID)
++            return
++        }
+         for (activityKey, attributes) in pendingCreations
+             where attributes.gatewayID == gatewayID && runningBySessionID[attributes.sessionID] == false {
+             pendingCreations[activityKey] = nil
+@@ -527,6 +558,7 @@ final class AgentLiveActivityManager {
+         title: String,
+         state: AgentActivityAttributes.ContentState
+     ) {
++        guard !backendManagedGatewayIDs.contains(gatewayID) else { return }
+         var state = state
+         state.sessionTitle = normalizedTitle(title) ?? state.sessionTitle
+         let activityKey = key(gatewayID: gatewayID, sessionID: sessionID)
+diff --git a/DeepSeekHarnessMobile/Resources/Info.plist b/DeepSeekHarnessMobile/Resources/Info.plist
+index e744214..7643b9c 100644
+--- a/DeepSeekHarnessMobile/Resources/Info.plist
++++ b/DeepSeekHarnessMobile/Resources/Info.plist
+@@ -17,7 +17,7 @@
+ 	<key>CFBundlePackageType</key>
+ 	<string>APPL</string>
+ 	<key>CFBundleShortVersionString</key>
+-	<string>1.7.10</string>
++	<string>1.7.11</string>
+ 	<key>CFBundleURLTypes</key>
+ 	<array>
+ 		<dict>
+@@ -30,7 +30,7 @@
+ 		</dict>
+ 	</array>
+ 	<key>CFBundleVersion</key>
+-	<string>31</string>
++	<string>34</string>
+ 	<key>LSRequiresIPhoneOS</key>
+ 	<true/>
+ 	<key>NSAppTransportSecurity</key>
+diff --git a/DeepSeekHarnessMobile/Views/ConversationView.swift b/DeepSeekHarnessMobile/Views/ConversationView.swift
+index 8ab6d22..ea29a83 100644
+--- a/DeepSeekHarnessMobile/Views/ConversationView.swift
++++ b/DeepSeekHarnessMobile/Views/ConversationView.swift
+@@ -60,6 +60,7 @@ struct SlashCommandTextView: UIViewRepresentable {
+     let presentation: SlashCommandComposerPresentation?
+     let placeholder: String
+     @Binding var isFocused: Bool
++    var onSubmit: () -> Void = {}
+     func makeUIView(context: Context) -> CommandTextView {
+         let textView = CommandTextView()
+         textView.delegate = context.coordinator
+@@ -137,6 +138,19 @@ struct SlashCommandTextView: UIViewRepresentable {
+             parent.text = textView.text
+         }
+ 
++        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText value: String) -> Bool {
++            guard value == "\n" || value == "\r" else { return true }
++            let editor = textView as? CommandTextView
++            guard textView.markedTextRange == nil,
++                  editor?.isConfirmingMarkedText != true,
++                  editor?.isInsertingLiteralText != true else { return true }
++            // Commit the native editor's latest text before reusing the same
++            // submit action as the button. Submission rules remain its owner.
++            parent.text = textView.text
++            parent.onSubmit()
++            return false
++        }
++
+         func textViewDidBeginEditing(_ textView: UITextView) {
+             focusRevision += 1
+             if !parent.isFocused { parent.isFocused = true }
+@@ -156,6 +170,7 @@ struct VoiceComposerTextInput: View {
+     let state: SharedVoiceInputSnapshot
+     let voice: VoiceInputAdapter
+     var onHoldingChanged: (Bool) -> Void = { _ in }
++    var onSubmit: () -> Void = {}
+ 
+     var body: some View {
+         Group {
+@@ -167,7 +182,8 @@ struct VoiceComposerTextInput: View {
+                     text: $text,
+                     presentation: presentation,
+                     placeholder: String(localized: String.LocalizationValue(state.hint)),
+-                    isFocused: $isFocused
++                    isFocused: $isFocused,
++                    onSubmit: onSubmit
+                 )
+                 .padding(.horizontal, 3)
+                 .frame(minHeight: 38, alignment: .top)
+@@ -248,12 +264,54 @@ struct VoiceHoldInput: UIViewRepresentable {
+ }
+ 
+ final class CommandTextView: UITextView {
++    private(set) var isInsertingLiteralText = false
++    private(set) var isConfirmingMarkedText = false
+     private var renderedText = ""
+     private var renderedPresentation: SlashCommandComposerPresentation?
+     private var renderedPlaceholder = ""
+     private var renderedFontSize: CGFloat?
+     private var lastDrawnSize: CGSize = .zero
+ 
++    override init(frame: CGRect, textContainer: NSTextContainer?) {
++        super.init(frame: frame, textContainer: textContainer)
++        returnKeyType = .send
++    }
++
++    required init?(coder: NSCoder) {
++        super.init(coder: coder)
++        returnKeyType = .send
++    }
++
++    override func insertText(_ text: String) {
++        let previous = isConfirmingMarkedText
++        if (text == "\n" || text == "\r") && markedTextRange != nil { isConfirmingMarkedText = true }
++        defer { isConfirmingMarkedText = previous }
++        super.insertText(text)
++    }
++
++    override func paste(_ sender: Any?) {
++        let previous = isInsertingLiteralText
++        isInsertingLiteralText = true
++        defer { isInsertingLiteralText = previous }
++        super.paste(sender)
++    }
++
++    override var keyCommands: [UIKeyCommand]? {
++        guard markedTextRange == nil else { return super.keyCommands }
++        let newline = UIKeyCommand(input: "\r", modifierFlags: .shift, action: #selector(insertComposerLineBreak(_:)))
++        newline.discoverabilityTitle = String(localized: "换行")
++        newline.wantsPriorityOverSystemBehavior = true
++        return (super.keyCommands ?? []) + [newline]
++    }
++
++    @objc func insertComposerLineBreak(_ command: UIKeyCommand) {
++        guard markedTextRange == nil else { return }
++        let previous = isInsertingLiteralText
++        isInsertingLiteralText = true
++        defer { isInsertingLiteralText = previous }
++        insertText("\n")
++    }
++
+     // 占位提示是在 draw(_:) 里自绘的。UIView 默认 contentMode 是 scaleToFill，
+     // 尺寸变化时系统只会拉伸旧的绘制结果而不会重绘：折叠屏从展开变为折叠后，
+     // 输入框变窄，提示文字就被横向压扁。尺寸一变就主动重绘。
+@@ -1146,7 +1204,8 @@ struct ConversationView: View {
+                 presentation: slashPresentation,
+                 state: voiceState,
+                 voice: store.voiceInput,
+-                onHoldingChanged: { voiceTouchActive = $0 }
++                onHoldingChanged: { voiceTouchActive = $0 },
++                onSubmit: submitComposerReturn
+             )
+             .offset(y: voiceState.voiceMode ? -4 : 0)
+             if let pending = voiceState.pendingTranscript {
+@@ -1186,42 +1245,7 @@ struct ConversationView: View {
+                     ContextUsagePopover(snapshot: store.selectedContextSnapshot)
+                 }
+ 
+-                Button {
+-                    if showsSessionStopButton {
+-                        store.cancelSelectedSession()
+-                        return
+-                    }
+-                    if !composerHasContent {
+-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+-                        let enteringVoice = !voiceState.voiceMode
+-                        composerIsFocused = !enteringVoice
+-                        store.voiceInput.setVoiceMode(enteringVoice)
+-                        return
+-                    }
+-                    let content = store.composedSlashMessage(arguments: draft)
+-                    let images = pendingImages
+-                    guard store.send(content, images: images) else { return }
+-                    if store.messageSubmissionPending {
+-                        submittedQueueDraft = draft
+-                        submittedQueueImages = images
+-                        submittedQueueSessionID = store.selectedSessionId
+-                        return
+-                    }
+-                    if store.commandSubmissionPending {
+-                        composerIsFocused = false
+-                        return
+-                    }
+-                    draft = ""
+-                    store.clearActiveSlashCommand()
+-                    pendingImages = []
+-                    selectedPhotoItems = []
+-                    composerIsFocused = false
+-                    // Sending establishes a new tail-following intent before
+-                    // the gateway echoes the user event. The subsequent user
+-                    // bubble and first reasoning block can therefore grow
+-                    // above the composer without ever being hidden behind it.
+-                    viewportScrollToBottomToken &+= 1
+-                } label: {
++                Button(action: performComposerAction) {
+                     Group {
+                         if showsSessionStopButton {
+                             RoundedRectangle(cornerRadius: 3, style: .continuous)
+@@ -1237,11 +1261,7 @@ struct ConversationView: View {
+                     .background(DSHColor.ocean, in: Circle())
+                 }
+                 .buttonStyle(.plain)
+-                .disabled(
+-                    !store.selectedMemberCanSend || (showsSessionStopButton
+-                        ? store.isCancellingSelectedSession
+-                        : (composerHasContent && (store.sessionAgentPreset.blocksSending || store.waitingForNewSession || isImportingImages || store.fileUploads.preparing || (!store.fileUploads.drafts.isEmpty && !store.fileUploads.canSend) || store.commandSubmissionPending || store.messageSubmissionPending)))
+-                )
++                .disabled(composerActionDisabled)
+                 .opacity(
+                     showsSessionStopButton
+                         ? (store.isCancellingSelectedSession ? 0.66 : 1)
+@@ -1534,6 +1554,54 @@ struct ConversationView: View {
+         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingImages.isEmpty || !store.fileUploads.drafts.isEmpty || store.fileUploads.preparing
+     }
+ 
++    private var composerActionDisabled: Bool {
++        !store.selectedMemberCanSend || (showsSessionStopButton
++            ? store.isCancellingSelectedSession
++            : (composerHasContent && (store.sessionAgentPreset.blocksSending || store.waitingForNewSession || isImportingImages || store.fileUploads.preparing || (!store.fileUploads.drafts.isEmpty && !store.fileUploads.canSend) || store.commandSubmissionPending || store.messageSubmissionPending)))
++    }
++
++    private func submitComposerReturn() {
++        // Return is exclusively Send: an empty/busy composer must not toggle
++        // voice mode or accidentally activate the generation Stop action.
++        guard composerHasContent, !showsSessionStopButton, !composerActionDisabled else { return }
++        performComposerAction()
++    }
++
++    private func performComposerAction() {
++        guard !composerActionDisabled else { return }
++        if showsSessionStopButton {
++            store.cancelSelectedSession()
++            return
++        }
++        if !composerHasContent {
++            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
++            let enteringVoice = !voiceState.voiceMode
++            composerIsFocused = !enteringVoice
++            store.voiceInput.setVoiceMode(enteringVoice)
++            return
++        }
++        let content = store.composedSlashMessage(arguments: draft)
++        let images = pendingImages
++        guard store.send(content, images: images) else { return }
++        if store.messageSubmissionPending {
++            submittedQueueDraft = draft
++            submittedQueueImages = images
++            submittedQueueSessionID = store.selectedSessionId
++            return
++        }
++        if store.commandSubmissionPending {
++            composerIsFocused = false
++            return
++        }
++        draft = ""
++        store.clearActiveSlashCommand()
++        pendingImages = []
++        selectedPhotoItems = []
++        composerIsFocused = false
++        // Match the original button's tail-following intent before the echo.
++        viewportScrollToBottomToken &+= 1
++    }
++
+     private var showsSessionStopButton: Bool {
+         store.selectedMemberCanSend && store.supportsSessionCancel && store.selectedSession?.isRunning == true && !composerHasContent
+     }
+diff --git a/DeepSeekHarnessMobile/Views/RootView.swift b/DeepSeekHarnessMobile/Views/RootView.swift
+index 7f51ba8..d162929 100644
+--- a/DeepSeekHarnessMobile/Views/RootView.swift
++++ b/DeepSeekHarnessMobile/Views/RootView.swift
+@@ -27,6 +27,15 @@ struct RootView: View {
+                       let profile = hosts.profiles.first(where: { $0.id == route.gatewayID }) else { return }
+                 hosts.select(profile)
+             }
++            .onOpenURL { url in
++                guard url.scheme == "dshmobile", url.host == "pair" else { return }
++                do {
++                    try hosts.pair(LocalGatewayPairingURL.payload(from: url))
++                } catch {
++                    // Do not log the one-time capability or its URL.
++                    hosts.error = "本机配对链接无效或已过期，请重新生成。"
++                }
++            }
+     }
+ }
+ 
+diff --git a/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift b/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift
+index 31d01a3..08af0f9 100644
+--- a/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift
++++ b/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift
+@@ -255,6 +255,32 @@ private enum GatewayProtocolParityFixtures {
+ 
+ @MainActor
+ final class AgentIdleBackgroundAllowanceTests: XCTestCase {
++    func testIndependentLocalHostSkipsLongKeepAliveButRetainsTurnOwnership() {
++        let application = BackgroundTaskApplicationSpy()
++        let keepAlive = AgentLongRunningKeepAliveSpy()
++        let controller = AgentBackgroundExecutionController(application: application, longRunningKeepAlive: keepAlive)
++        controller.permitsLongRunningKeepAlive = { false }
++        controller.begin(sessionID: "local-session", startsNewTurn: true)
++        controller.applicationDidEnterBackground()
++        XCTAssertTrue(controller.isAgentWorkActive)
++        XCTAssertFalse(keepAlive.agentWorkIsActive)
++        XCTAssertEqual(application.beginCallCount, 1)
++        controller.turnEnded(sessionID: "local-session")
++        XCTAssertFalse(controller.isAgentWorkActive)
++    }
++
++    func testRemoteHostRetainsExistingLongKeepAliveBehavior() {
++        let application = BackgroundTaskApplicationSpy()
++        let keepAlive = AgentLongRunningKeepAliveSpy()
++        let controller = AgentBackgroundExecutionController(application: application, longRunningKeepAlive: keepAlive)
++        controller.begin(sessionID: "remote-session", startsNewTurn: true)
++        XCTAssertTrue(keepAlive.agentWorkIsActive)
++        controller.applicationDidEnterBackground()
++        XCTAssertTrue(keepAlive.agentWorkIsActive)
++        controller.turnEnded(sessionID: "remote-session")
++        XCTAssertFalse(keepAlive.agentWorkIsActive)
++    }
++
+     func testIdleEntryRequestsOneAllowanceWithoutStartingAgentWork() {
+         let application = BackgroundTaskApplicationSpy()
+         let keepAlive = AgentLongRunningKeepAliveSpy()
+@@ -333,6 +359,27 @@ final class AgentIdleBackgroundAllowanceTests: XCTestCase {
+ 
+ @MainActor
+ final class AgentLiveActivityLifecycleTests: XCTestCase {
++    func testBackendManagedLocalHostDropsItsPendingCardsAndPreservesRemoteHost() {
++        var appState: UIApplication.State = .background
++        var requestedGateways: [String] = []
++        let manager = AgentLiveActivityManager(
++            applicationState: { appState },
++            requestActivity: { attributes, _, _ in
++                requestedGateways.append(attributes.gatewayID)
++                throw URLError(.unknown)
++            },
++            restoresSystemActivities: false
++        )
++        manager.sessionStarted(gatewayID: "local", sessionID: "local-session", title: "Local", turn: 1)
++        manager.sessionStarted(gatewayID: "remote", sessionID: "remote-session", title: "Remote", turn: 1)
++        manager.setBackendManaged(true, gatewayID: "local")
++        manager.reconcileSessions(gatewayID: "local", runningBySessionID: ["local-session": true])
++        appState = .active
++        manager.applicationDidBecomeActive()
++        manager.sessionStarted(gatewayID: "local", sessionID: "another-local", title: "Local", turn: 2)
++        XCTAssertEqual(requestedGateways, ["remote"])
++    }
++
+     func testBackgroundEventsWaitForForegroundAndUseLatestState() {
+         var appState: UIApplication.State = .background
+         var requestedDetails: [String?] = []
+@@ -577,6 +624,48 @@ private func stage9WriteMatches(for property: String, in source: String) throws
+ }
+ 
+ final class SlashCommandComposerPresentationTests: XCTestCase {
++    @MainActor
++    func testReturnUsesSubmitCallbackAndPreservesMultilineInput() throws {
++        var draft = "latest native text"
++        var submitted: [String] = []
++        let input = SlashCommandTextView(text: Binding(get: { draft }, set: { draft = $0 }),
++            presentation: nil, placeholder: "Message", isFocused: .constant(false),
++            onSubmit: { submitted.append(draft) })
++        let coordinator = input.makeCoordinator()
++        let editor = CommandTextView()
++        editor.delegate = coordinator
++        editor.text = "最新的原生输入"
++        XCTAssertEqual(editor.returnKeyType, .send)
++        XCTAssertFalse(coordinator.textView(editor, shouldChangeTextIn: NSRange(location: (editor.text as NSString).length, length: 0), replacementText: "\n"))
++        XCTAssertEqual(submitted, ["最新的原生输入"], "先同步原生文字，再走现有发送回调")
++        XCTAssertEqual(editor.text, "最新的原生输入", "Return 不应向草稿插入换行")
++        XCTAssertTrue(coordinator.textView(editor, shouldChangeTextIn: NSRange(location: 0, length: 0), replacementText: "first\nsecond"))
++        XCTAssertEqual(submitted.count, 1, "粘贴多行不能被当作发送")
++    }
++
++    @MainActor
++    func testMarkedTextReturnDoesNotSendAndShiftReturnInsertsNewline() throws {
++        var draft = ""
++        var submissionCount = 0
++        let input = SlashCommandTextView(text: Binding(get: { draft }, set: { draft = $0 }),
++            presentation: nil, placeholder: "Message", isFocused: .constant(false),
++            onSubmit: { submissionCount += 1 })
++        let coordinator = input.makeCoordinator()
++        let editor = CommandTextView()
++        editor.delegate = coordinator
++        editor.setMarkedText("nihao", selectedRange: NSRange(location: 5, length: 0))
++        XCTAssertNotNil(editor.markedTextRange)
++        XCTAssertTrue(coordinator.textView(editor, shouldChangeTextIn: NSRange(location: 5, length: 0), replacementText: "\n"))
++        XCTAssertEqual(submissionCount, 0, "中文候选确认不能发送")
++        editor.unmarkText()
++        editor.text = "line"
++        editor.selectedRange = NSRange(location: 4, length: 0)
++        let command = try XCTUnwrap(editor.keyCommands?.first { $0.input == "\r" && $0.modifierFlags == .shift })
++        editor.insertComposerLineBreak(command)
++        XCTAssertEqual(editor.text, "line\n")
++        XCTAssertEqual(submissionCount, 0, "硬件 Shift+Return 保留显式换行")
++    }
++
+     func testActiveCommandPresentationRendersOneCompleteTextLayer() {
+         let hint = slashCommandComposerPresentation(
+             draft: "/plan ",
+diff --git a/DeepSeekHarnessMobileTests/MultiGatewayTests.swift b/DeepSeekHarnessMobileTests/MultiGatewayTests.swift
+index a890023..5490d48 100644
+--- a/DeepSeekHarnessMobileTests/MultiGatewayTests.swift
++++ b/DeepSeekHarnessMobileTests/MultiGatewayTests.swift
+@@ -12,6 +12,38 @@ private final class MigrationTestCredentials: GatewayCredentialStoring {
+ final class MultiGatewayTests: XCTestCase {
+     private let gatewayID = "d56a1098-8519-43a1-9dce-fb99863bf5bb"
+ 
++    func testLoopbackPolicyDoesNotChangeLANOrRemoteHosts() {
++        for value in ["ws://127.0.0.1:3080/ws/mobile", "ws://localhost:3080/ws/mobile", "ws://[::1]:3080/ws/mobile"] {
++            XCTAssertTrue(GatewayIdentity.isLoopbackEndpoint(value))
++        }
++        for value in ["ws://192.168.1.10:3081/ws/mobile", "wss://gateway.example/ws/mobile", "ws://127.0.0.1/ws/mobile?token=secret"] {
++            XCTAssertFalse(GatewayIdentity.isLoopbackEndpoint(value))
++        }
++    }
++
++    func testLocalPairingURLOnlyAcceptsFreshOwnPhoneCapabilities() throws {
++        let now = Date(timeIntervalSince1970: 1_000)
++        func link(endpoint: String = "ws://127.0.0.1:3080/ws/mobile", candidates: [String]? = nil,
++                  expiry: Double = 1_300_000, duplicate: Bool = false) throws -> URL {
++            let payload = GatewayPairingPayload(version: 2, publicUrl: endpoint, pairingCode: "once",
++                expiresAt: expiry, gatewayId: gatewayID, endpoints: candidates)
++            let raw = try JSONEncoder().encode(payload).base64EncodedString()
++                .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
++                .replacingOccurrences(of: "=", with: "")
++            var parts = URLComponents(string: "dshmobile://pair")!
++            parts.queryItems = [URLQueryItem(name: "payload", value: raw)]
++            if duplicate { parts.queryItems?.append(URLQueryItem(name: "payload", value: raw)) }
++            return parts.url!
++        }
++        XCTAssertFalse(try LocalGatewayPairingURL.payload(from: link(), now: now).isEmpty)
++        for bad in [try link(endpoint: "ws://192.168.1.1:3080/ws/mobile"),
++                    try link(endpoint: "wss://remote.example/ws/mobile"),
++                    try link(candidates: ["wss://remote.example/ws/mobile"]),
++                    try link(expiry: 999_000), try link(expiry: 1_601_000), try link(duplicate: true)] {
++            XCTAssertThrowsError(try LocalGatewayPairingURL.payload(from: bad, now: now))
++        }
++    }
++
+     func testIdentityCannotDowngradeOrChange() throws {
+         try GatewayIdentity.validate(expected: nil, received: nil)
+         try GatewayIdentity.validate(expected: gatewayID, received: gatewayID.uppercased())

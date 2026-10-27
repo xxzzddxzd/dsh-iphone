@@ -12,6 +12,8 @@ RUNTIME_ROOT=${DSH_RUNTIME_ROOT:-"$ROOT/build/dsh-runtime"}
 [ -f "$RUNTIME_ROOT/package.json" ] || "$SCRIPT_DIR/prepare-dsh.sh" >/dev/null
 package_version=$(node -p "require('$RUNTIME_ROOT/node_modules/node-addon-require-builtin/package.json').version")
 [ "$package_version" = "$REQUIRE_BUILTIN_VERSION" ] || die "unexpected require-builtin runtime version: $package_version"
+loader_version=$(node -p "require('$RUNTIME_ROOT/node_modules/node-addon-native-custom-loader/package.json').version")
+[ "$loader_version" = "$REQUIRE_BUILTIN_VERSION" ] || die "unexpected native custom loader runtime version: $loader_version"
 "$SCRIPT_DIR/fetch-require-builtin.sh" >/dev/null
 [ -f "$ROOT/build/node-v$NODE_VERSION/src/node_api.h" ] || "$SCRIPT_DIR/fetch-node.sh" >/dev/null
 
@@ -30,6 +32,11 @@ const target = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).targets[0];
 assert.deepEqual(target.defines, ['NAPI_VERSION=9', 'NODE_ADDON_API_DISABLE_CPP_EXCEPTIONS']);
 const napi = target.conditions[0][2];
 assert.deepEqual(napi.defines, ['NARB_BACKEND=1']);
+assert.deepEqual(target.conditions[1], [
+  "narb_product=='require-builtin'",
+  { defines: ['NARB_PRODUCT=1'] },
+  { defines: ['NARB_PRODUCT=2'] },
+]);
 for (const source of [...target.sources, ...napi.sources]) {
   assert.match(source, /^src\/[a-z0-9_/]+\.cc$/);
   assert.ok(!source.includes('nodeabi'), 'N-API build must not include Node ABI sources');
@@ -37,7 +44,7 @@ for (const source of [...target.sources, ...napi.sources]) {
 }
 JS
 )
-[ "${#sources[@]}" -eq 29 ] || die "require-builtin source list changed"
+[ "${#sources[@]}" -eq 30 ] || die "require-builtin source list changed"
 
 IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
 CXX=$(xcrun --sdk iphoneos -f clang++)

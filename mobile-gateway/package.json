@@ -1,0 +1,9 @@
+{
+  "name": "dsh-iphone-mobile-gateway-build",
+  "version": "0.11.1",
+  "private": true,
+  "description": "Frozen production inputs for the local iPhone DSH mobile gateway",
+  "dependencies": {
+    "dsh-plugin-mobile-gateway": "0.11.1"
+  }
+}

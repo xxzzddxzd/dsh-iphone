@@ -2,6 +2,16 @@
 /* Touch focus persists after tapping; hover hints must never cover the page. */
 html [role="tooltip"] { display: none !important; pointer-events: none !important; }
 .dsh-ios-sidebar-backdrop { display: none; }
+/* iOS 16 shows a web app at the orientation of the app it came from and only
+   then rotates to the device orientation. Cover that transient frame so DSH
+   never paints landscape content on a launch or an app switch. */
+.dsh-ios-settling-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: var(--dsw-alias-bg-base, Canvas);
+}
+.dsh-ios-settling-cover[hidden] { display: none; }
 @media (max-width: 1023px) {
   html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
   #root { min-width: 0; max-width: 100%; }

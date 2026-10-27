@@ -12,6 +12,7 @@
 #import <time.h>
 #import <unistd.h>
 #import <string.h>
+#import "../navigation/DSHNavigation.h"
 
 extern char **environ;
 
@@ -114,6 +115,20 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
   }
   NSDictionary *task = value;
   NSString *sessionID = task[@"sessionID"];
+  NSString *launchURL = task[@"launchURL"] ?: @"";
+  if (![launchURL isKindOfClass:[NSString class]] || launchURL.length > 8192) {
+    if (errorMessage != NULL) *errorMessage = @"invalid launchURL";
+    return nil;
+  }
+  if (launchURL.length > 0 && !DSHIsNativeSessionURL([NSURL URLWithString:launchURL])) {
+    NSURLComponents *parts = [NSURLComponents componentsWithString:launchURL];
+    BOOL loopback = [parts.host isEqualToString:@"127.0.0.1"] || [parts.host isEqualToString:@"localhost"];
+    if (!loopback || ![parts.scheme isEqualToString:@"http"] || parts.user != nil || parts.password != nil ||
+        (parts.port != nil && parts.port.integerValue != 3080) || parts.fragment != nil) {
+      if (errorMessage != NULL) *errorMessage = @"invalid launchURL";
+      return nil;
+    }
+  }
   NSString *title = task[@"title"];
   NSString *phase = task[@"phase"];
   NSString *detail = task[@"detail"];
@@ -188,6 +203,7 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
 
   return @{
     @"sessionID": sessionID,
+    @"launchURL": launchURL,
     @"title": title,
     @"phase": phase,
     @"detail": detail,

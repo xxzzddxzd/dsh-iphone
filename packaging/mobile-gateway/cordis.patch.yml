@@ -1,0 +1,26 @@
+# iPhone-only gateway: keep the existing DSH web process and loopback listener.
+# The native App pairs with this endpoint on the same phone.
+- insert:
+    - id: mobile-gateway
+      name: dsh-plugin-mobile-gateway
+      config:
+        path: /ws/mobile
+        gatewayMode: persistent
+        gatewayName: iPhone DSH
+        requireAuth: true
+        adminLoopbackOnly: true
+        allowQueryToken: false
+        lanEnabled: false
+        publicUrl: ws://127.0.0.1:3080/ws/mobile
+        endpoints:
+          - ws://127.0.0.1:3080/ws/mobile
+        publicUrlFile: ''
+        deviceFile: /var/root/.dsh/mobile-gateway-devices.json
+        gatewayStateFile: /var/root/.dsh/mobile-gateway-state.json
+
+# The iPhone Node 22 SQLite backend is already present. Open its in-memory
+# search index on demand; no extra native npm dependency or persistent DB.
+- id: session-query-sqlite
+  config:
+    path: ':memory:'
+    openAt: first-search

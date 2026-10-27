@@ -127,7 +127,7 @@ const upstreamPackage = JSON.parse(await readFile(
   new URL("../upstream/deepseek-harness/package.json", import.meta.url),
   "utf8",
 ));
-assert.equal(upstreamPackage.version, "0.2.0-rc.2");
+assert.equal(upstreamPackage.version, "0.2.1-rc.2");
 const officialConnectionContract = await readFile(
   new URL(
     "../upstream/deepseek-harness/packages/client/connection/README.md",
@@ -697,6 +697,7 @@ if (pluginAvailable) {
     operation: "update",
     task: {
       sessionID: "running-a",
+      launchURL: "http://127.0.0.1:3080/?session=running-a",
       title: "较早任务",
       phase: "正在执行计划",
       detail: "验证 Live Activity",

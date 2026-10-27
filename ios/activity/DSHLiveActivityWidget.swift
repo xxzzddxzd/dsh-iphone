@@ -251,6 +251,7 @@ private struct DSHActivityLockScreenView: View {
   }
 
   private var sessionURL: URL? {
+    if let raw = context.state.launchURL, let url = URL(string: raw), DSHNavigation.isNativeSessionURL(url) { return url }
     var components = URLComponents(string: "http://127.0.0.1:3080/")
     components?.queryItems = [URLQueryItem(name: "session", value: context.state.sessionID)]
     return components?.url

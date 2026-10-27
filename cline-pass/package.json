@@ -1,0 +1,9 @@
+{
+  "name": "dsh-iphone-cline-pass-build",
+  "version": "0.2.13",
+  "private": true,
+  "description": "Integrity-locked upstream Cline Pass input; DSH peers are provided by the Host",
+  "dependencies": {
+    "dsh-cline-pass": "0.2.13"
+  }
+}

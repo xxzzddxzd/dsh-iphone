@@ -6,7 +6,7 @@ import vm from "node:vm";
 const source = await readFile(new URL("../web/connection-recovery.js", import.meta.url), "utf8");
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 
-function setup(initialState = "connected") {
+function setup(initialState = "connected", hostname = "example.test") {
   let now = 0;
   let nextId = 0;
   const timers = new Map();
@@ -20,7 +20,7 @@ function setup(initialState = "connected") {
   document.draft = "尚未发送的草稿";
   browser.location = { reload() { throw new Error("page reload loses local state"); } };
   const context = vm.createContext({
-    window: browser, document, AbortController, console: browserConsole,
+    window: browser, document, location: { hostname }, AbortController, console: browserConsole,
     Date: { now: () => now },
     setTimeout(fn, delay = 0) { const id = ++nextId; timers.set(id, { at: now + delay, fn }); return id; },
     clearTimeout(id) { timers.delete(id); },
@@ -120,6 +120,36 @@ function setup(initialState = "connected") {
   t.dispose();
 }
 {
+  // An app switch that never suspended the web process must not replace the
+  // mux: prove it with one control probe instead of reconnecting.
+  const t = setup();
+  t.visibility("hidden"); await t.advance(500);
+  t.visibility("visible"); await t.advance(1_000);
+  assert.equal(t.counters().opens, 1, "a brief hide is proven by a probe");
+  assert.equal(t.counters().reconnects, 0, "a brief hide keeps the existing mux");
+  t.dispose();
+}
+{
+  const t = setup(); t.mode("stalled");
+  t.visibility("hidden"); await t.advance(500);
+  t.visibility("visible"); await t.advance(6_000);
+  assert.equal(t.counters().reconnects, 1, "a brief hide still recovers an unresponsive mux");
+  assert.equal(t.status().lastReason, "page-visible");
+  t.dispose();
+}
+{
+  const t = setup("connected", "127.0.0.1");
+  t.browser.dispatchEvent(new Event("online"));
+  assert.equal(t.counters().reconnects, 0, "a radio change cannot affect the on-device Host");
+  t.dispose();
+}
+{
+  const t = setup();
+  t.browser.dispatchEvent(new Event("online"));
+  assert.equal(t.counters().reconnects, 1, "a remote Host still recovers when the network returns");
+  t.dispose();
+}
+{
   const t = setup(); t.show(false); assert.equal(t.counters().reconnects, 0);
   t.show(true); assert.equal(t.counters().reconnects, 1);
   t.dispose();
@@ -167,7 +197,7 @@ function setup(initialState = "connected") {
 }
 
 const client = await readFile(new URL(
-  "../build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-connection/lib/client.js", import.meta.url,
+  "../build/dsh-runtime/node_modules/@deepseek-ai/dsh-client-connection/lib/client.browser.js", import.meta.url,
 ), "utf8");
 const watcher = client.match(/function watchBrowserNetwork\(controller\) \{[\s\S]*?^\t\t\}/m)?.[0];
 assert.ok(watcher, "locked browser network watcher exists");
@@ -182,4 +212,4 @@ for (const [hostname, expected] of [["127.0.0.1", true], ["example.test", false]
   window.dispatchEvent(new Event("online")); assert.equal(values.at(-1), true);
   dispose(); window.dispatchEvent(new Event("offline")); assert.equal(values.length, 3);
 }
-console.log("iOS connection recovery: stalled mux, background/BFCache, offline loopback, cancellation and draft preservation passed");
+console.log("iOS connection recovery: stalled mux, brief app switch, background/BFCache, offline loopback, cancellation and draft preservation passed");
