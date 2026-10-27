@@ -51,7 +51,7 @@ node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 | Node engine、native addon、subprocess 或 PTY 改变 | 检查所有平台分支、rootless 路径、ABI、签名、原生加载、终端启动与清理；先做设备原生探针，再做真实 Bash |
 | Settings、storage、LLM 或工具上下文改变 | 对齐 Provider peers，检查偏好导入/持久化、默认模型、OAuth、pi-ai transcript、图片与压缩接口 |
 | 会话格式、事件或持久化改变 | 使用备份和官方历史格式目录；确认旧世代保留、子会话事实、插件自有事件和新 writer 格式 |
-| 通知/Live Activity 事件或原生注入改变 | 验证完成、审批、问答、目标和终态；只有注入代码确实改变才 respring |
+| 通知/Live Activity 事件、Widget 承载或原生注入改变 | 验证完成、审批、问答、目标和终态；核对精确安装能力、配对 session、Activity target、系统渲染与实际显示；只有注入代码确实改变才 respring |
 
 原生 App 是前端：Host 继续拥有会话、模型认证、工具、审批和执行；Gateway 只适配传输，App 的 KMP/SwiftUI/UIKit 负责客户端投影与交互。先复用上游能力，再审计本项目的本机配对、后台职责和导航补丁，不把旧 WebKit 壳当作原生业务前端。
 
@@ -86,9 +86,11 @@ iPhone 原生路径还要构建并验证：
 NATIVE_APP_SOURCE=/path/to/reviewed-whaleness ./scripts/build-native-app.sh
 python3 -B tests/test-native-app.py
 node tests/test-mobile-gateway.mjs --root build/mobile-gateway/package
+node tests/test-activity-target.mjs
+node tests/test-activity-validation.mjs
 ```
 
-源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build 与 SHA。保持 App bundle ID、数据容器和 Keychain 身份；不要把上游 build 32 的校验信息当作本地 build 34 的证明。详见[原生 App 接入](./native-app.md)。
+源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build、SHA 和能力。本次活动栏版本为 Whaleness `1.7.11 / build 37`、DSH Debian `0.2.1~rc.2-2`，以最终构建记录为准。保持 App bundle ID、数据容器和 Keychain 身份；不要把上游 build 32 或既有 build 34 的校验信息当作新归档的证明。`DSHRootActivityWidget` / `DSHActivityAttributes` 必须实际编入现有 Widget 扩展，manifest 同时声明 `root-live-activity-widget-v1`。详见[原生 App 接入](./native-app.md)。
 
 ## 保存双端基线
 
@@ -106,7 +108,7 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
 
 若上游改变 Remote 协议、需要修改验收器，先用当前版本的验收器保存生产基线，再适配工具；保留旧报告，部署前重新确认空闲。基线无需等待所有构建完成，但一致性数据备份必须在服务停止后进行。
 
-随后按 SOP 停止服务，备份 Mac/手机的 DSH home、Mac LaunchAgent、旧程序和可回滚 deb。原生路径还保留网关设备/身份文件、App 非敏感 profile 映射及旧 IPA/manifest；App 升级保留真实 Keychain，不以脚本导入或伪造凭据。**程序版本回滚与用户数据回滚是两件事**，格式已经迁移时不能只换回旧程序。
+随后按 SOP 停止服务，备份 Mac/手机的 DSH home、Mac LaunchAgent、旧程序和可回滚 deb。原生路径还保留网关设备/身份文件、App 非敏感 profile 映射、两份活动栏支持记录及旧 IPA/manifest；保留其原权限，App 升级保留真实 Keychain，不以脚本导入或伪造凭据。旧支持记录只用于审计，回滚后应针对实际安装版本重新校验并发布，不能直接恢复一份不再匹配的能力标记。**程序版本回滚与用户数据回滚是两件事**，格式已经迁移时不能只换回旧程序。
 
 ## 双端部署与验收
 
@@ -172,9 +174,24 @@ DEVICE_HOST='<iPhone IP>' DEVICE_PORT=22 LOCAL_PORT=13081 \
 
 该工具创建自己的短期测试配对，只读取工作区、原会话历史和 snapshot、验证 token 重连及模型目录，完成后撤销自己创建的测试设备；不发送消息、不注入 App Keychain，保留 App 原配对。它不替代 Provider 的完整目录失败门禁，也不代表真实 App 的视觉、键盘与后台行为全部完成。
 
-App 实测需要分别记录：真实 Keychain 配对、冷启动、旧会话、流式与工具结果、中文候选确认、Return/Shift+Enter、软/硬件键盘、横竖屏/安全区、前后台恢复，以及通知/Activity 点击落到原生根会话。build 34 的回车发送改动应独立验证；已有安装或 API 成功不能代替 IME 实机证据。
+App 实测需要分别记录：真实 Keychain 配对、冷启动、旧会话、流式与工具结果、中文候选确认、Return/Shift+Enter、软/硬件键盘、横竖屏/安全区、前后台恢复，以及通知/Activity 点击落到原生根会话。既有 build 34 的回车发送和点击验收不证明 build 37 活动栏可见；已有安装或 API 成功也不能代替 IME 实机证据。
 
-本机通知和 Live Activity 仍由 root 后台权威链负责，App 对 loopback 主机跳过重复保活/通知/Activity。只有通知桥/SpringBoard 注入代码确实变化时，全部安装结束后统一一次 respring；仅 Node/JS/Web/Gateway/App 内容变化无需额外 respring，也不能用它代替连接恢复。具体结果留在更新记录，不提前写成全通过。
+本机通知与 Live Activity 状态仍由 root Host 的权威链提供，独立 Activity broker 以 mobile UID 501 运行，App 对 loopback 主机跳过重复保活/通知/Activity 创建。build 37 的 Widget 只承载旧活动栏视图。安装器在验证准确安装的 App/Widget 版本与签名后发布 root 私有 `0600` 支持记录，以及 `/var/mobile/Library/DSHNotifier/native-client/activity-widget.json` 的 root `0644` 非敏感镜像（父目录 root `0755`）；不能放松 `/var/root` 权限或把 broker 改为 root。安装不支持版本时只清理本工具生成的记录，保留配对、映射与凭据。
+
+活动栏升级按[专门检查流程](./notifications.md#活动栏迁移检查流程)逐项验证：
+
+- manifest 能力与精确安装版本匹配，两份支持记录一致，真实配对/激活 profile 生成的 session 地址与任务匹配。
+- `dsh-activity inspect` 的实际 `targetBundleId` 为本次预期目标，`activityId` 与任务一致；target 迁移先成功 end 旧卡，再 create 新 UUID。`preferredTargetBundleId` 只说明安装能力，不能代替实际选择。
+- ActivityKit 接受请求、chronod 实际使用扩展、通知中心/锁屏卡片可见分别留证；LaunchServices 注册、XPC descriptor/UUID 或 `status active` 均不等于视觉通过。
+- App 前台、退出和锁屏下的更新/结束、等待与终态、用户划除、新任务换卡和准确会话跳转均有实测；没有重复卡或异常唤醒。条件不足时旧目标回退要明确记录；原生目标选定后的错误不能悄悄回退。
+
+原生安装额外验证 Widget 的明确签名身份和实际描述符版本；helper 与权限文件 hash 必须在设备写入前匹配。缓存中的主 App/Widget 两个 build 要与磁盘、LaunchServices、manifest 一致。仅已确认的旧缓存可以重载一次 chronod 并重试；普通错误直接撤销本工具支持标记。不要清系统数据库或把全局缓存重置当作升级步骤。
+
+构建包含订阅实现改动时，提供 `NATIVE_APP_SOURCE` 运行 `scripts/verify.sh`，或显式执行 `node tests/test-native-subscription-timeout.mjs "$NATIVE_APP_SOURCE/DeepSeekHarnessMobile/Core/GatewayClient.swift"`。它运行真实 Swift 生命周期方法，覆盖后台/前台、迟到 ACK、快速切换、断线及真正超时；不以源码字符串检查代替行为测试。另核对本机模式不预取其他冷会话。
+
+性能按空闲、实际任务运行、App 前台/锁屏分别采样 CPU 和物理内存，记录时间窗与任务数；不能把空闲值当作工作时的功耗承诺。Node 的 `ri_user_time`/`ri_system_time` 使用 Mach 时钟，必须与 `mach_absolute_time` 同单位求差或按 timebase 换算。确认实际 Node 路径和编译产物身份，不为一次前端升级重装 Node。
+
+只有通知桥/SpringBoard 注入代码确实变化时，全部安装结束后统一一次 respring；仅 Node/JS/Web/Gateway/App 内容变化无需额外 respring，也不能用它代替连接恢复或 Widget 渲染诊断。具体结果留在更新记录，不提前写成全通过。
 
 ## 中断恢复与提交
 
@@ -185,8 +202,9 @@ App 实测需要分别记录：真实 Keychain 配对、冷启动、旧会话、
 | 手机包已安装但启动失败 | 保留当前日志与数据；修正程序、递增 revision、重建验证后再装 |
 | 会话或默认模型基线不符 | 先核对迁移和用户期间新增/修改；不能直接报告完成 |
 | xAI 等旧 OAuth 返回 invalid_grant | 保留凭据，由用户重新授权；不得忽略或隐藏目录失败 |
+| 原生 Activity 调用成功但通知中心/锁屏无卡 | 保留 target、UUID、系统/扩展日志并继续诊断；不能用 XPC 成功宣告完成或静默回退 |
 | 两端及本次原生功能均通过 | 更新记录，先推送共享 Provider，再推送 dsh-iphone |
 
-一次升级记录至少包含：目标版本/commit/integrity/cutoff、Provider 和 native pins、核心/Provider/Gateway/IPA 与源码补丁 SHA、双端备份路径、App 构建和真实配对状态、基线比较、真实工具结果、受影响功能验证及两个提交。只 stage 已审查的相关文件；保留其他任务的草稿和修改。记录双端分别完成的状态，手机仍待连接时不把整体标记为完成。
+一次升级记录至少包含：目标版本/commit/integrity/cutoff、Provider 和 native pins、核心/Provider/Gateway/IPA 与源码补丁 SHA、双端备份路径、App 构建和真实配对状态、基线比较、真实工具结果、受影响功能验证及两个提交。涉及活动栏时另记支持记录身份/权限、实际 target/UUID、系统渲染与可见性、迁移和生命周期结果。只 stage 已审查的相关文件；保留其他任务的草稿和修改。记录双端分别完成的状态，手机仍待连接或活动栏仍不可见时不把整体标记为完成。
 
 后续可直接使用任务指令：**“检查 DSH 和 Provider 组件的 latest 及模型目录；有更新则按双端 SOP 适配、构建、备份、部署和验收指定模型，完成后提交推送。”**

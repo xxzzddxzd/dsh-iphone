@@ -20,3 +20,11 @@ static BOOL DSHIsNativeSessionURL(NSURL *url) {
       @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-"] invertedSet];
   return [session rangeOfCharacterFromSet:invalid].location == NSNotFound;
 }
+
+static BOOL DSHIsNativeSessionURLForSession(NSURL *url, id sessionID) {
+  if (![sessionID isKindOfClass:NSString.class] || !DSHIsNativeSessionURL(url)) return NO;
+  for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems) {
+    if ([item.name isEqualToString:@"id"]) return [item.value isEqualToString:sessionID];
+  }
+  return NO;
+}

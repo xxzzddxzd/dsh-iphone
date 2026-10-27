@@ -13,6 +13,7 @@
 #import <unistd.h>
 #import <string.h>
 #import "../navigation/DSHNavigation.h"
+#import "DSHActivityTarget.h"
 
 extern char **environ;
 
@@ -24,6 +25,8 @@ static NSString *const DSHActivityTaskPath =
     @"/var/mobile/Library/DSHNotifier/activity.task";
 static NSString *const DSHActivityFinishedPath =
     @"/var/mobile/Library/DSHNotifier/activity.finished";
+static NSString *const DSHActivityTargetPath = @"/var/mobile/Library/DSHNotifier/activity.target";
+static NSString *const DSHActivityNativeSupportPath = @"/var/mobile/Library/DSHNotifier/native-client/activity-widget.json";
 static NSString *const DSHActivityWorkerPath =
     @"/var/jb/usr/local/lib/dsh/ios/DSHActivityOp";
 static const NSUInteger DSHActivityMaximumRequestBytes = 64 * 1024;
@@ -33,6 +36,7 @@ static const int64_t DSHActivityWorkerTimeoutMilliseconds = 7 * 1000;
 static NSString *DSHActivityIdentifier;
 static NSDictionary *DSHActivityTask;
 static BOOL DSHActivityFinished;
+static NSString *DSHActivityTargetBundle;
 
 static BOOL DSHActivityValidString(id value, NSUInteger maximumBytes, BOOL mayBeEmpty) {
   if (![value isKindOfClass:[NSString class]]) return NO;
@@ -62,7 +66,8 @@ static void DSHActivityReply(int client, NSString *status, NSString *detail) {
   setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled));
   NSString *line = detail.length == 0
       ? [NSString stringWithFormat:@"%@\n", status]
-      : [NSString stringWithFormat:@"%@ %@\n", status, DSHActivitySafeError(detail)];
+      : [NSString stringWithFormat:@"%@ %@\n", status,
+          [status isEqualToString:@"ERR"] ? DSHActivitySafeError(detail) : detail];
   NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
   const uint8_t *bytes = data.bytes;
   NSUInteger remaining = data.length;
@@ -140,6 +145,11 @@ static NSDictionary *DSHActivityValidatedState(id value, NSString **errorMessage
   NSString *toolDetail = task[@"toolDetail"] ?: detail;
   if (!DSHActivityValidString(sessionID, 512, NO)) {
     if (errorMessage != NULL) *errorMessage = @"invalid sessionID";
+    return nil;
+  }
+  NSURL *nativeURL = [NSURL URLWithString:launchURL];
+  if (DSHIsNativeSessionURL(nativeURL) && !DSHIsNativeSessionURLForSession(nativeURL, sessionID)) {
+    if (errorMessage != NULL) *errorMessage = @"launchURL does not match sessionID";
     return nil;
   }
   if (!DSHActivityValidString(title, 512, NO)) {
@@ -444,6 +454,15 @@ static void DSHActivityStoreIdentifier(NSString *identifier) {
   chmod(DSHActivityIdentifierPath.fileSystemRepresentation, 0600);
 }
 
+static void DSHActivityStoreTarget(NSString *target) {
+  DSHActivityTargetBundle = [target copy];
+  if (target == nil) { unlink(DSHActivityTargetPath.fileSystemRepresentation); return; }
+  if (![target writeToFile:DSHActivityTargetPath atomically:YES encoding:NSUTF8StringEncoding error:NULL]) {
+    NSLog(@"[DSHActivity] could not persist target identity");
+  }
+  chmod(DSHActivityTargetPath.fileSystemRepresentation, 0600);
+}
+
 static NSDictionary *DSHActivityTaskForState(NSDictionary *state) {
   return @{
     @"sessionID": state[@"sessionID"],
@@ -504,6 +523,8 @@ static void DSHActivityLoadIdentifier(void) {
       NSCharacterSet.whitespaceAndNewlineCharacterSet];
   if (identifier.length > 0 && [[NSUUID alloc] initWithUUIDString:identifier] != nil) {
     DSHActivityIdentifier = identifier;
+    NSString *target = [NSString stringWithContentsOfFile:DSHActivityTargetPath encoding:NSUTF8StringEncoding error:NULL];
+    DSHActivityTargetBundle = DSHActivityAllowedTarget(target) ? target : DSHActivityLegacyTarget;
     DSHActivityFinished = access(DSHActivityFinishedPath.fileSystemRepresentation, F_OK) == 0;
     DSHActivityLoadTask();
     NSLog(@"[DSHActivity] recovered activity %@", identifier);
@@ -513,14 +534,23 @@ static void DSHActivityLoadIdentifier(void) {
     }
     unlink(DSHActivityTaskPath.fileSystemRepresentation);
     unlink(DSHActivityFinishedPath.fileSystemRepresentation);
+    unlink(DSHActivityTargetPath.fileSystemRepresentation);
   }
+}
+
+static NSString *DSHActivityTargetForState(NSDictionary *state) {
+  NSString *supported = DSHActivitySelectTarget(DSHActivityNativeSupportPath, 0);
+  NSURL *url = [state[@"launchURL"] isKindOfClass:NSString.class] ? [NSURL URLWithString:state[@"launchURL"]] : nil;
+  return [supported isEqualToString:DSHActivityNativeTarget] && DSHIsNativeSessionURLForSession(url, state[@"sessionID"])
+      ? supported : DSHActivityLegacyTarget;
 }
 
 static BOOL DSHActivityCreate(NSDictionary *state, NSString **errorMessage) {
   NSString *stateJSON = DSHActivityStateJSON(state, errorMessage);
   if (stateJSON == nil) return NO;
   NSString *response = nil;
-  if (!DSHActivityRunWorker(@[@"create", stateJSON], &response, errorMessage)) return NO;
+  NSString *targetBundle = DSHActivityTargetForState(state);
+  if (!DSHActivityRunWorker(@[@"create", stateJSON, targetBundle], &response, errorMessage)) return NO;
   static NSString *const prefix = @"OK created ";
   NSString *identifier = [response hasPrefix:prefix]
       ? [response substringFromIndex:prefix.length]
@@ -530,8 +560,9 @@ static BOOL DSHActivityCreate(NSDictionary *state, NSString **errorMessage) {
     return NO;
   }
   DSHActivityStoreIdentifier(identifier);
+  DSHActivityStoreTarget(targetBundle);
   DSHActivityStoreTask(DSHActivityTaskForState(state));
-  NSLog(@"[DSHActivity] worker created %@ for ai.deepseek.dsh", identifier);
+  NSLog(@"[DSHActivity] worker created %@ for %@", identifier, targetBundle);
   return YES;
 }
 
@@ -548,10 +579,12 @@ static BOOL DSHActivityEnd(NSString **errorMessage) {
   if (identifier == nil) {
     DSHActivityStoreTask(nil);
     DSHActivityStoreFinished(NO);
+    DSHActivityStoreTarget(nil);
     return YES;
   }
   if (!DSHActivityRunWorker(@[@"end", identifier], NULL, errorMessage)) return NO;
   DSHActivityStoreIdentifier(nil);
+  DSHActivityStoreTarget(nil);
   DSHActivityStoreTask(nil);
   DSHActivityStoreFinished(NO);
   NSLog(@"[DSHActivity] worker ended %@", identifier);
@@ -565,11 +598,13 @@ static BOOL DSHActivityApplyState(NSDictionary *state, NSString **errorMessage) 
   // running card before its terminal state arrives. Updates for that same task
   // respect the dismissal; a later root turn always gets a fresh Activity ID.
   BOOL isNewTask = DSHActivityIdentifier != nil && !DSHActivityIsSameTask(state);
+  BOOL targetChanged = DSHActivityIdentifier != nil && ![DSHActivityTargetBundle
+      isEqualToString:DSHActivityTargetForState(state)];
   if (isNewTask) {
     NSLog(@"[DSHActivity] replacing activity %@ for new task", DSHActivityIdentifier);
   }
   if (DSHActivityIdentifier != nil &&
-      (isNewTask || (DSHActivityFinished && !nextFinished)) &&
+      (isNewTask || targetChanged || (DSHActivityFinished && !nextFinished)) &&
       !DSHActivityEnd(errorMessage)) {
     return NO;
   }
@@ -591,8 +626,20 @@ static void DSHActivityHandleClient(int client) {
       return;
     }
     NSString *operation = command[@"operation"];
+    if (![operation isKindOfClass:NSString.class]) {
+      DSHActivityReply(client, @"ERR", @"operation must be a string");
+      return;
+    }
     if ([operation isEqualToString:@"status"]) {
       DSHActivityReply(client, @"OK", DSHActivityIdentifier == nil ? @"idle" : @"active");
+      return;
+    }
+    if ([operation isEqualToString:@"inspect"]) {
+      NSDictionary *view = @{ @"active": @(DSHActivityIdentifier != nil),
+        @"targetBundleId": DSHActivityTargetBundle ?: @"",
+        @"preferredTargetBundleId": DSHActivitySelectTarget(DSHActivityNativeSupportPath, 0),
+        @"activityId": DSHActivityIdentifier ?: @"", @"task": DSHActivityTask ?: @{} };
+      DSHActivityReply(client, @"OK", DSHActivityStateJSON(view, NULL));
       return;
     }
     if ([operation isEqualToString:@"update"]) {

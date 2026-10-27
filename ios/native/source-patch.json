@@ -1,25 +1,35 @@
 {
   "schema": 1,
   "commit": "9bf3955c8add4ebffaed5699d59e75ddc86733ad",
-  "sha256": "b0d4ee2b527e3192e6120a634b52175ddec8fe2b2d618b017755f080edcc26be",
+  "sha256": "5aaace3224af9886442936780103b718684da851bd1c30e905fd2af9dfe6c64a",
   "version": "1.7.11",
-  "build": "34",
+  "build": "37",
   "capabilities": [
     "loopback-pairing-v1",
     "backend-managed-lifecycle-v1",
-    "composer-return-send-v1"
+    "composer-return-send-v1",
+    "root-live-activity-widget-v1",
+    "loopback-on-demand-history-v1"
   ],
   "files": [
+    "AgentLiveActivityWidget/AgentLiveActivityWidget.swift",
+    "AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/Contents.json",
+    "AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/whale.svg",
+    "AgentLiveActivityWidget/DSHRootActivityAttributes.swift",
+    "AgentLiveActivityWidget/DSHRootActivityWidget.swift",
+    "AgentLiveActivityWidget/DSHRootNavigation.swift",
+    "AgentLiveActivityWidget/Info.plist",
+    "DeepSeekHarnessMobile.xcodeproj/project.pbxproj",
     "DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift",
     "DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift",
     "DeepSeekHarnessMobile/Core/AppStore.swift",
+    "DeepSeekHarnessMobile/Core/GatewayClient.swift",
     "DeepSeekHarnessMobile/Core/GatewayProfile.swift",
     "DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift",
-    "DeepSeekHarnessMobile/Views/RootView.swift",
     "DeepSeekHarnessMobile/Resources/Info.plist",
-    "AgentLiveActivityWidget/Info.plist",
+    "DeepSeekHarnessMobile/Views/ConversationView.swift",
+    "DeepSeekHarnessMobile/Views/RootView.swift",
     "DeepSeekHarnessMobileTests/GatewayProtocolTests.swift",
-    "DeepSeekHarnessMobileTests/MultiGatewayTests.swift",
-    "DeepSeekHarnessMobile/Views/ConversationView.swift"
+    "DeepSeekHarnessMobileTests/MultiGatewayTests.swift"
   ]
 }

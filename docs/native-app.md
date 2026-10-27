@@ -17,12 +17,12 @@ flowchart LR
 | Provider | `0.2.10` / pi-ai `1.4.0` / zod `4.4.3` | Codex、xAI、Google 路由及偏好；核心 pi-ai `1.3.0` 分开维护 |
 | Cline Pass | `0.2.13` | 原有账号、上游通道与模型路由 |
 | iPhone Gateway | `0.11.1+iphone.1` | 设备配对与 `dsh-mobile-v1` 传输，复用 Host Remote API |
-| Whaleness 本地版 | `1.7.11 / build 34` | 原生聊天、轨迹、模型/权限选择、附件与交互；最低 iOS `16.1` |
-| Root 系统集成 | 本项目通知与 Activity 组件 | 本机系统通知、Live Activity 和点击导航 |
+| Whaleness 本地版 | `1.7.11 / build 37` | 原生聊天与本机活动栏 Widget；最低 iOS `16.1` |
+| Root 系统集成 | Debian `0.2.1~rc.2-2` | 本机系统通知、Live Activity 状态与生命周期、点击导航 |
 
-源码固定在 `9bf3955c8add4ebffaed5699d59e75ddc86733ad`，许可保留于 `ios/native/LICENSE.whaleness`。本地补丁、版本和能力由 `ios/native/source-patch.json` 锁定。`ios/native/app-release.json` 是上游未修改的 build 32 输入；本地 build 34 必须使用构建器生成的独立 manifest，不能沿用上游 IPA 的 SHA。最终 IPA、源码补丁 hash 和实机结果见[更新记录](./updating.md)。
+源码固定在 `9bf3955c8add4ebffaed5699d59e75ddc86733ad`，许可保留于 `ios/native/LICENSE.whaleness`。本地补丁、版本和能力由 `ios/native/source-patch.json` 锁定。`ios/native/app-release.json` 是上游未修改的 build 32 输入；本地 build 37 必须使用构建器生成的独立 manifest，不能沿用上游 IPA 的 SHA。最终 IPA、源码补丁 hash 和实机结果见[更新记录](./updating.md)。
 
-安装、真实 Keychain 配对、冷启动和旧历史/snapshot 已验证；build 34 升级保留同一容器与配对。用户实机确认回车发送和活动窗跳转正常。中文输入法与硬件键盘保留独立验收项；新增 UIKit/XCTest 源码语法解析通过，未运行 Simulator XCTest，不把源码解析或编译当作所有输入场景的证明。
+既有 build 34 的安装、真实 Keychain 配对、冷启动和旧历史/snapshot 已验证，升级保留同一容器与配对；用户实机确认回车发送和活动窗跳转正常。build 37 已独立通过 Widget 承载、锁屏实际显示、后台创建/更新/结束与点击会话验收；用户确认锁屏返回停留后不再出现 `subscription-timeout`。中文输入法与硬件键盘保留独立验收项；UIKit/XCTest 源码语法解析不代替 Simulator XCTest 或输入场景实测。
 
 ## 保留现有后台
 
@@ -64,12 +64,12 @@ NATIVE_ANDROID_SDK=/path/to/android-sdk \
 安装本地适配版必须同时指定 IPA 和对应 manifest：
 
 ```bash
-NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build34.ipa" \
+NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build37.ipa" \
 NATIVE_APP_MANIFEST="$PWD/build/native-app/native-app-manifest.json" \
 DEVICE_HOST='<iPhone IP>' ./scripts/install-native-app.sh
 ```
 
-安装器校验实际归档 SHA、主 App/Widget 身份与 Mach-O 最低系统版本，再使用设备已有的 TrollStoreLite 安装。保留相同 bundle ID、正常容器和 Keychain；已安装准确版本时跳过，拒绝降级。它不使用旧 WK 壳的 platform/no-sandbox entitlement，不删除用户数据，也不启动或重启 DSH。
+安装器校验实际归档 SHA、主 App/Widget 身份与 Mach-O 最低系统版本，再使用设备已有的 TrollStoreLite 安装。保留相同 bundle ID、正常容器和 Keychain；已安装准确版本时跳过，拒绝降级。成功安装或确认准确版本已安装后，安装器发布活动栏支持标记。它不使用旧 WK 壳的 platform/no-sandbox entitlement，不删除用户数据，也不启动或重启 DSH。
 
 ## 真实配对与导航
 
@@ -90,11 +90,47 @@ python3 /var/root/dsh-native-client/scripts/open-native-app.py --session SESSION
 
 映射位于 `/var/root/.dsh/native-client/gateway-map.json`。Root 通知/Activity 桥校验当前本机网关与激活 profile 后，点击导航到原生根会话；子会话事件归到根会话入口。没有有效原生映射时保留网页回退，不猜测或伪造 App profile。
 
+## 本机活动栏迁移
+
+build 37 在现有 `AgentLiveActivityWidget.appex` 中增加第二个配置 `DSHRootActivityWidget`，复用原活动栏的 `DSHActivityAttributes`、状态字段、Goal/进展/工具视图和鲸鱼资源。上游远端主机的 `AgentActivityAttributes` 配置继续保留，两种状态不互相转换。本机 App 不因承载 Widget 而重新创建、计时或同步同一张卡片。
+
+```mermaid
+flowchart LR
+  H[DSH root Host 的会话事件] --> B[mobile UID 501 的独立 Activity broker]
+  B --> O[短命 DSHActivityOp]
+  O --> S[iOS ActivityKit / chronod]
+  S --> N[Whaleness 的 DSHRootActivityWidget]
+  N --> A[已配对的原生根会话]
+```
+
+`root-live-activity-widget-v1` 由最终 IPA manifest 声明。`native_client.py publish-activity-support` 必须先确认准确 App 和 Widget 已安装、版本/build 与 manifest 一致且两者含签名，才原子发布下列安装元数据；它不读取 Keychain 或 token。
+
+| 文件 | 所有者与权限 | 作用 |
+| --- | --- | --- |
+| `/var/root/.dsh/native-client/activity-widget.json` | root，`0600` | 私有安装记录 |
+| `/var/mobile/Library/DSHNotifier/native-client/activity-widget.json` | root，`0644`；其 `native-client` 父目录 root `0755` | 同内容的非敏感只读镜像，供 mobile broker 读取 |
+
+标记只含 `schema:1`、`managedBy:dsh-iphone/native-client`、`bundleId:com.clark.dshmobile.dev`、准确 `version`/`build`/`bundlePath`、`attributesType:DSHActivityAttributes` 和 `widgetKind:DSHRootActivityWidget`。不要放松 `/var/root` 或私有标记权限，也不要为读取标记把 broker 改成 root。默认手机安装同时发布镜像；测试的自定义输出只有显式指定 `--mirror-output` 才写镜像。
+
+发布器拒绝符号链接、外来或不可识别的标记。安装不带此能力的版本，或安装身份/签名校验失败时，只清理本工具生成的两份旧支持标记，不删除映射、配对或凭据。能力版 IPA 与已安装 Widget 都必须含明确的 `application-identifier`、`com.apple.developer.team-identifier` 和指向扩展自身的 `com.apple.private.security.container-required`。构建器只给 Widget 嵌入这些身份；主 App 由 TrollStoreLite 按原方式安装，保留容器与 Keychain。校验器解析签名中的 XML entitlement 结构和精确身份，系统信任与最终签名仍由 TrollStoreLite 处理。标记仅说明安装能力，不能证明 Widget 已被系统注册或显示。
+
+broker 每次选择目标时核对镜像的 root 所有权、禁止 group/world 写、受支持的 schema/身份，以及当前磁盘上的 App/Widget 版本。只有这些条件和当前任务的有效原生 session 深链同时满足，才选择 `com.clark.dshmobile.dev`。深链来自已配对且激活的本机 profile，并且 session 必须与卡片任务一致；仅有 manifest 或支持标记不够。
+
+条件不足时保留 `ai.deepseek.dsh` 的旧独立 Widget，并在检查结果中明确目标。原生目标一旦选定，create/update/end 或 descriptor 身份校验失败必须返回错误，不能悄悄改回旧目标或前台启动 App。已有 Activity 绑定创建时的 target；目标变化时先成功结束旧 UUID，再为新目标创建 UUID，不能把旧卡原地改绑。`activity.target` 与 UUID、任务身份一起持久化，供 broker 重启后恢复。
+
+## 升级后的 Widget 注册与订阅恢复
+
+安装器在任何 SSH 写入前核对专用 `DSHWidgetSetup` 与权限文件 hash。helper 先降为 mobile，仅精确刷新原生扩展；它只读并安全解码 chronod 的 Live Activity 描述，核对两类属性、容器/扩展归属，以及磁盘、LaunchServices、缓存中的主 App/Widget build。安装器再与准确 manifest 比较。已有准确 App 时也执行此检查；失败撤销能确认属于本工具的支持记录，保留配对和映射。详细错误边界见[原生安装说明](../ios/native/README.md)。
+
+只有已确认的旧缓存版本才触发一次 chronod 重载，随后重试；未知格式、普通权限错误或再次失败直接退出。该恢复不重启 SpringBoard 或 DSH，也不写系统缓存数据库。不能仅凭 XPC 创建成功、安装版本正确或缓存回调完成宣称 UI 已更新。
+
+build 37 暂停锁屏/后台期间的订阅计时，回到前台后为尚未确认的请求重新计时；ACK、断线和重连会取消旧计时，真正的前台超时仍报错。本机 loopback 主机按需加载其他会话历史，减少在同一部手机上预热额外冷历史的开销。
+
 ## 通知、后台和 respring
 
-本机 DSH 一直由 root 后台负责执行和系统集成。Whaleness 对严格 loopback 主机跳过重复的定位/静音音频保活、系统通知和 Live Activity；其有限后台额度、断线恢复以及其他远端主机的行为保留。App 的 UI/socket 状态不成为后台任务是否继续的条件。
+本机 DSH 一直由 root 后台负责执行和系统集成，独立 Activity broker 以 mobile 身份运行。Whaleness 对严格 loopback 主机跳过重复的定位/静音音频保活、系统通知和 Activity 创建；新增 Widget 只承载后台活动栏视图，其有限后台额度、断线恢复以及其他远端主机的行为保留。App 的 UI/socket 状态不成为后台任务是否继续的条件。
 
-仅修改 JS、网页、Gateway 或 App 时，无需 respring。只有通知桥/SpringBoard 注入代码确实改变时，在全部核心与原生组件安装完成后统一进行一次；不在每个阶段重复 respring，也不把它当作修复配对或网络的通用步骤。本次系统桥更新已完成统一的一次 respring，后续仅更新 App 的回车发送实现不再重复执行。
+仅修改 JS、网页、Gateway 或 App 时，无需 respring。只有通知桥/SpringBoard 注入代码确实改变时，在全部核心与原生组件安装完成后统一进行一次；不在每个阶段重复 respring，也不把它当作修复配对、Widget 注册或网络的通用步骤。具体执行次数与结果记录在更新记录。
 
 ## 验收边界
 
@@ -120,5 +156,7 @@ API 验证不替代真实 App 验收，需要分别记录：
 - 回车发送、Shift+Enter 换行、空输入/发送中行为；中文 marked text 和候选确认不能误发，软件与外接键盘分别核对。
 - 横竖屏、安全区、键盘遮挡、上翻阅读位置，以及前后台/锁屏后的恢复。
 - 本机通知与 Activity 不重复，点击能打开准确的原生根会话，网页入口仍可用。
+
+活动栏迁移另按[通知检查流程](./notifications.md#活动栏迁移检查流程)保留证据：支持标记及真实配对、`inspect` 的实际 target、新旧 UUID 的替换、系统 Widget 渲染，以及前台/退出 App/锁屏下的 create/update/end、用户划除与点击行为。`status active`、XPC 返回 UUID、LaunchServices 的扩展登记或 IPA 编译成功分别只说明各自阶段，不能代替通知中心/锁屏上实际可见的卡片。未取得视觉与生命周期证据时，迁移保持待验收。
 
 Provider 完整目录、设置持久化和真实模型/Bash 仍按双端门禁检查。本次旧 xAI OAuth 的 `invalid_grant` 已由用户官方重新授权解决，严格目录检查重新通过。它与 grok2api 的 `xai` API Key 路由分开；后续再遇到此类授权失败仍须保留凭据并重新授权，不能隐藏失败或删凭据来宣布整体完成。

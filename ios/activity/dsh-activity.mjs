@@ -7,14 +7,14 @@ import { fileURLToPath } from "node:url";
 
 const SOCKET_PATH = "/var/mobile/Library/DSHNotifier/activity.sock";
 const DEFAULT_TIMEOUT_MS = 5_000;
-const OPERATIONS = new Set(["status", "end", "shutdown"]);
+const OPERATIONS = new Set(["status", "inspect", "end", "shutdown"]);
 
 class UsageError extends Error {}
 
 function usage() {
   return [
     "Usage:",
-    "  dsh-activity [--timeout <ms>] status|end|shutdown",
+    "  dsh-activity [--timeout <ms>] status|inspect|end|shutdown",
     "  dsh-activity [--timeout <ms>] update <task-json>",
   ].join("\n");
 }

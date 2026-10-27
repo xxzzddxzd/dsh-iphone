@@ -19,11 +19,18 @@ import struct
 import tempfile
 from urllib.parse import parse_qsl, urlencode, urlsplit
 import uuid
+from xml.parsers.expat import ExpatError
 import zipfile
 
 
 DEFAULT_MANIFEST = Path(__file__).with_name("app-release.json")
 DEFAULT_MAPPING = Path("/var/root/.dsh/native-client/gateway-map.json")
+DEFAULT_ACTIVITY_SUPPORT = Path("/var/root/.dsh/native-client/activity-widget.json")
+DEFAULT_BROKER_ACTIVITY_SUPPORT = Path("/var/mobile/Library/DSHNotifier/native-client/activity-widget.json")
+ACTIVITY_SUPPORT_OWNER = "dsh-iphone/native-client"
+ACTIVITY_SUPPORT_CAPABILITY = "root-live-activity-widget-v1"
+ACTIVITY_ATTRIBUTES_TYPE = "DSHActivityAttributes"
+ACTIVITY_WIDGET_KIND = "DSHRootActivityWidget"
 BUNDLE_ROOTS = (Path("/var/containers/Bundle/Application"), Path("/var/jb/Applications"))
 DATA_ROOT = Path("/var/mobile/Containers/Data/Application")
 
@@ -91,6 +98,67 @@ def macho_has_signature(binary):
     return False
 
 
+def macho_xml_entitlements(binary):
+    """Read one unambiguous XML entitlement slot, not cryptographic trust.
+
+    ldid emits XML and DER from the same plist. XML is the reviewed identity
+    input here; DER-only signatures cannot establish that identity. The
+    SuperBlob may be shorter than LC_CODE_SIGNATURE's padded data size.
+    """
+    macho_ios_version(binary)
+    commands, command_bytes = struct.unpack_from("<II", binary, 16)
+    position, signatures = 32, []
+    for _ in range(commands):
+        command, size = struct.unpack_from("<II", binary, position)
+        if command == 0x1D:
+            if size != 16:
+                raise ValueError("Invalid native Widget code signature command")
+            signatures.append(struct.unpack_from("<II", binary, position + 8))
+        position += size
+    if len(signatures) != 1:
+        raise ValueError("Native Widget entitlements require one code signature")
+    offset, size = signatures[0]
+    if offset < 32 + command_bytes or size < 12 or offset + size > len(binary):
+        raise ValueError("Invalid native Widget code signature bounds")
+    magic, length, count = struct.unpack_from(">III", binary, offset)
+    if magic != 0xFADE0CC0 or not 12 <= length <= size or count > (length - 12) // 8:
+        raise ValueError("Invalid native Widget code signature SuperBlob")
+    table_end, slots, regions = 12 + count * 8, {}, []
+    for index in range(count):
+        slot, blob_offset = struct.unpack_from(">II", binary, offset + 12 + index * 8)
+        if slot in slots or blob_offset < table_end or blob_offset + 8 > length:
+            raise ValueError("Ambiguous or invalid native Widget signature slot")
+        blob_magic, blob_length = struct.unpack_from(">II", binary, offset + blob_offset)
+        if blob_length < 8 or blob_offset + blob_length > length:
+            raise ValueError("Invalid native Widget signature blob bounds")
+        slots[slot] = (blob_magic, binary[offset + blob_offset + 8:offset + blob_offset + blob_length])
+        regions.append((blob_offset, blob_offset + blob_length))
+    regions.sort()
+    if any(left[1] > right[0] for left, right in zip(regions, regions[1:])):
+        raise ValueError("Overlapping native Widget signature blobs")
+    entitlements = slots.get(5)
+    if entitlements is None or entitlements[0] != 0xFADE7171:
+        raise ValueError("Native Widget requires XML entitlements in signature slot 5")
+    try:
+        value = plistlib.loads(entitlements[1], fmt=plistlib.FMT_XML)
+    except (ValueError, OverflowError, ExpatError) as error:
+        raise ValueError("Malformed native Widget XML entitlements") from error
+    if not isinstance(value, dict):
+        raise ValueError("Native Widget XML entitlements must be a dictionary")
+    return value
+
+
+def _check_widget_entitlements(binary, manifest):
+    entitlements = macho_xml_entitlements(binary)
+    bundle_id = manifest["widgetBundleId"]
+    expected = {"application-identifier": "TROLLTROLL." + bundle_id,
+                "com.apple.developer.team-identifier": "TROLLTROLL",
+                "com.apple.private.security.container-required": bundle_id}
+    if any(not isinstance(entitlements.get(key), str) or entitlements[key] != value
+           for key, value in expected.items()):
+        raise ValueError("Native Widget entitlements do not match its reviewed application/team/container identity")
+
+
 def _check_bundle(info, binary, manifest, widget=False, require_signature=False):
     prefix = "widget" if widget else ""
     bundle_id = manifest["widgetBundleId" if widget else "bundleId"]
@@ -106,6 +174,11 @@ def _check_bundle(info, binary, manifest, widget=False, require_signature=False)
         raise ValueError("Installed native executable has no code signature; do not skip a failed installation")
     if widget and info.get("NSExtension", {}).get("NSExtensionPointIdentifier") != "com.apple.widgetkit-extension":
         raise ValueError("Unexpected native Widget extension")
+    capabilities = manifest.get("capabilities", [])
+    if not isinstance(capabilities, list) or any(not isinstance(value, str) for value in capabilities):
+        raise ValueError("Invalid native activity capabilities")
+    if widget and ACTIVITY_SUPPORT_CAPABILITY in capabilities:
+        _check_widget_entitlements(binary, manifest)
 
 
 def verify_ipa(path, manifest):
@@ -134,6 +207,39 @@ def verify_ipa(path, manifest):
             _check_bundle(info, binary, manifest, is_widget)
     return {"status": "verified", "sha256": digest, "bundleId": manifest["bundleId"],
             "version": manifest["version"], "build": manifest["build"], "minimumOS": manifest["minimumOS"]}
+
+
+def verify_widget_setup(helper, entitlements, manifest):
+    """Pin the privileged setup tool and its exact, separate permission file.
+
+    Run before upload/signing; signing changes the helper's file hash. These
+    privileges belong to the short-lived setup tool, never to the native App.
+    """
+    capabilities = manifest.get("capabilities", [])
+    if not isinstance(capabilities, list) or any(not isinstance(value, str) for value in capabilities):
+        raise ValueError("Invalid native activity capabilities")
+    if ACTIVITY_SUPPORT_CAPABILITY not in capabilities:
+        return {"status": "not-required"}
+    values = {}
+    for field, path in [("helperSHA256", helper), ("helperEntitlementsSHA256", entitlements)]:
+        expected = manifest.get(field)
+        if not isinstance(expected, str) or not re.fullmatch(r"[a-f0-9]{64}", expected):
+            raise ValueError(f"Native Widget setup manifest requires a pinned {field}")
+        content = Path(path).read_bytes()
+        if hashlib.sha256(content).hexdigest() != expected:
+            raise ValueError(f"Native Widget setup {field} SHA-256 differs from its manifest")
+        values[field] = content
+    try:
+        permissions = plistlib.loads(values["helperEntitlementsSHA256"])
+    except (ValueError, OverflowError, ExpatError) as error:
+        raise ValueError("Malformed native Widget setup entitlements") from error
+    expected = {"platform-application", "com.apple.private.security.no-sandbox",
+                "com.apple.chronoservices", "com.apple.chronod.toolservices"}
+    if (not isinstance(permissions, dict) or set(permissions) != expected
+            or any(value is not True for value in permissions.values())):
+        raise ValueError("Native Widget setup requires exactly its four reviewed entitlements")
+    return {"status": "verified", "helperSHA256": manifest["helperSHA256"],
+            "helperEntitlementsSHA256": manifest["helperEntitlementsSHA256"]}
 
 
 def installed_app(manifest, roots=BUNDLE_ROOTS):
@@ -250,19 +356,163 @@ def preferences_path(bundle_id, root=DATA_ROOT):
     return matches[0]
 
 
-def atomic_mapping(mapping, output):
+def _atomic_private_json(value, output, prefix):
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd, temporary = tempfile.mkstemp(prefix=".gateway-map-", dir=output.parent)
+    fd, temporary = tempfile.mkstemp(prefix=prefix, dir=output.parent)
     try:
         with os.fdopen(fd, "w") as stream:
             os.fchmod(stream.fileno(), 0o600)
-            json.dump(mapping, stream, ensure_ascii=False, indent=2)
+            json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
         os.replace(temporary, output)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def atomic_mapping(mapping, output):
+    _atomic_private_json(mapping, output, ".gateway-map-")
+
+
+def _owned_activity_marker(output):
+    output = Path(output)
+    if output.is_symlink() or output.parent.is_symlink():
+        raise ValueError("Native activity marker must not be a symbolic link")
+    if not output.exists():
+        return False
+    if not output.is_file() or output.stat().st_size > 16384:
+        raise ValueError("Native activity marker is not owned by this installer")
+    try:
+        value = json.loads(output.read_text())
+    except (ValueError, UnicodeError) as error:
+        raise ValueError("Native activity marker is not owned by this installer") from error
+    if (not isinstance(value, dict) or value.get("schema") != 1
+            or value.get("managedBy") != ACTIVITY_SUPPORT_OWNER
+            or value.get("bundleId") != "com.clark.dshmobile.dev"):
+        raise ValueError("Native activity marker is not owned by this installer")
+    return True
+
+
+def _activity_mirror_path(output, mirror_output):
+    if mirror_output is not None:
+        return Path(mirror_output)
+    # The ordinary desktop checkout/test path must never touch mobile state.
+    # Only this iPhone installation's default private marker gets the mirror.
+    if Path(output) == DEFAULT_ACTIVITY_SUPPORT and Path("/var/jb").is_dir():
+        return DEFAULT_BROKER_ACTIVITY_SUPPORT
+    return None
+
+
+def _activity_support_paths(output, mirror_output):
+    output = Path(output)
+    mirror = _activity_mirror_path(output, mirror_output)
+    if mirror is not None:
+        private_path = Path(os.path.abspath(output))
+        public_path = Path(os.path.abspath(mirror))
+        if private_path == public_path or private_path.parent == public_path.parent:
+            raise ValueError("Native activity private marker and public mirror require separate directories")
+    return output, mirror
+
+
+def clear_activity_support(output=DEFAULT_ACTIVITY_SUPPORT, mirror_output=None):
+    """Revoke only this tool's support records after Widget setup failure.
+
+    Each record is handled independently: a damaged or foreign private record
+    must not keep an owned public authorization alive. Foreign records are
+    retained and refusals are reported together after all paths are attempted.
+    This needs no manifest, installed App, profile mapping or credentials.
+    """
+    output, mirror = _activity_support_paths(output, mirror_output)
+    result = {"status": "cleared", "removedOwnedMarker": False}
+    paths = [("private marker", output, "removedOwnedMarker")]
+    if mirror is not None:
+        result["removedOwnedMirror"] = False
+        paths.append(("public mirror", mirror, "removedOwnedMirror"))
+    refusals = []
+    for label, path, field in paths:
+        try:
+            if _owned_activity_marker(path):
+                path.unlink()
+                result[field] = True
+        except (ValueError, OSError) as error:
+            refusals.append(f"{label}: {error}")
+    if refusals:
+        raise ValueError("Native activity support cleanup incomplete; " + "; ".join(refusals))
+    return result
+
+
+def _atomic_broker_activity_json(value, output):
+    """Public metadata, writable only by root and readable by the mobile broker."""
+    output = Path(output)
+    if output.is_symlink() or output.parent.is_symlink():
+        raise ValueError("Native activity mirror must not be a symbolic link")
+    output.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    os.chown(output.parent, 0, 0)
+    os.chmod(output.parent, 0o755)
+    fd, temporary = tempfile.mkstemp(prefix=".activity-widget-", dir=output.parent)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            os.fchown(stream.fileno(), 0, 0)
+            os.fchmod(stream.fileno(), 0o644)
+            json.dump(value, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, output)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def publish_activity_support(manifest, output=DEFAULT_ACTIVITY_SUPPORT, roots=BUNDLE_ROOTS, mirror_output=None):
+    """Authorize only the exact signed App build to carry the Root Widget.
+
+    This is installation metadata, not an ActivityKit request. The broker still
+    checks the installed bundle before choosing the native platter target.
+    """
+    output, mirror = _activity_support_paths(output, mirror_output)
+    owned = _owned_activity_marker(output)
+    mirror_owned = _owned_activity_marker(mirror) if mirror is not None else False
+
+    def invalidate():
+        if owned:
+            output.unlink()
+        if mirror_owned:
+            mirror.unlink()
+
+    capabilities = manifest.get("capabilities", [])
+    if not isinstance(capabilities, list) or any(not isinstance(value, str) for value in capabilities):
+        invalidate()
+        raise ValueError("Invalid native activity capabilities")
+    if ACTIVITY_SUPPORT_CAPABILITY not in capabilities:
+        invalidate()
+        result = {"status": "unsupported", "published": False, "removedOwnedMarker": owned}
+        if mirror is not None:
+            result["removedOwnedMirror"] = mirror_owned
+        return result
+    if (manifest.get("bundleId") != "com.clark.dshmobile.dev"
+            or not isinstance(manifest.get("build"), str)
+            or not re.fullmatch(r"[1-9][0-9]{0,8}", manifest["build"])
+            or int(manifest["build"]) < 35):
+        invalidate()
+        raise ValueError("Native Root activity Widget requires a reviewed build 35 or newer")
+    try:
+        installed = installed_app(manifest, roots)
+        if installed.get("status") != "current":
+            raise ValueError("Install the exact native App build before publishing activity support")
+    except (ValueError, OSError, KeyError, plistlib.InvalidFileException):
+        invalidate()
+        raise
+    marker = {"schema": 1, "managedBy": ACTIVITY_SUPPORT_OWNER,
+              "bundleId": manifest["bundleId"], "version": manifest["version"],
+              "build": manifest["build"], "bundlePath": installed["bundlePath"],
+              "attributesType": ACTIVITY_ATTRIBUTES_TYPE, "widgetKind": ACTIVITY_WIDGET_KIND}
+    _atomic_private_json(marker, output, ".activity-widget-")
+    if mirror is not None:
+        _atomic_broker_activity_json(marker, mirror)
+    return {"status": "published", "published": True, "bundleId": marker["bundleId"],
+            "version": marker["version"], "build": marker["build"],
+            "attributesType": marker["attributesType"], "widgetKind": marker["widgetKind"],
+            "brokerMirrorPublished": mirror is not None}
 
 
 def export_mapping(manifest, output=DEFAULT_MAPPING, preferences=None):
@@ -352,16 +602,31 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     verify = commands.add_parser("verify-ipa")
     verify.add_argument("archive", type=Path)
+    setup = commands.add_parser("verify-widget-setup", help="Verify setup helper/permissions before upload and signing")
+    setup.add_argument("helper", type=Path)
+    setup.add_argument("entitlements", type=Path)
     commands.add_parser("installed")
+    activity = commands.add_parser("publish-activity-support")
+    activity.add_argument("--output", type=Path, default=DEFAULT_ACTIVITY_SUPPORT)
+    activity.add_argument("--mirror-output", type=Path, help="Explicit public metadata mirror; default only on this iPhone install")
+    clear = commands.add_parser("clear-activity-support", help="Revoke only owned support records after Widget setup failure")
+    clear.add_argument("--output", type=Path, default=DEFAULT_ACTIVITY_SUPPORT)
+    clear.add_argument("--mirror-output", type=Path, help="Explicit public metadata mirror; default only on this iPhone install")
     export = commands.add_parser("export-mapping")
     export.add_argument("--preferences", type=Path)
     export.add_argument("--output", type=Path, default=DEFAULT_MAPPING)
     args = parser.parse_args()
-    manifest = read_manifest(args.manifest)
-    if args.command == "verify-ipa":
+    manifest = None if args.command == "clear-activity-support" else read_manifest(args.manifest)
+    if args.command == "clear-activity-support":
+        result = clear_activity_support(args.output, args.mirror_output)
+    elif args.command == "verify-ipa":
         result = verify_ipa(args.archive, manifest)
+    elif args.command == "verify-widget-setup":
+        result = verify_widget_setup(args.helper, args.entitlements, manifest)
     elif args.command == "installed":
         result = installed_app(manifest)
+    elif args.command == "publish-activity-support":
+        result = publish_activity_support(manifest, args.output, mirror_output=args.mirror_output)
     else:
         result = export_mapping(manifest, args.output, args.preferences)
     print(json.dumps(result, ensure_ascii=False))

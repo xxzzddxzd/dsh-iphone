@@ -22,7 +22,8 @@
 | dsh-codex | `0.2.10`（pi-ai `1.4.0`、zod `4.4.3`） |
 | dsh-cline-pass | `0.2.13` |
 | iPhone Mobile Gateway | `0.11.1+iphone.1`，仅本机连接 |
-| Whaleness 本地适配版 | `1.7.11 / build 34`，最终验收见更新记录 |
+| Whaleness 本地适配版 | `1.7.11 / build 37`，活动栏与锁屏点击已验收 |
+| iPhone DSH Debian 包 | `0.2.1~rc.2-2` |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
 | node-pty | `1.2.0-beta.15` |
@@ -76,14 +77,16 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 ./scripts/deploy.sh
 ```bash
 ./scripts/package-mobile-gateway.sh
 NATIVE_APP_SOURCE=/path/to/reviewed-whaleness ./scripts/build-native-app.sh
-NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build34.ipa" \
+NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build37.ipa" \
 NATIVE_APP_MANIFEST="$PWD/build/native-app/native-app-manifest.json" \
 DEVICE_HOST='<iPhone IP>' ./scripts/install-native-app.sh
 ```
 
 默认 `deploy.sh` 会安装 Gateway 并合并本机 Host profile，保留已安装 App；只有显式传入匹配的 `NATIVE_APP_IPA` 和 `NATIVE_APP_MANIFEST` 才更新 App，避免回装上游 build 32。
 
-构建需要 Xcode/Metal、JDK 17 和 Android SDK；安装使用设备已有的 TrollStoreLite，保留 App 容器和真实 Keychain。首次配对由经授权的本机 UI 深链交给 App 完成，脚本不伪造或注入凭据。Root 后台继续负责本机通知和 Live Activity，点击优先打开已配对 App 的根会话；App 不重复申请本机保活或创建同一张卡片。完整流程与边界见[原生 App 接入](./docs/native-app.md)。
+构建需要 Xcode/Metal、JDK 17 和 Android SDK；安装使用设备已有的 TrollStoreLite，保留 App 容器和真实 Keychain。首次配对由经授权的本机 UI 深链交给 App 完成，脚本不伪造或注入凭据。
+
+本次将原有活动栏的状态与视图加入 Whaleness 的 Widget，创建、更新和结束仍由原后台链负责，App 不重复创建本机卡片。安装器发布绑定精确 App/Widget 版本的支持标记；broker 还要求卡片带有匹配真实配对的原生会话地址，才选择原生 App 为目标。条件不足时采用旧独立 Widget；已选定原生目标后的失败必须报告，不能悄悄回退。安装、XPC 返回 UUID 或 LaunchServices 注册成功均不证明锁屏实际显示，必须单独验收。完整架构与检查流程见[原生 App 接入](./docs/native-app.md)和[通知与活动栏](./docs/notifications.md)。
 
 ## 网页访问
 
@@ -120,7 +123,7 @@ iPhoneDS 页面关闭 hover/focus 提示浮框及原生 `title` 提示，避免�
 cp -a /var/root/.dsh "/var/root/.dsh.before-upgrade-$(date +%Y%m%d-%H%M%S)"
 ```
 
-后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，同时检查 DSH、pi-ai、Cline Pass、模型目录和设置持久化，再做升级前后基线比较及指定模型的真实会话验收。原生路径还需检查网关、真实 App 配对和系统集成。本次旧 xAI OAuth 的 `invalid_grant` 已由用户官方重新授权解决，严格目录检查重新通过。build 34 已安装并保留真实 Keychain，回车/IME、活动点击等交互结果仍按用户验收记录确认。
+后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，同时检查 DSH、pi-ai、Cline Pass、模型目录和设置持久化，再做升级前后基线比较及指定模型的真实会话验收。原生路径还需检查网关、真实 App 配对、活动栏目标和实际显示。本次旧 xAI OAuth 的 `invalid_grant` 已由用户官方重新授权解决，严格目录检查重新通过。build 34 的安装、真实 Keychain 保留、回车发送和活动点击属于既有验收；build 37 已另行通过原生活动栏显示、后台生命周期和锁屏点击验收，并修复订阅超时。
 
 详细说明：[更新 SOP](./docs/updating.md) · [兼容说明](./docs/dsh-compatibility.md) · [历史恢复](./docs/history-migration.md) · [通知](./docs/notifications.md) · [排障](./docs/troubleshooting.md) · [VLESS](./docs/vless-client.md)
 

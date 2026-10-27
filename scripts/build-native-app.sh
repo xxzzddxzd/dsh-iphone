@@ -4,13 +4,18 @@ set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 ROOT=$(repo_root)
-for native_build_command in git python3 xcrun xcodebuild plutil rsync zip; do require_command "$native_build_command"; done
+for native_build_command in git python3 xcrun xcodebuild plutil rsync zip ldid; do require_command "$native_build_command"; done
+NATIVE_LDID=$(command -v ldid)
 [ -n "${NATIVE_APP_SOURCE:-}" ] || die "set NATIVE_APP_SOURCE to the reviewed Whaleness checkout"
 SOURCE=$(CDPATH= cd -- "$NATIVE_APP_SOURCE" && pwd)
 OUTPUT="$ROOT/build/native-app"
 FRAMEWORK="$SOURCE/shared/build/bin/iosArm64/releaseFramework/DeepSeekHarnessShared.framework/DeepSeekHarnessShared"
 SKIP_KMP=${NATIVE_SKIP_KMP_BUILD:-0}
 case "$SKIP_KMP" in 0|1) ;; *) die "NATIVE_SKIP_KMP_BUILD must be 0 or 1" ;; esac
+# xcrun can resolve the Metal placeholder even when this Xcode's component is
+# missing. Execute it before starting KMP or replacing previous build outputs.
+xcrun --sdk iphoneos metal --version >/dev/null || \
+  die "Metal Toolchain is unavailable for the selected Xcode; run xcodebuild -downloadComponent MetalToolchain"
 
 python3 "$ROOT/ios/native/apply_source.py" "$SOURCE"
 NATIVE_VERSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$ROOT/ios/native/source-patch.json")
@@ -75,6 +80,21 @@ APP="$ARCHIVE/Products/Applications/DshMobile.app"
 [ -d "$APP" ] || die "archive did not contain the reviewed native app product"
 mkdir -p "$OUTPUT/Payload/DshMobile.app"
 rsync -a --delete "$APP/" "$OUTPUT/Payload/DshMobile.app/"
+# TrollStore Lite only supplies fallback application identity to the main App.
+# Seed the sandboxed Widget's own identity before its final device-side signing.
+# Do not sign the main App here: its installed Keychain identity must persist.
+NATIVE_WIDGET="$OUTPUT/Payload/DshMobile.app/PlugIns/AgentLiveActivityWidget.appex/AgentLiveActivityWidget"
+NATIVE_WIDGET_ENTITLEMENTS="$ROOT/ios/native/AgentLiveActivityWidget.entitlements"
+"$NATIVE_LDID" -Icom.clark.dshmobile.dev.AgentLiveActivityWidget -S"$NATIVE_WIDGET_ENTITLEMENTS" "$NATIVE_WIDGET"
+python3 - "$NATIVE_LDID" "$NATIVE_WIDGET" "$NATIVE_WIDGET_ENTITLEMENTS" <<'PY'
+from pathlib import Path
+import plistlib, subprocess, sys
+ldid, widget, source = sys.argv[1:]
+actual = plistlib.loads(subprocess.check_output([ldid, '-e', widget]))
+expected = plistlib.loads(Path(source).read_bytes())
+if actual != expected:
+    raise SystemExit('Packaged native Widget entitlements differ from the reviewed identity')
+PY
 IPA="$OUTPUT/Whaleness-iphone-$NATIVE_VERSION-build$NATIVE_BUILD.ipa"
 (
   cd "$OUTPUT"
@@ -93,5 +113,6 @@ manifest.update(version=source['version'], build=source['build'], commit=source[
                 artifact=archive.name, sha256=hashlib.sha256(archive.read_bytes()).hexdigest())
 output.write_text(json.dumps(manifest, indent=2) + '\n')
 PY
+"$SCRIPT_DIR/build-native-widget-setup.sh"
 python3 "$ROOT/ios/native/native_client.py" --manifest "$OUTPUT/native-app-manifest.json" verify-ipa "$IPA"
 printf 'Native IPA: %s\nManifest: %s\n' "$IPA" "$OUTPUT/native-app-manifest.json"

@@ -82,6 +82,7 @@ assert.throws(() => parseArgs([
 ]), /invalid token/);
 
 assert.deepEqual(parseActivityArgs(["status"]).command, { version: 1, operation: "status" });
+assert.deepEqual(parseActivityArgs(["inspect"]).command, { version: 1, operation: "inspect" });
 assert.deepEqual(parseActivityArgs(["shutdown"]).command, { version: 1, operation: "shutdown" });
 const activityTask = {
   sessionID: "s1",

@@ -521,3 +521,35 @@ Mac DSH 的 LaunchAgent 使用锁定的 pnpm 10.34.5，确保 profile 中 `nodeL
 - 新目录门禁暴露手机旧 xAI 授权无法刷新；OAuth 实现及旧凭据未被升级改写。用户完成官方重新授权后目录无失败，grok2api API Key 路由独立保留。通知桥在用户授权后只重载一次 SpringBoard，原生通知链接被桥接受，活动点击经用户确认正常。
 
 数据备份为 Mac `~/.dsh.before-native-0.2.1-20261027`、手机 `/var/root/.dsh.before-native-0.2.1-20261027`；程序备份为本次缓存中的 `mac-program-before`、手机 `/var/root/dsh-program.before-native-0.2.1-20261027`，旧 Provider 源码/lib 另行保留。脱敏报告、日志和产物摘要在 `.cache/upgrades/native-0.2.1-20261027/`，不提交会话正文、Cookie、token、配对串或 App 数据。
+
+
+## 2026-10-27：原生活动栏迁移、订阅恢复与本机负载
+
+手机保留独立 DSH 后台，原活动栏由 Whaleness 自身的 Widget 承载。最终安装为 DSH Debian `0.2.1~rc.2-2` 与 Whaleness `1.7.11 / build 37`。Root Host 提供状态，mobile UID501 的独立 broker/短命 worker 创建、更新和结束；App 的正常容器和真实 Keychain 配对保留。
+
+| 产物 | SHA-256 |
+| --- | --- |
+| DSH Debian revision 2 | `224c0372080b78e602c9171014cc981627be767b35fcb58d995c8f603330c77d` |
+| App build 37 IPA | `b97b87791f0477dd4247f7cf9328c75538673b6622e3293361edc081bd853c0b` |
+| Whaleness 累计源码补丁 | `5aaace3224af9886442936780103b718684da851bd1c30e905fd2af9dfe6c64a` |
+| Widget setup helper | `01a31f1de3201e9be6927f59c3d5e7b0063e67ed80e02cd6b8e6764e9736dadd` |
+| helper 权限文件 | `2ee51272c723e91ced18a392a77010ddc910925043fd8cad8591e492ab7d6523` |
+
+实机结果：
+
+- 原样迁移目标/进展/工具、Agent 圆点及鲸鱼资源，保留远端 Agent Activity 配置。用户确认通知中心/锁屏已有卡片，点击进入准确会话。
+- iOS 16.1 的扩展需要明确签名身份和精确 extension 缓存请求；安装器核对两类 Live Activity 及归属，不能把创建 UUID 当作渲染成功。已发现旧 Widget 进程和 chronod 可能保留旧版描述，最终缓存主 App/Widget 均为 `37-37`。只对确证旧 build 的专用退出码允许一次 chronod 重载，其余错误失败并撤销自有支持标记；不写系统缓存数据库。
+- 后台创建与更新使用同一 UUID，结束后恢复 idle；前台可见 App/PID 保持原状。SpringBoard PID `64198`、最终 DSH PID `67732` 保持稳定。只清理验收器自己的预览卡。
+- 锁屏会挂起订阅的本地计时，回前台重新给未确认请求同样的15秒窗口；ACK/reset/fail 取消旧计时。用户再从锁屏点击并停留约20秒后确认“不再弹错”。真正的前台超时仍会报错。
+- loopback 主机对其他会话历史改为选择时按需读取，避免空闲时额外预取冷历史。关闭 App 不影响 DSH 后台执行。
+- 部署前用户允许停止两任务；执行停机前它们已自行结束，实际取消请求数为0。停机备份 `/var/root/.dsh.before-native-activity-20261027` 与 `/var/root/dsh-program.before-native-activity-20261027` 后安装，只 bootstrap 一次 DSH。升级前 `156` 个会话全部保留，默认模型未变，目录失败数0，旧验收会话仍为 format v4；原配对保留。
+
+Node 与负载：
+
+- 使用原 iPhoneOS 专用 Node `22.23.2-1`，实际路径 `/var/jb/usr/local/lib/nodejs22/node`。旧 `nodejs22_22.23.2-1` 安装包与手机的构建 UUID 同为 `a3d4faa9-094b-35c5-958a-c0285d768f7e`；本次修订只安装 DSH 包与 App。
+- 正确按 Mach 时钟计量的运行窗口曾出现约1%–55%单核 CPU，常驻内存约408–480 MiB；当时有活动任务和约10 MB的会话日志。另一段主线程采样以 idle 为主，未捕获持续忙循环。不能由这段采样判定所有高峰的来源。
+- 最终带 App 连接的无任务10秒窗口：CPU `1.11%`–`1.39%`，平均 `1.23%`；常驻约 `218 MiB`、物理占用约 `328 MiB`。用户确认温度明显回落。窗口负载不同，不据此计算优化比例，也不承诺任务运行时保持空闲数值。
+
+验证：完整 `scripts/verify.sh`（含明确 `NATIVE_APP_SOURCE`）通过；45项原生安装/签名/支持标记测试、真实 Swift 订阅生命周期10场景、Widget版本/磁盘门禁与真实安装 heredoc 14条失败链均通过。Release archive、iOS16.1 Mach-O、Widget明确身份、数据/配对保留与最终 skip-install 校验通过。IME/外接键盘等未在本轮重新全面测试，保留既有记录的边界。
+
+证据位于 `.cache/upgrades/native-activity-20261027/`，包含安装、版本缓存、生命周期、数据基线、Node来源与资源采样；原始认证信息不写入提交。

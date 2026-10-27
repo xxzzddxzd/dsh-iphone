@@ -3,9 +3,15 @@
 #import <stdio.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
+#import "DSHActivityTarget.h"
+#import "../navigation/DSHNavigation.h"
 
 static NSString *const DSHActivityTargetBundleIdentifier = @"ai.deepseek.dsh";
 static const NSUInteger DSHActivityMaximumDataBytes = 4 * 1024;
+
+static NSData *DSHActivityAttributesData(void) {
+  return [NSJSONSerialization dataWithJSONObject:@{ @"source": @"dsh" } options:0 error:NULL];
+}
 
 static NSString *DSHActivitySafeError(NSString *message) {
   if (message.length == 0) return @"unknown ActivityKit error";
@@ -67,8 +73,8 @@ static NSData *DSHActivityStateData(const char *argument, NSString **errorMessag
     }
     return nil;
   }
-  if (data.length > DSHActivityMaximumDataBytes) {
-    if (errorMessage != NULL) *errorMessage = @"task state exceeds ActivityKit's 4 KB limit";
+  if (DSHActivityAttributesData().length + data.length > DSHActivityMaximumDataBytes) {
+    if (errorMessage != NULL) *errorMessage = @"attributes and task state exceed ActivityKit's 4 KB limit";
     return nil;
   }
   return data;
@@ -104,11 +110,16 @@ static id DSHActivityRemoteTarget(id __strong *retainedClient, NSString **errorM
   return target;
 }
 
-static int DSHActivityCreate(id target, NSData *contentState) {
+static int DSHActivityCreate(id target, NSData *contentState, NSString *targetBundleIdentifier) {
+  if ([targetBundleIdentifier isEqualToString:DSHActivityNativeTarget]) {
+    NSDictionary *state = [NSJSONSerialization JSONObjectWithData:contentState options:0 error:NULL];
+    NSURL *url = [state[@"launchURL"] isKindOfClass:NSString.class] ? [NSURL URLWithString:state[@"launchURL"]] : nil;
+    if (!DSHIsNativeSessionURLForSession(url, state[@"sessionID"])) {
+      return DSHActivityFail(@"native activity requires a matching native session URL");
+    }
+  }
   NSString *errorMessage = nil;
-  NSData *attributes = [NSJSONSerialization dataWithJSONObject:@{ @"source": @"dsh" }
-                                                        options:0
-                                                          error:NULL];
+  NSData *attributes = DSHActivityAttributesData();
   if (attributes.length + contentState.length > DSHActivityMaximumDataBytes) {
     return DSHActivityFail(@"attributes and task state exceed ActivityKit's 4 KB limit");
   }
@@ -122,7 +133,7 @@ static int DSHActivityCreate(id target, NSData *contentState) {
     @"platterTarget": @{
       @"widget": @{
         @"containingProcess": @{
-          @"processIdentifier": @{ @"_0": DSHActivityTargetBundleIdentifier },
+          @"processIdentifier": @{ @"_0": targetBundleIdentifier },
         },
       },
     },
@@ -161,7 +172,7 @@ static int DSHActivityCreate(id target, NSData *contentState) {
   NSString *targetBundle = descriptor[@"platterTarget"][@"widget"]
       [@"containingProcess"][@"bundleIdentifier"];
   if ([[NSUUID alloc] initWithUUIDString:identifier] == nil ||
-      ![targetBundle isEqualToString:DSHActivityTargetBundleIdentifier]) {
+      ![targetBundle isEqualToString:targetBundleIdentifier]) {
     return DSHActivityFail(errorMessage ?: @"ActivityKit returned the wrong activity target");
   }
   fprintf(stdout, "OK created %s\n", identifier.UTF8String);
@@ -220,7 +231,7 @@ int main(int argc, const char *argv[]) {
     BOOL isUpdate = [operation isEqualToString:@"update"];
     BOOL isEnd = [operation isEqualToString:@"end"];
     if ((!isCreate && !isUpdate && !isEnd) ||
-        (isCreate && argc != 3) ||
+        (isCreate && argc != 3 && argc != 4) ||
         (isUpdate && argc != 4) ||
         (isEnd && argc != 3)) {
       return DSHActivityFail(@"invalid operation arguments");
@@ -228,6 +239,9 @@ int main(int argc, const char *argv[]) {
     if (!isCreate && [[NSUUID alloc] initWithUUIDString:identifier] == nil) {
       return DSHActivityFail(@"invalid activity identifier");
     }
+    NSString *targetBundleIdentifier = isCreate && argc == 4
+        ? [NSString stringWithUTF8String:argv[3]] : DSHActivityTargetBundleIdentifier;
+    if (!DSHActivityAllowedTarget(targetBundleIdentifier)) return DSHActivityFail(@"unsupported activity target");
 
     NSString *errorMessage = nil;
     NSData *contentState = isCreate
@@ -240,7 +254,7 @@ int main(int argc, const char *argv[]) {
     __attribute__((objc_precise_lifetime)) id client = nil;
     id target = DSHActivityRemoteTarget(&client, &errorMessage);
     if (target == nil) return DSHActivityFail(errorMessage);
-    if (isCreate) return DSHActivityCreate(target, contentState);
+    if (isCreate) return DSHActivityCreate(target, contentState, targetBundleIdentifier);
     if (isUpdate) return DSHActivityUpdate(target, identifier, contentState);
     return DSHActivityEnd(target, identifier);
   }

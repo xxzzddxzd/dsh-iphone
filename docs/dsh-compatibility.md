@@ -31,6 +31,7 @@ Provider 子页支持逐模型显示开关、上下文窗口和最大输出 toke
 | subprocess terminal inspector | 新版只接受 linux/darwin/win32，Bash 在 iOS 创建 PTY 前失败 | iOS 使用设备 `/bin/ps` 已验证的 BSD `pid/ppid/lstart/tpgid` 字段，复用官方 POSIX inspector；保留 PID 与启动时间配对、进程树和信号前身份复核 |
 | HTML 缓存 | Safari 会继续使用旧入口或旧 module graph | index 与 SPA fallback 返回 no-cache header，并给 bundle 增加 compatibility 查询参数 |
 | 通知深链接 | 本机通知和 App 的 profile/session 身份必须一致 | Root 桥验证真实配对映射，优先导航原生根会话；没有有效映射时使用 Web 深链，compatibility 18 在 module 启动前恢复 Web 的 session 选择 |
+| Live Activity 的 Widget 归属 | 后台创建的旧卡绑定 `ai.deepseek.dsh`，安装原生 App 不会自动改绑；broker 为 mobile，不能读取 root 私有标记 | 在 Whaleness Widget 增加 `DSHRootActivityWidget`；安装器发布精确版本绑定的 root 私有记录与非敏感只读镜像；broker 核对安装及配对 session 后选择目标，迁移先 end 旧 UUID 再 create |
 | 主屏幕图标 | Safari 只看到通用 favicon 时会生成模糊或不合适的快捷方式图标 | 提供 180px 白底黑鲸鱼 `apple-touch-icon`，由 iOS 应用主屏幕圆角 |
 
 图片兼容层使用包内的 ImageIO/CoreGraphics helper 完成 PNG、JPEG、WebP 和 GIF 解码、方向校正、sRGB 转换、缩放以及 PNG/JPEG 编码。透明图片保留为 PNG；不透明图片按上游预算选择 PNG 或 JPEG。该后端只实现 DSH 附件模块当前使用的 `sharp` 调用面，升级附件模块时必须重新核对。
@@ -41,9 +42,15 @@ Node iOS 构建报告 `process.platform === "ios"`，因此两个 node-pty 产�
 
 ## 原生 App 与后端边界
 
-当前原生目标为 Whaleness `1.7.11 / build 34`，最低 iOS 16.1。DSH 继续由 root launchd 独立运行，App 是带正常容器与 Keychain 的客户端，不能套用旧 WK 实验壳的 platform/no-sandbox entitlement。`dsh-plugin-mobile-gateway 0.11.1+iphone.1` 挂载在同一进程的 `/ws/mobile`，固定 loopback、保留设备鉴权，并禁用另起进程重启 Web 及桌面 Tunnel。实机 Node 的 `process.platform` 是 `ios`，不是 `darwin`。
+当前原生版本为 Whaleness `1.7.11 / build 37` 与 DSH Debian `0.2.1~rc.2-2`，最低 iOS 16.1；准确构建及验收状态见[更新记录](./updating.md)。DSH 继续由 root launchd 独立运行，App 是带正常容器与 Keychain 的客户端，不能套用旧 WK 实验壳的 platform/no-sandbox entitlement。`dsh-plugin-mobile-gateway 0.11.1+iphone.1` 挂载在同一进程的 `/ws/mobile`，固定 loopback、保留设备鉴权，并禁用另起进程重启 Web 及桌面 Tunnel。实机 Node 的 `process.platform` 是 `ios`，不是 `darwin`。
 
-Root 后台继续负责本机通知、Live Activity 与点击导航；App 对严格本机主机跳过重复保活、通知与 Activity，远端主机行为保留。新客户端与原 Web 共享模型和历史，升级不移动会话到 App 容器。安装、配对、导航和横竖屏/输入法的验证边界见[原生 App 接入](./native-app.md)。
+Root Host 继续提供本机通知与 Live Activity 状态，独立 mobile UID 501 broker/短命 worker 负责 Activity 创建、更新和结束。build 37 在现有 Widget 扩展中增加 `DSHRootActivityWidget` 与原 `DSHActivityAttributes`，保留上游远端的 `AgentActivityAttributes` 配置；App 对严格本机主机继续跳过重复保活、通知与 Activity 创建。新客户端与原 Web 共享模型和历史，升级不移动会话到 App 容器。
+
+`root-live-activity-widget-v1` 能力必须来自最终 manifest，且精确安装的 App 与 Widget 版本/build/签名通过校验后才能发布支持记录。root 私有记录 `/var/root/.dsh/native-client/activity-widget.json` 保持 `0600`；同内容的非敏感镜像位于 `/var/mobile/Library/DSHNotifier/native-client/activity-widget.json`，root `0644`、父目录 root `0755`，供 mobile broker 读取。记录只含 Bundle、版本、路径与类型等安装元数据，不读 Keychain/token；缺能力时只撤销本工具生成的记录，保留映射和配对。不得为此把 broker 改为 root 或放松 root 目录权限。
+
+broker 还核对镜像 root 所有权、禁止 group/world 写、当前安装版本，以及任务内指向已配对激活 profile 的准确 session 深链，才选择 `com.clark.dshmobile.dev`。条件不足时明确选择旧独立 Widget；原生目标选定后的错误直接报告，不能悄悄回退。已有 UUID 不能换 target，迁移必须先成功结束旧目标，再创建新 UUID。相关身份与 target 持久化，供 broker 重启后恢复。
+
+私有 ActivityKit XPC 接受请求或返回 UUID，只证明请求阶段成功；LaunchServices 记录扩展也不证明 chronod 已加载和渲染它。新 target 必须另验通知中心/锁屏可见性、退出 App 后的更新、结束时 containing App 生命周期、划除与点击，不沿用旧独立壳的结论。安装、配对与交互边界见[原生 App 接入](./native-app.md)，分阶段门禁见[活动栏迁移检查流程](./notifications.md#活动栏迁移检查流程)。
 
 ## Safari 16 兼容
 
