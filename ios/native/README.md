@@ -12,7 +12,7 @@ DEVICE_HOST=10.99.1.139 ./scripts/install-native-app.sh
 
 安装器使用手机现有的 TrollStoreLite，给 App 建立正常的数据容器和 Keychain 身份；不套用旧 WK 壳的 platform/no-sandbox entitlement，不删除 App 数据。相同版本/build 已安装时跳过，较新版本拒绝降级。发布包尚未包含本项目的本机生命周期和自动配对改动，初次配对需在 App 中扫码或粘贴真实的一次性配对串。
 
-自定义适配版的准确版本/build 由 `source-patch.json` 锁定（当前 `1.7.11 / build 37`）。编译后为该 IPA 生成准确 SHA-256 manifest，保留相同 bundle ID。manifest 的 `capabilities` 包含 `loopback-pairing-v1`、`backend-managed-lifecycle-v1`、`composer-return-send-v1`、`root-live-activity-widget-v1`、`loopback-on-demand-history-v1`，再显式指定两个本地产物：
+自定义适配版的准确版本/build 由 `source-patch.json` 锁定（当前 `1.7.11 / build 39`）。编译后为该 IPA 生成准确 SHA-256 manifest，保留相同 bundle ID。manifest 的 `capabilities` 包含 `loopback-pairing-v1`、`backend-managed-lifecycle-v1`、`composer-return-send-v1`、`root-live-activity-widget-v1`、`loopback-on-demand-history-v1`、`provider-plugin-settings-v1`，再显式指定两个本地产物：
 
 ```bash
 NATIVE_APP_IPA=/path/to/Whaleness-iphone-build37.ipa \
@@ -83,10 +83,10 @@ NATIVE_ANDROID_SDK=/path/to/android-sdk \
 
 单独修改 helper 时，可运行 `./scripts/build-native-widget-setup.sh` 更新已有 `build/native-app` 中的 helper 和 manifest；它核对现有 IPA 的 SHA，不重建或修改 IPA。
 
-输出 IPA 文件名由锁定版本/build 生成，当前为 `build/native-app/Whaleness-iphone-1.7.11-build37.ipa`，配套 `build/native-app/native-app-manifest.json`。manifest 记录实际 SHA-256、源码 commit、补丁 SHA 和适配能力，打包后再次验证主 App 与 Widget：
+输出 IPA 文件名由锁定版本/build 生成，当前为 `build/native-app/Whaleness-iphone-1.7.11-build39.ipa`，配套 `build/native-app/native-app-manifest.json`。manifest 记录实际 SHA-256、源码 commit、补丁 SHA 和适配能力，打包后再次验证主 App 与 Widget：
 
 ```bash
-NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build37.ipa" \
+NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build39.ipa" \
 NATIVE_APP_MANIFEST="$PWD/build/native-app/native-app-manifest.json" \
 DEVICE_HOST=10.99.1.139 ./scripts/install-native-app.sh
 ```
@@ -109,3 +109,11 @@ build 35 开始在现有 `AgentLiveActivityWidget.appex` 中额外注册稳定�
 build 35 的实机记录表明：TrollStoreLite 只给主 App 补默认身份，未签名 Widget 只有 trust entitlement；PluginKit 虽登记，chronod 没有取得该扩展描述符，create 成功也没有显示卡片。build 36 在打包前为 Widget 单独嵌入 `TROLLTROLL` team 下的精确 application-identifier 和自身 container-required，不加 platform、no-sandbox、Keychain 或调试权限。实机还需要 `CHSToolServiceConnection` 以扩展 bundle ID 精确缓存描述符；普通 containing App 缓存回调成功不能代替这一步。安装后核验实际签名身份、两类 `CHSSessionPlatterDescriptor` 与实际显示，不能仅检查签名存在。iOS 16.1 的普通 `CHSConnection.descriptors:` 不返回 Live Activity，helper 因而只读 chronod 的 type 1 归档并安全解码，`activityAttributesType` 内部为二进制 plist。
 
 此设计不依赖 App 保活、APNs 或 iOS 16.2 的 `ActivityContent` API。归档成功只证明资源/Swift 类型与 Widget 注册可编译；还必须实测新 target 的 create/update/end、App 终止及锁屏后更新、用户清除行为、活动结束是否异常唤醒 containing App，以及旧目标退场不留下重复卡。
+
+## 原生管理与冷启动传输
+
+build 39 新增 Provider/Cline/插件原生表单和 credential-ref 单向密钥管理；对应后台为 Provider0.2.11、Gateway0.11.1+iphone.2。App 仅通过已配对 control wire 的固定 scope/action 调用同一份后台服务，普通聊天流不额外重解码。设置读取、同值保存/恢复与旧历史的设备验收命令见[原生接入](../../docs/native-app.md)。
+
+控制 hello 会先创建 conversation client，而其 socket 要等待异步 Keychain 读取。请求必须先进入 pre-hello 缓冲再检查 socket；否则 cold launch 会丢首条 subscribe，后来 history 虽然能到，仍会报 subscription-timeout。真实 URLSession WebSocket 回归验证 cold/warm、ACK、顺序、取消及队列边界；原38负例必须能复现漏发。设置首页使用 capability 作为加载任务标识，hello前进入后能在连接就绪时自动读取。
+
+升级中保留发布基线9bf，回放官方de9的独立订阅导航修复与两份1.7.11 AppRelease资源。shared/Gradle输入和KMP framework hash保持一致，未声称同步未发布的共享投影改造。

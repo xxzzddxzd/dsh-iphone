@@ -1,5 +1,5 @@
 diff --git a/AgentLiveActivityWidget/AgentLiveActivityWidget.swift b/AgentLiveActivityWidget/AgentLiveActivityWidget.swift
-index 67a04f3..6d89719 100644
+index 67a04f358bc8eb6a0ccb414436d069502fc87737..6d897197db9c366e7108b3c9dd4198540e7ac8f9 100644
 --- a/AgentLiveActivityWidget/AgentLiveActivityWidget.swift
 +++ b/AgentLiveActivityWidget/AgentLiveActivityWidget.swift
 @@ -4,7 +4,12 @@ import WidgetKit
@@ -18,7 +18,7 @@ index 67a04f3..6d89719 100644
  struct AgentLiveActivityWidget: Widget {
 diff --git a/AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/Contents.json b/AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/Contents.json
 new file mode 100644
-index 0000000..ebe25f7
+index 0000000000000000000000000000000000000000..ebe25f76652bb63718eb330c1e23f51c06208571
 --- /dev/null
 +++ b/AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/Contents.json
 @@ -0,0 +1,15 @@
@@ -39,7 +39,7 @@ index 0000000..ebe25f7
 +}
 diff --git a/AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/whale.svg b/AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/whale.svg
 new file mode 100644
-index 0000000..754615a
+index 0000000000000000000000000000000000000000..754615a37acaf1d24973b4e757ccdb16b9b8f003
 --- /dev/null
 +++ b/AgentLiveActivityWidget/Assets.xcassets/DSHWhale.imageset/whale.svg
 @@ -0,0 +1,3 @@
@@ -48,7 +48,7 @@ index 0000000..754615a
 +</svg>
 diff --git a/AgentLiveActivityWidget/DSHRootActivityAttributes.swift b/AgentLiveActivityWidget/DSHRootActivityAttributes.swift
 new file mode 100644
-index 0000000..e06ec32
+index 0000000000000000000000000000000000000000..e06ec32e1b97483993770fead5da431dc34021fa
 --- /dev/null
 +++ b/AgentLiveActivityWidget/DSHRootActivityAttributes.swift
 @@ -0,0 +1,26 @@
@@ -80,7 +80,7 @@ index 0000000..e06ec32
 +}
 diff --git a/AgentLiveActivityWidget/DSHRootActivityWidget.swift b/AgentLiveActivityWidget/DSHRootActivityWidget.swift
 new file mode 100644
-index 0000000..24c7a3c
+index 0000000000000000000000000000000000000000..24c7a3ce15513281473954cb6e1c141883789d28
 --- /dev/null
 +++ b/AgentLiveActivityWidget/DSHRootActivityWidget.swift
 @@ -0,0 +1,360 @@
@@ -446,7 +446,7 @@ index 0000000..24c7a3c
 +}
 diff --git a/AgentLiveActivityWidget/DSHRootNavigation.swift b/AgentLiveActivityWidget/DSHRootNavigation.swift
 new file mode 100644
-index 0000000..57e3792
+index 0000000000000000000000000000000000000000..57e379214c18c3cfa0d87fac3c091ae6f21d79b5
 --- /dev/null
 +++ b/AgentLiveActivityWidget/DSHRootNavigation.swift
 @@ -0,0 +1,17 @@
@@ -468,7 +468,7 @@ index 0000000..57e3792
 +  }
 +}
 diff --git a/AgentLiveActivityWidget/Info.plist b/AgentLiveActivityWidget/Info.plist
-index 9c09fb3..0e49d3c 100644
+index 9c09fb336d43047fcfa946b18ec61c64075a2a5d..c36d55318cb4a092122ae0c9ebb663bfab8feb17 100644
 --- a/AgentLiveActivityWidget/Info.plist
 +++ b/AgentLiveActivityWidget/Info.plist
 @@ -15,9 +15,9 @@
@@ -479,35 +479,95 @@ index 9c09fb3..0e49d3c 100644
 +	<string>1.7.11</string>
  	<key>CFBundleVersion</key>
 -	<string>$(CURRENT_PROJECT_VERSION)</string>
-+	<string>37</string>
++	<string>39</string>
  	<key>NSExtension</key>
  	<dict>
  		<key>NSExtensionPointIdentifier</key>
+diff --git a/AppRelease/release-info.json b/AppRelease/release-info.json
+index 218eab8ed9189b1435247e692ca328ed0e60191d..5406552b838fb20b1ade16cd15c3f9cf9291c806 100644
+--- a/AppRelease/release-info.json
++++ b/AppRelease/release-info.json
+@@ -1,4 +1,4 @@
+ {
+-  "version": "1.7.10",
++  "version": "1.7.11",
+   "minimumGatewayVersion": "0.11.1"
+ }
+diff --git a/AppRelease/release-notes.md b/AppRelease/release-notes.md
+index c56b060e011d00b3c857dd4a3241cfe88157960e..837c123a781027a54b8e2efecf7161d14e10220f 100644
+--- a/AppRelease/release-notes.md
++++ b/AppRelease/release-notes.md
+@@ -1,10 +1,14 @@
+ ## 功能更新
+ 
+-- 支持在会话中选择并上传文件，查看上传进度、移除附件或重试失败上传；已发送文件以附件卡片展示。
+-- 双端新增独立的正文文字选择页面，长按进入后可选择、全选和复制，关闭后保留原会话阅读位置。
+-- 统一 Android 菜单的圆角毛玻璃、轻阴影与动效，改善文字操作菜单、工作区和设置弹层的一致性。
+-- 修复 iOS 点击「查看完整团队内容」后需等待菜单收回才弹出面板的问题，保留面板上滑动画，并避免关闭后团队按钮隐藏。
+-- 改善 iOS 从后台恢复时的连接验证与请求超时处理，减少误报，并提升相册图片发送的格式兼容性。
++- 双端支持在会话中选择和上传文件，查看上传进度、移除附件或重试失败上传；已发送文件以附件卡片展示。
++- 双端新增独立的正文文字选择页面，支持选择、全选和复制，关闭后保留会话阅读位置。
++- 双端改进 Markdown 表格阅读，支持全屏查看、旋转、复制和导出 CSV；少列表格自动铺满可用宽度，宽表格可横向滚动浏览。
++- iOS 最低支持版本扩展至 16.1，并为较旧系统提供兼容界面。
++- 改善 iPhone Duo 展开与闭合时的首页背景、安全区和横竖屏布局；宽屏会话提供按工作区分组的侧边栏，修复定时任务工具栏按钮挤压问题。
++- 修复 iOS 首页玻璃按钮初始高亮、侧栏时钟图标大小不一致及折叠后输入框占位文字变形的问题；权限名称在空间足够时完整显示。
++- 优化 Android 统一毛玻璃菜单、会话重命名和侧滑导航的交互体验。
++- 改善团队会话与工作区文件浏览，修正会话 Token 用量统计显示。
++- 改善 iOS 后台恢复时的连接验证、请求超时和团队面板打开体验，并提升图片发送的格式兼容性。
+ 
+ ## 必需插件
+ 
 diff --git a/DeepSeekHarnessMobile.xcodeproj/project.pbxproj b/DeepSeekHarnessMobile.xcodeproj/project.pbxproj
-index 980cec6..3c70a6d 100644
+index 980cec64e29c5b9c03877acece30f1ba005430ca..6156864d3efd543257316d450ce3aff65e272827 100644
 --- a/DeepSeekHarnessMobile.xcodeproj/project.pbxproj
 +++ b/DeepSeekHarnessMobile.xcodeproj/project.pbxproj
-@@ -7,6 +7,9 @@
+@@ -7,6 +7,13 @@
  	objects = {
  
  /* Begin PBXBuildFile section */
++		C2C9F7491EE4F85E19848DDB /* NativePluginSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D130B7B57EC674971BF4DD10 /* NativePluginSettingsView.swift */; };
++		6C0A77C0535F58CB6E9AAC5D /* NativeClineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760DD6F13972F9E5D656C8EE /* NativeClineSettingsView.swift */; };
++		03A55E5DDC123606448D69BD /* NativeSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589AAC61B0A0B87E3E078C9A /* NativeSettingsViews.swift */; };
++		24834E380F4B760E1E4B2717 /* NativeSettingsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B06B79E3A3C2811F04A7B70 /* NativeSettingsClient.swift */; };
 +		D5A000000000000000000001 /* DSHRootActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A000000000000000000011 /* DSHRootActivityAttributes.swift */; };
 +		D5A000000000000000000002 /* DSHRootActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A000000000000000000012 /* DSHRootActivityWidget.swift */; };
 +		D5A000000000000000000003 /* DSHRootNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A000000000000000000013 /* DSHRootNavigation.swift */; };
  		CF225000000000000000011 /* DocumentPageChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF225000000000000000012 /* DocumentPageChrome.swift */; };
  		CF225000000000000000001 /* MarkdownTableCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF225000000000000000002 /* MarkdownTableCard.swift */; };
  		CF206000000000000000001 /* FileUploadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF206000000000000000002 /* FileUploadController.swift */; };
-@@ -118,6 +121,9 @@
+@@ -118,6 +125,13 @@
  /* End PBXCopyFilesBuildPhase section */
  
  /* Begin PBXFileReference section */
++		D130B7B57EC674971BF4DD10 /* NativePluginSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePluginSettingsView.swift; sourceTree = "<group>"; };
++		760DD6F13972F9E5D656C8EE /* NativeClineSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeClineSettingsView.swift; sourceTree = "<group>"; };
++		589AAC61B0A0B87E3E078C9A /* NativeSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeSettingsViews.swift; sourceTree = "<group>"; };
++		9B06B79E3A3C2811F04A7B70 /* NativeSettingsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeSettingsClient.swift; sourceTree = "<group>"; };
 +		D5A000000000000000000011 /* DSHRootActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSHRootActivityAttributes.swift; sourceTree = "<group>"; };
 +		D5A000000000000000000012 /* DSHRootActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSHRootActivityWidget.swift; sourceTree = "<group>"; };
 +		D5A000000000000000000013 /* DSHRootNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSHRootNavigation.swift; sourceTree = "<group>"; };
  		CF225000000000000000012 /* DocumentPageChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPageChrome.swift; sourceTree = "<group>"; };
  		CF225000000000000000002 /* MarkdownTableCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTableCard.swift; sourceTree = "<group>"; };
  		CF206000000000000000002 /* FileUploadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUploadController.swift; sourceTree = "<group>"; };
-@@ -433,6 +439,9 @@
+@@ -261,6 +275,7 @@
+ 				A0C0FFEE0000000000000004 /* ConversationTimeline.swift */,
+ 				E61E231D0CD3E07857F861B0 /* GatewayClient.swift */,
+ 				CF206000000000000000002 /* FileUploadController.swift */,
++				9B06B79E3A3C2811F04A7B70 /* NativeSettingsClient.swift */,
+ 				954FCEA4A6E71F3D1A22BB53 /* GatewayModels.swift */,
+ 				CA11E000000000000000000A /* L10n.swift */,
+ 				12863E736F832D8F502B94A0 /* Theme.swift */,
+@@ -383,6 +398,9 @@
+ 				EEABECFD00017A6E10B1F4A3 /* HumanQuestionView.swift */,
+ 				A1B2C3D4E5F60718293A4B5D /* ApprovalRequestView.swift */,
+ 				5A37B43613D712F252BA91D7 /* RootView.swift */,
++				589AAC61B0A0B87E3E078C9A /* NativeSettingsViews.swift */,
++				760DD6F13972F9E5D656C8EE /* NativeClineSettingsView.swift */,
++				D130B7B57EC674971BF4DD10 /* NativePluginSettingsView.swift */,
+ 				B10000000000000000000002 /* PluginsView.swift */,
+ 				D98111628697EC1C4FF9878B /* SettingsView.swift */,
+ 				65009160A0642089906B54DF /* TrajectoryView.swift */,
+@@ -433,6 +451,9 @@
  		F1A000000000000000000021 /* AgentLiveActivityWidget */ = {
  			isa = PBXGroup;
  			children = (
@@ -517,7 +577,18 @@ index 980cec6..3c70a6d 100644
  				F1A000000000000000000014 /* AgentLiveActivityWidget.swift */,
  				F1A000000000000000000015 /* Info.plist */,
  				F1A000000000000000000017 /* Assets.xcassets */,
-@@ -716,6 +725,9 @@
+@@ -676,6 +697,10 @@
+ 				A9FE00000000000000000001 /* AgentUserNotificationManager.swift in Sources */,
+ 				A9FB00000000000000000001 /* GatewayFrameRouter.swift in Sources */,
+ 				A9FC00000000000000000001 /* KMPSharedAdapter.swift in Sources */,
++				24834E380F4B760E1E4B2717 /* NativeSettingsClient.swift in Sources */,
++				03A55E5DDC123606448D69BD /* NativeSettingsViews.swift in Sources */,
++				6C0A77C0535F58CB6E9AAC5D /* NativeClineSettingsView.swift in Sources */,
++				C2C9F7491EE4F85E19848DDB /* NativePluginSettingsView.swift in Sources */,
+ 				5ED39F22065A71FC54D755AC /* AppStore.swift in Sources */,
+                 AF18C0000000000000000001 /* WorkspacePreviewCache.swift in Sources */,
+ 				CF2010000000000000000001 /* ChatHistoryCache.swift in Sources */,
+@@ -716,6 +741,9 @@
  			isa = PBXSourcesBuildPhase;
  			buildActionMask = 2147483647;
  			files = (
@@ -527,16 +598,16 @@ index 980cec6..3c70a6d 100644
  				F1A000000000000000000002 /* AgentActivityAttributes.swift in Sources */,
  				F1A000000000000000000004 /* AgentApprovalIntents.swift in Sources */,
  				F1A000000000000000000006 /* AgentLiveActivityWidget.swift in Sources */,
-@@ -962,7 +974,7 @@
+@@ -962,7 +990,7 @@
  				APPLICATION_EXTENSION_API_ONLY = YES;
  				CLANG_ENABLE_OBJC_WEAK = NO;
  				CODE_SIGN_STYLE = Automatic;
 -				CURRENT_PROJECT_VERSION = 31;
-+				CURRENT_PROJECT_VERSION = 37;
++				CURRENT_PROJECT_VERSION = 39;
  				DEVELOPMENT_TEAM = "$(LOCAL_DEVELOPMENT_TEAM)";
  				GENERATE_INFOPLIST_FILE = NO;
  				INFOPLIST_FILE = AgentLiveActivityWidget/Info.plist;
-@@ -972,7 +984,7 @@
+@@ -972,7 +1000,7 @@
  					"@executable_path/Frameworks",
  					"@executable_path/../../Frameworks",
  				);
@@ -545,16 +616,16 @@ index 980cec6..3c70a6d 100644
  				PRODUCT_BUNDLE_IDENTIFIER = "$(LOCAL_BUNDLE_IDENTIFIER).AgentLiveActivityWidget";
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SDKROOT = iphoneos;
-@@ -990,7 +1002,7 @@
+@@ -990,7 +1018,7 @@
  				APPLICATION_EXTENSION_API_ONLY = YES;
  				CLANG_ENABLE_OBJC_WEAK = NO;
  				CODE_SIGN_STYLE = Automatic;
 -				CURRENT_PROJECT_VERSION = 31;
-+				CURRENT_PROJECT_VERSION = 37;
++				CURRENT_PROJECT_VERSION = 39;
  				DEVELOPMENT_TEAM = "$(LOCAL_DEVELOPMENT_TEAM)";
  				GENERATE_INFOPLIST_FILE = NO;
  				INFOPLIST_FILE = AgentLiveActivityWidget/Info.plist;
-@@ -1000,7 +1012,7 @@
+@@ -1000,7 +1028,7 @@
  					"@executable_path/Frameworks",
  					"@executable_path/../../Frameworks",
  				);
@@ -564,7 +635,7 @@ index 980cec6..3c70a6d 100644
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				SDKROOT = iphoneos;
 diff --git a/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift b/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift
-index de27d9c..7e1313e 100644
+index de27d9c4e63b81dd90ef21628ef63cf9cfa8cb7b..7e1313e37cd09b720fd318fa4619873157b098a4 100644
 --- a/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift
 +++ b/DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift
 @@ -46,6 +46,7 @@ final class AgentBackgroundExecutionController {
@@ -608,7 +679,7 @@ index de27d9c..7e1313e 100644
  
      @discardableResult
 diff --git a/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift b/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift
-index 402ce77..083ddff 100644
+index 402ce77cda1738862fb9e58f2b37a8f862fa2907..083ddfff383b98a41ba2d9797e1ff0b2757e34bb 100644
 --- a/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift
 +++ b/DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift
 @@ -40,7 +40,8 @@ final class AgentUserNotificationManager: NSObject, @preconcurrency UNUserNotifi
@@ -664,7 +735,7 @@ index 402ce77..083ddff 100644
          let content = UNMutableNotificationContent()
          content.title = title
 diff --git a/DeepSeekHarnessMobile/Core/AppStore.swift b/DeepSeekHarnessMobile/Core/AppStore.swift
-index 34591b3..d50e12c 100644
+index 34591b3cbfdf2c6b01d60408b063d6f076320f9b..75415cb3ecac835296a45992da34ad5893318b1e 100644
 --- a/DeepSeekHarnessMobile/Core/AppStore.swift
 +++ b/DeepSeekHarnessMobile/Core/AppStore.swift
 @@ -908,7 +908,10 @@ final class AppStore: ObservableObject {
@@ -710,7 +781,19 @@ index 34591b3..d50e12c 100644
              || selectedSession?.isRunning == true || isPreparingNewConversation
              || selectedSessionId.map { historyPresentationAdmission.isPending(sessionID: $0) } == true
          chatPrefetcher.update(candidates: candidates, selected: selectedSessionId, busy: busy, sessionsReceived: sessionsReceived)
-@@ -3737,7 +3755,8 @@ final class AppStore: ObservableObject {
+@@ -2787,6 +2805,11 @@ final class AppStore: ObservableObject {
+     }
+ 
+     private func handle(_ frame: GatewayFrame) {
++        // Official navigation fix: an old/left conversation cannot present a global timeout.
++        if frame.kind == "error", frame.code == "subscription-timeout",
++           frame.sessionId == nil || frame.sessionId != selectedSessionId || preparedConversationActivationKey == nil {
++            return
++        }
+         if frame.kind.hasPrefix("file-upload-") || frame.requestType?.hasPrefix("file-upload-") == true {
+             fileUploads.accept(frame)
+             return
+@@ -3737,7 +3760,8 @@ final class AppStore: ObservableObject {
                      requestID: request.rpcId,
                      sessionID: request.sessionId,
                      sessionTitle: title(for: request.sessionId),
@@ -720,7 +803,7 @@ index 34591b3..d50e12c 100644
                  )
                  notice(
                      request.replay ? String(localized: "待审批操作已恢复") : String(localized: "Agent 正在等待审批"),
-@@ -4367,7 +4386,8 @@ final class AppStore: ObservableObject {
+@@ -4367,7 +4391,8 @@ final class AppStore: ObservableObject {
                  eventID: record.id,
                  sessionID: record.sessionId,
                  sessionTitle: title(for: record.sessionId),
@@ -731,10 +814,30 @@ index 34591b3..d50e12c 100644
              if backgroundMonitoredSessionID == record.sessionId,
                 !backgroundExecutionController.isAgentWorkActive(sessionID: record.sessionId) {
 diff --git a/DeepSeekHarnessMobile/Core/GatewayClient.swift b/DeepSeekHarnessMobile/Core/GatewayClient.swift
-index 70ede42..16ef6c0 100644
+index 70ede4251e3e91e1a7c95a401bbcea29a7ea9036..9b886f4f1497f093b917bc0983bb32fa6739db66 100644
 --- a/DeepSeekHarnessMobile/Core/GatewayClient.swift
 +++ b/DeepSeekHarnessMobile/Core/GatewayClient.swift
-@@ -24,10 +24,33 @@ final class GatewayClient: ObservableObject {
+@@ -17,6 +17,19 @@ final class GatewayClient: ObservableObject {
+     }
+ 
+     private let channel: String
++    @Published private(set) var nativeSettingsAvailable = false
++    lazy var nativeSettings = NativeSettingsClient(catalogChanged: { [weak self] in
++        await MainActor.run { self?.requestModels() }
++    }) { [weak self] data in
++        try await MainActor.run {
++            guard let self, self.state.isConnected else { throw NativeSettingsClient.Failure.disconnected }
++            guard self.nativeSettingsAvailable else {
++                throw NativeSettingsClient.Failure.rejected("当前网关尚未提供原生设置接口，请更新网关。")
++            }
++            self.sendRequestPayload(String(decoding: data, as: UTF8.self), decorate: false)
++        }
++    }
++
+     var requestDecorator: ((String) -> String?)?
+     var conversationTarget: ((String) -> MobileConversationTarget?)?
+     private var subscriptionPending = false
+@@ -24,11 +37,46 @@ final class GatewayClient: ObservableObject {
      private var desiredSubscriptionID: String?
      private var subscriptionDirty = false
      private var subscriptionTimeout: Task<Void, Never>?
@@ -758,18 +861,31 @@ index 70ede42..16ef6c0 100644
 +                  self.subscriptionTimeoutGeneration == generation,
 +                  self.subscriptionPending, !self.isApplicationInBackground else { return }
 +            let target = self.pendingSubscriptionID
++            let superseded = self.subscriptionDirty && target != self.desiredSubscriptionID
++            let latest = self.desiredSubscriptionID
 +            self.resetSubscriptionRequests()
++            if superseded {
++                // Official de9bace: a missing old ACK must not drop the latest navigation.
++                self.subscribe(sessionId: latest)
++                return
++            }
++            // Leaving a conversation must not surface its old unsubscribe timeout.
++            guard let target, !target.isEmpty else { return }
++            let isChild = self.conversationTarget?(target)?.parentSessionId != nil
 +            self.onFrame?(GatewayFrame(kind: "error", sessionId: target, code: "subscription-timeout",
-+                message: "成员会话订阅超时，请重试或返回 Lead", requestType: "subscribe"))
++                message: isChild ? "成员会话订阅超时，请重试或返回 Lead" : "会话订阅超时，请重试",
++                requestType: "subscribe"))
 +        }
 +    }
 +
 +    func resetSubscriptionRequests() {
 +        cancelSubscriptionTimeout()
          subscriptionPending = false
++        pendingSubscriptionID = nil
          subscriptionDirty = false
      }
-@@ -37,8 +60,7 @@ final class GatewayClient: ObservableObject {
+ 
+@@ -37,8 +85,7 @@ final class GatewayClient: ObservableObject {
          // 兼容未经过前台选择入口的历史订阅与旧网关；托管切换仍严格单飞。
          guard subscriptionPending else { return true }
          guard pendingSubscriptionID == sessionID else { return false }
@@ -779,7 +895,7 @@ index 70ede42..16ef6c0 100644
          subscriptionPending = false
          if subscriptionDirty {
              subscriptionDirty = false
-@@ -88,17 +110,20 @@ final class GatewayClient: ObservableObject {
+@@ -88,17 +135,20 @@ final class GatewayClient: ObservableObject {
      private let credentials: any GatewayCredentialStoring
      private let heartbeatInterval: Duration
      private let probeTimeout: Duration
@@ -801,7 +917,7 @@ index 70ede42..16ef6c0 100644
      }
  #if DEBUG
      private var testRequestTransport: ((String) -> Void)?
-@@ -216,6 +241,7 @@ final class GatewayClient: ObservableObject {
+@@ -216,6 +266,7 @@ final class GatewayClient: ObservableObject {
          connectionTimeoutTask?.cancel()
          foregroundProbeTask?.cancel()
          heartbeatTask?.cancel()
@@ -809,7 +925,7 @@ index 70ede42..16ef6c0 100644
          socket?.cancel(with: .goingAway, reason: nil)
          transportSession.invalidateAndCancel()
      }
-@@ -246,6 +272,9 @@ final class GatewayClient: ObservableObject {
+@@ -246,6 +297,9 @@ final class GatewayClient: ObservableObject {
      /// 只记录场景状态。连接的生命周期由用户的连接意图与真实传输故障决定；
      /// 进入后台本身不再主动关闭 WebSocket。
      func applicationDidEnterBackground() {
@@ -819,7 +935,7 @@ index 70ede42..16ef6c0 100644
          networkRecovery.cancel()
          foregroundProbeTask?.cancel()
          foregroundProbeTask = nil
-@@ -262,7 +291,9 @@ final class GatewayClient: ObservableObject {
+@@ -262,7 +316,9 @@ final class GatewayClient: ObservableObject {
      func applicationDidBecomeActive() {
          traceLifecycle("become-active")
          backgroundEnteredAt = nil
@@ -829,7 +945,16 @@ index 70ede42..16ef6c0 100644
          guard wantsConnection, !isManualPairingAttempt, !probeOnly else { return }
          reconnectAttempt = 0
          if state.isConnected {
-@@ -539,15 +570,7 @@ final class GatewayClient: ObservableObject {
+@@ -347,6 +403,8 @@ final class GatewayClient: ObservableObject {
+         connectionPreparationTask?.cancel()
+         connectionPreparationTask = nil
+         onConnectionInvalidated?()
++        nativeSettingsAvailable = false
++        if channel == "control" { Task { await nativeSettings.invalidate() } }
+         networkRecovery.cancel()
+         resetSubscriptionRequests()
+         traceLifecycle("explicit-disconnect reconnect=\(reconnect)")
+@@ -539,15 +597,7 @@ final class GatewayClient: ObservableObject {
          if subscriptionPending { subscriptionDirty = true; return }
          subscriptionPending = true
          pendingSubscriptionID = sessionId
@@ -846,7 +971,41 @@ index 70ede42..16ef6c0 100644
          gatewayApprovalTrace("transport subscribe hasSession=\(sessionId?.isEmpty == false)")
          if let sessionId, !sessionId.isEmpty {
              send(["type": "subscribe", "sessionId": sessionId, "assistantStream": true])
-@@ -873,7 +896,8 @@ final class GatewayClient: ObservableObject {
+@@ -711,11 +761,13 @@ final class GatewayClient: ObservableObject {
+             conversationClient.sendRequestPayload(payload)
+             return
+         }
++        // Control hello can open this channel before its asynchronous Keychain
++        // preparation has created the socket. Preserve those first requests.
++        if deferUntilConversationHello(payload) { return }
+         guard let socket else {
+             state = .failed(String(localized: "state.websocket.not-connected", defaultValue: "WebSocket 尚未连接"))
+             return
+         }
+-        if deferUntilConversationHello(payload) { return }
+         write(payload, to: socket)
+     }
+ 
+@@ -739,7 +791,7 @@ final class GatewayClient: ObservableObject {
+     }
+ 
+     private func deferUntilConversationHello(_ payload: String) -> Bool {
+-        guard channel == "conversation", !state.isConnected else { return false }
++        guard channel == "conversation", wantsConnection, !state.isConnected else { return false }
+         let bytes = payload.utf8.count
+         guard pendingConversationPayloads.count < 64,
+               pendingConversationBytes + bytes <= 16 * 1024 * 1024 else {
+@@ -844,6 +896,9 @@ final class GatewayClient: ObservableObject {
+                         isManualPairingAttempt = false
+                         startMonitoringNetworkChanges()
+                         reconnectAttempt = 0
++                        if channel == "control" {
++                            nativeSettingsAvailable = frame.capabilities?.contains("iphone-native-settings-v1") == true
++                        }
+                         state = .connected
+                         onConnectionReady?()
+                         traceLifecycle("hello-connected")
+@@ -873,7 +928,8 @@ final class GatewayClient: ObservableObject {
      private func openConversationChannel() {
          guard conversationClient == nil, let endpoint else { return }
          let client = GatewayClient(channel: "conversation", credentials: credentials,
@@ -856,16 +1015,29 @@ index 70ede42..16ef6c0 100644
          client.credentialID = credentialID
          client.expectedGatewayID = expectedGatewayID
          client.trustedEndpoints = trustedEndpoints
-@@ -998,6 +1022,7 @@ final class GatewayClient: ObservableObject {
+@@ -899,6 +955,10 @@ final class GatewayClient: ObservableObject {
+     }
+ 
+     func deliverApplicationFrame(_ frame: GatewayFrame, data: Data) {
++        if frame.kind == "native-settings" || (frame.kind == "error" && frame.requestType == "native-settings") {
++            Task { await nativeSettings.receive(data) }
++            return
++        }
+         if frame.kind == "agent-presets" || frame.requestType == "agent-presets" {
+             Self.presetLogger.info("received decoded response kind=\(frame.kind, privacy: .public) bytes=\(data.count)")
+         }
+@@ -998,6 +1058,9 @@ final class GatewayClient: ObservableObject {
          connectionPreparationTask = nil
          traceLifecycle("failure-cleanup reconnect=\(shouldReconnect) report=\(reportFailure)")
          onConnectionInvalidated?()
++        nativeSettingsAvailable = false
++        if channel == "control" { Task { await nativeSettings.invalidate() } }
 +        resetSubscriptionRequests()
          outboundTask?.cancel()
          outboundTask = nil
          heartbeatTask?.cancel()
 diff --git a/DeepSeekHarnessMobile/Core/GatewayProfile.swift b/DeepSeekHarnessMobile/Core/GatewayProfile.swift
-index a6bdeee..b8fecf0 100644
+index a6bdeee363fdfce2c0603872eca86e6922787d85..b8fecf06e6f86e6142b77c00e7df5fab2673e8ff 100644
 --- a/DeepSeekHarnessMobile/Core/GatewayProfile.swift
 +++ b/DeepSeekHarnessMobile/Core/GatewayProfile.swift
 @@ -22,6 +22,15 @@ struct GatewayProfile: Codable, Identifiable, Equatable {
@@ -915,8 +1087,168 @@ index a6bdeee..b8fecf0 100644
  enum GatewayProfileError: LocalizedError {
      case identity, address, conflict
      var errorDescription: String? {
+diff --git a/DeepSeekHarnessMobile/Core/NativeSettingsClient.swift b/DeepSeekHarnessMobile/Core/NativeSettingsClient.swift
+new file mode 100644
+index 0000000000000000000000000000000000000000..cda02d26a7a6e8a46876eea2e860dbec5630c2ae
+--- /dev/null
++++ b/DeepSeekHarnessMobile/Core/NativeSettingsClient.swift
+@@ -0,0 +1,154 @@
++import Foundation
++
++/// A request-scoped client over the already authenticated control connection.
++/// Settings, account keys and OAuth credentials remain owned by the Host.
++actor NativeSettingsClient {
++    enum Scope: String, Codable, Sendable { case provider, plugin; case clinePass = "cline-pass" }
++    enum Failure: LocalizedError {
++        case disconnected, timedOut, invalidResponse, rejected(String)
++        var errorDescription: String? {
++            switch self {
++            case .disconnected: return "网关已断开，请连接后重试。"
++            case .timedOut: return "设置请求超时，请重试。"
++            case .invalidResponse: return "设置服务返回了无法识别的响应。"
++            case .rejected(let message): return message
++            }
++        }
++    }
++    typealias Transport = @Sendable (Data) async throws -> Void
++    private struct Pending {
++        let scope: Scope
++        let action: String
++        let provider: String?
++        let continuation: CheckedContinuation<JSONValue, Error>
++        let deadline: Task<Void, Never>
++    }
++    private let transport: Transport
++    private let catalogChanged: @Sendable () async -> Void
++    private var authStates: [String: String] = [:]
++    private let timeout: Duration
++    private var pending: [String: Pending] = [:]
++
++    init(timeout: Duration = .seconds(65), catalogChanged: @escaping @Sendable () async -> Void = {}, transport: @escaping Transport) {
++        self.timeout = timeout
++        self.catalogChanged = catalogChanged
++        self.transport = transport
++    }
++
++    func request(_ scope: Scope, _ action: String, payload: [String: JSONValue] = [:]) async throws -> JSONValue {
++        try Task.checkCancellation()
++        let requestID = UUID().uuidString
++        return try await withTaskCancellationHandler {
++            try await withCheckedThrowingContinuation { continuation in
++                let deadline = Task { [weak self, timeout] in
++                    do { try await Task.sleep(for: timeout) } catch { return }
++                    await self?.finish(requestID, .failure(Failure.timedOut))
++                }
++                pending[requestID] = Pending(scope: scope, action: action, provider: payload["provider"]?.stringValue, continuation: continuation, deadline: deadline)
++                let wire: JSONValue = .object([
++                    "type": .string("native-settings"), "requestId": .string(requestID),
++                    "scope": .string(scope.rawValue), "action": .string(action), "payload": .object(payload)
++                ])
++                Task {
++                    do {
++                        guard pending[requestID] != nil else { return }
++                        try Task.checkCancellation()
++                        let data = try JSONEncoder().encode(wire)
++                        try await transport(data)
++                    } catch { finish(requestID, .failure(error)) }
++                }
++            }
++        } onCancel: {
++            Task { await self.finish(requestID, .failure(CancellationError())) }
++        }
++    }
++
++    /// Header recognition is synchronous so settings replies never enter KMP or generic alerts.
++    nonisolated static func consumes(_ data: Data) -> Bool {
++        struct Header: Decodable { let kind: String?; let requestType: String? }
++        guard let header = try? JSONDecoder().decode(Header.self, from: data) else { return false }
++        return header.kind == "native-settings" || (header.kind == "error" && header.requestType == "native-settings")
++    }
++
++    func receive(_ data: Data) {
++        guard let frame = try? JSONDecoder().decode(JSONValue.self, from: data),
++              let requestID = frame["requestId"]?.stringValue, let request = pending[requestID] else { return }
++        if frame["kind"]?.stringValue == "error" {
++            let raw = frame["message"]?.stringValue ?? "设置服务暂不可用。"
++            let safe = raw.replacingOccurrences(of: "vless://[^\\s]+", with: "vless://[已隐藏]", options: .regularExpression)
++                .replacingOccurrences(of: "(?i)(access_token|refresh_token|token|code)=([^&\\s]+)", with: "$1=[已隐藏]", options: .regularExpression)
++                .replacingOccurrences(of: "(?:sk-|xai-)[A-Za-z0-9_-]{12,}", with: "[密钥已隐藏]", options: .regularExpression)
++            // Do not store diagnostics, request bodies or account secrets in logs.
++            finish(requestID, .failure(Failure.rejected(String(safe.prefix(500)))))
++            return
++        }
++        guard frame["scope"]?.stringValue == request.scope.rawValue,
++              frame["action"]?.stringValue == request.action,
++              let value = frame["value"] else {
++            finish(requestID, .failure(Failure.invalidResponse)); return
++        }
++        finish(requestID, .success(value))
++        if request.scope == .provider, request.action == "auth.logout", let provider = request.provider { authStates[provider] = "signed-out" }
++        var refresh = request.scope == .provider && ["models.set", "auth.logout"].contains(request.action)
++        if request.scope == .provider, request.action == "auth.status", let provider = request.provider,
++           let status = value["status"]?.stringValue {
++            refresh = status == "signed-in" && authStates[provider] != status
++            authStates[provider] = status
++        }
++        if request.scope == .clinePass {
++            refresh = ["key.set", "account.add", "account.remove", "account.mode", "account.enable", "model.visibility", "models.visibility", "models.refresh"].contains(request.action)
++        }
++        if request.scope == .plugin && ["mutate", "credentials.set", "credentials.unset"].contains(request.action) { refresh = true }
++        if refresh { Task { await catalogChanged() } }
++    }
++
++    func invalidate() {
++        let requests = pending
++        pending.removeAll()
++        for item in requests.values {
++            item.deadline.cancel()
++            item.continuation.resume(throwing: Failure.disconnected)
++        }
++    }
++
++    private func finish(_ id: String, _ result: Result<JSONValue, Error>) {
++        guard let item = pending.removeValue(forKey: id) else { return }
++        item.deadline.cancel()
++        item.continuation.resume(with: result)
++    }
++}
++
++extension JSONValue {
++    var nativeText: String {
++        switch self {
++        case .string(let value): return value
++        case .number(let value): return value.rounded() == value ? String(format: "%.0f", value) : String(value)
++        case .bool(let value): return value ? "是" : "否"
++        case .null: return "未设置"
++        case .array(let values): return "\(values.count) 项"
++        case .object(let values): return "\(values.count) 个配置项"
++        }
++    }
++    func nativeValue(at path: [String]) -> JSONValue? {
++        guard let first = path.first else { return self }
++        if case .array(let items) = self, let index = Int(first), items.indices.contains(index) {
++            return items[index].nativeValue(at: Array(path.dropFirst()))
++        }
++        return self[first]?.nativeValue(at: Array(path.dropFirst()))
++    }
++    func nativeReplacing(at path: [String], with value: JSONValue?) -> JSONValue {
++        guard let first = path.first else { return value ?? .null }
++        let tail = Array(path.dropFirst())
++        if case .array(var items) = self {
++            guard let index = Int(first), items.indices.contains(index) else { return self }
++            if tail.isEmpty && value == nil { items.remove(at: index) }
++            else { items[index] = items[index].nativeReplacing(at: tail, with: value) }
++            return .array(items)
++        }
++        var items = objectValue ?? [:]
++        if value == nil && items[first] == nil { return self }
++        if tail.isEmpty { items[first] = value }
++        else { items[first] = (items[first] ?? .object([:])).nativeReplacing(at: tail, with: value) }
++        return .object(items)
++    }
++}
 diff --git a/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift b/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift
-index 0b1faa9..a4a5d7c 100644
+index 0b1faa9bada654ccdb9470ad0d0f7e9a5c6bea77..a4a5d7c410c0c54a571fe4901c95ef815286e2c7 100644
 --- a/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift
 +++ b/DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift
 @@ -28,6 +28,33 @@ final class AgentLiveActivityManager {
@@ -973,7 +1305,7 @@ index 0b1faa9..a4a5d7c 100644
          state.sessionTitle = normalizedTitle(title) ?? state.sessionTitle
          let activityKey = key(gatewayID: gatewayID, sessionID: sessionID)
 diff --git a/DeepSeekHarnessMobile/Resources/Info.plist b/DeepSeekHarnessMobile/Resources/Info.plist
-index e744214..cfb3a67 100644
+index e7442140e91dde6db9e4007a498905c54ef9f13c..7f896ea054ac24aeaae5c0c7cefdf0b9cc0351b2 100644
 --- a/DeepSeekHarnessMobile/Resources/Info.plist
 +++ b/DeepSeekHarnessMobile/Resources/Info.plist
 @@ -17,7 +17,7 @@
@@ -990,12 +1322,12 @@ index e744214..cfb3a67 100644
  	</array>
  	<key>CFBundleVersion</key>
 -	<string>31</string>
-+	<string>37</string>
++	<string>39</string>
  	<key>LSRequiresIPhoneOS</key>
  	<true/>
  	<key>NSAppTransportSecurity</key>
 diff --git a/DeepSeekHarnessMobile/Views/ConversationView.swift b/DeepSeekHarnessMobile/Views/ConversationView.swift
-index 8ab6d22..ea29a83 100644
+index 8ab6d22fd684d2af9e8d8d1412b7f70490350b52..ea29a83a04495f8b53b4194c754e8e94fd473ac2 100644
 --- a/DeepSeekHarnessMobile/Views/ConversationView.swift
 +++ b/DeepSeekHarnessMobile/Views/ConversationView.swift
 @@ -60,6 +60,7 @@ struct SlashCommandTextView: UIViewRepresentable {
@@ -1221,8 +1553,1267 @@ index 8ab6d22..ea29a83 100644
      private var showsSessionStopButton: Bool {
          store.selectedMemberCanSend && store.supportsSessionCancel && store.selectedSession?.isRunning == true && !composerHasContent
      }
+diff --git a/DeepSeekHarnessMobile/Views/NativeClineSettingsView.swift b/DeepSeekHarnessMobile/Views/NativeClineSettingsView.swift
+new file mode 100644
+index 0000000000000000000000000000000000000000..ac9387540db6edc33cb417f9282cbb943c51ed29
+--- /dev/null
++++ b/DeepSeekHarnessMobile/Views/NativeClineSettingsView.swift
+@@ -0,0 +1,312 @@
++import SwiftUI
++
++struct NativeClineSettingsView: View {
++    @StateObject private var page: NativeSettingsPage
++    @State private var snapshot: JSONValue = .null
++    @State private var mode = "single"
++    @State private var active = ""
++    @State private var budget = ""
++    @State private var exposeTools = true
++    @State private var accountEnabled: [String: Bool] = [:]
++    @State private var removal: String?
++    init(client: NativeSettingsClient) { _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        Form {
++            Section {
++                NativeSettingsFeedback(page: page)
++                LabeledContent("状态", value: snapshot["ready"]?.boolValue == true ? "账号已配置" : "尚未配置可用账号")
++                if let base = snapshot["baseURL"]?.stringValue { Text(base).font(.footnote).foregroundStyle(.secondary) }
++                Button("刷新配置") { Task { await load() } }.disabled(page.busy)
++            }
++            Section("账号") {
++                Picker("使用方式", selection: $mode) {
++                    Text("指定账号").tag("single"); Text("轮换账号").tag("roundrobin")
++                }
++                if mode == "single" {
++                    Picker("当前账号", selection: $active) {
++                        Text("默认选择").tag("")
++                        ForEach(snapshot["accounts"]?.arrayValue ?? [], id: \.self) { account in
++                            Text(account["displayName"]?.stringValue ?? account["key"]?.stringValue ?? "账号")
++                                .tag(account["key"]?.stringValue ?? "")
++                        }
++                    }
++                }
++                Button("保存账号使用方式") { Task { await apply("account.mode", ["mode": .string(mode), "active": .string(active)]) } }
++                    .disabled(page.busy || snapshot.objectValue == nil)
++                ForEach(snapshot["accounts"]?.arrayValue ?? [], id: \.self) { account in
++                    let key = account["key"]?.stringValue ?? ""
++                    VStack(alignment: .leading, spacing: 10) {
++                        Toggle(account["displayName"]?.stringValue ?? key, isOn: Binding(
++                            get: { accountEnabled[key] ?? (account["enabled"]?.boolValue ?? true) },
++                            set: { accountEnabled[key] = $0 }
++                        ))
++                        Text(account["keyConfigured"]?.boolValue == true ? (account["keyHint"]?.stringValue ?? "密钥已配置") : "未配置密钥")
++                            .font(.footnote.monospaced()).foregroundStyle(.secondary)
++                        HStack {
++                            Button("保存启用状态") { Task { await apply("account.enable", ["name": .string(key), "enabled": .bool(accountEnabled[key] ?? true)]) } }
++                            Spacer()
++                            NavigationLink("设置密钥") { NativeClineKeyView(client: page.client, account: account) }
++                        }.font(.subheadline)
++                        if account["declared"]?.boolValue == true {
++                            Button("移除此账号配置", role: .destructive) { removal = key }.font(.footnote)
++                        }
++                    }.buttonStyle(.borderless).padding(.vertical, 5)
++                }
++                NavigationLink("添加账号") { NativeClineAddAccountView(client: page.client, existingNames: Set((snapshot["accounts"]?.arrayValue ?? []).compactMap { $0["key"]?.stringValue })) }
++            }.disabled(page.busy)
++            Section("额度") {
++                Button("刷新账号使用量") { Task { await apply("usage") } }.disabled(page.busy)
++                if let usage = snapshot["usage"] {
++                    ForEach(usage["accounts"]?.arrayValue ?? [], id: \.self) { account in
++                        VStack(alignment: .leading, spacing: 8) {
++                            Text(account["displayName"]?.stringValue ?? account["account"]?.stringValue ?? "账号").font(.headline)
++                            if let error = account["error"]?.stringValue, !error.isEmpty { Text(error).foregroundStyle(.secondary).font(.footnote) }
++                            ForEach(account["limits"]?.arrayValue ?? [], id: \.self) { limit in
++                                let used = limit["percentUsed"]?.doubleValue ?? 0
++                                Text(limit["type"]?.nativeText ?? "额度")
++                                ProgressView(value: min(100, max(0, 100 - used)), total: 100)
++                                Text("已使用 \(used, specifier: "%.1f")% · 重置 \(limit["resetsAt"]?.nativeText ?? "未提供")")
++                                    .font(.footnote).foregroundStyle(.secondary)
++                            }
++                        }
++                    }
++                } else { Text("尚未读取额度").foregroundStyle(.secondary) }
++            }
++            Section("模型与路由") {
++                NavigationLink { NativeClineModelsView(client: page.client) } label: {
++                    LabeledContent("模型显隐与通道", value: "\(snapshot["models"]?.arrayValue?.count ?? 0) 个模型")
++                }
++                NavigationLink("最近请求历史") { NativeClineHistoryView(client: page.client) }
++            }
++            Section {
++                TextField("每次请求的最大输出 Token", text: $budget).keyboardType(.numberPad)
++                Button("保存输出预算") {
++                    guard let amount = Double(budget), amount.isFinite, amount.rounded() == amount, (1024...2_000_000).contains(amount) else {
++                        page.error = "输出预算应为 1024 到 2000000 之间的整数。"; return
++                    }
++                    Task { await apply("budget.set", ["value": .number(amount)]) }
++                }.disabled(page.busy || snapshot.objectValue == nil)
++                Toggle("向 Agent 提供 Cline 管理工具", isOn: $exposeTools)
++                Button("保存工具开关") { Task { await apply("tools.expose", ["value": .bool(exposeTools)]) } }
++                    .disabled(page.busy || snapshot.objectValue == nil)
++            } header: { Text("请求与工具") } footer: { Text("工具注册开关在插件下次启动时生效，保存不会自动重启后台。") }
++        }
++        .navigationTitle("Cline Pass").nativeSettingsLifecycle(page)
++        .task { await load() }
++        .confirmationDialog("移除账号配置？", isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }), titleVisibility: .visible) {
++            if let key = removal { Button("移除配置", role: .destructive) { removal = nil; Task { await apply("account.remove", ["name": .string(key)]) } } }
++        } message: { Text("只移除账号配置；后台已经保存的凭据仍会保留。") }
++    }
++    private func load() async { await apply("state", notify: false) }
++    private func apply(_ action: String, _ payload: [String: JSONValue] = [:], notify: Bool = true) async {
++        guard let next = await page.call(.clinePass, action, payload) else { return }
++        if next["accounts"] != nil {
++            snapshot = next; mode = next["accountMode"]?.stringValue ?? "single"; active = next["activeAccount"]?.stringValue ?? ""
++            budget = next["defaultMaxTokens"]?.nativeText ?? ""; exposeTools = next["exposeTools"]?.boolValue ?? true
++            accountEnabled = Dictionary(uniqueKeysWithValues: (next["accounts"]?.arrayValue ?? []).compactMap { row in
++                guard let key = row["key"]?.stringValue else { return nil }; return (key, row["enabled"]?.boolValue ?? true)
++            })
++        }
++        if notify { page.notice = next["restartRequired"]?.boolValue == true ? "已保存，下次启动插件时生效" : "已保存或刷新" }
++    }
++}
++
++struct NativeClineKeyView: View {
++    @Environment(\.scenePhase) private var scenePhase
++    let account: JSONValue
++    @StateObject private var page: NativeSettingsPage
++    @State private var key = ""
++    @State private var hint: String
++    init(client: NativeSettingsClient, account: JSONValue) {
++        self.account = account; _page = StateObject(wrappedValue: NativeSettingsPage(client))
++        _hint = State(initialValue: account["keyHint"]?.stringValue ?? "未配置密钥")
++    }
++    var body: some View {
++        Form {
++            Section { NativeSettingsFeedback(page: page)
++                Text(hint).font(.footnote.monospaced())
++                SecureField("粘贴新的 API Key", text: $key).textInputAutocapitalization(.never).autocorrectionDisabled()
++                Button("保存密钥") {
++                    let input = key; key = ""
++                    Task {
++                        if let next = await page.call(.clinePass, "key.set", ["ref": account["apiKeyEnv"] ?? .string(""), "value": .string(input)]) {
++                            hint = next["accounts"]?.arrayValue?.first(where: { $0["key"] == account["key"] })?["keyHint"]?.stringValue ?? "密钥已配置"
++                            page.notice = "密钥已保存到后台"
++                        }
++                    }
++                }.disabled(page.busy || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
++            } footer: { Text("显示的是后台脱敏提示，不会回填为密钥。新的密钥只在本页临时内存中使用。") }
++        }.navigationTitle(account["displayName"]?.stringValue ?? "账号密钥").nativeSettingsLifecycle(page)
++        .onDisappear { key = "" }
++        .onChange(of: scenePhase) { if $0 == .background { key = "" } }
++    }
++}
++
++struct NativeClineAddAccountView: View {
++    @Environment(\.scenePhase) private var scenePhase
++    let existingNames: Set<String>
++    @StateObject private var page: NativeSettingsPage
++    @State private var name = ""
++    @State private var label = ""
++    @State private var baseURL = ""
++    @State private var key = ""
++    init(client: NativeSettingsClient, existingNames: Set<String>) {
++        self.existingNames = existingNames
++        _page = StateObject(wrappedValue: NativeSettingsPage(client))
++    }
++    var body: some View {
++        Form {
++            Section { NativeSettingsFeedback(page: page)
++                TextField("账号标识（字母、数字、点、横线）", text: $name).textInputAutocapitalization(.never).autocorrectionDisabled()
++                TextField("显示名称", text: $label)
++                TextField("可选 API 地址", text: $baseURL).textInputAutocapitalization(.never).keyboardType(.URL).autocorrectionDisabled()
++                SecureField("API Key（可稍后设置）", text: $key).textInputAutocapitalization(.never).autocorrectionDisabled()
++                if existingNames.contains(name.trimmingCharacters(in: .whitespacesAndNewlines)) {
++                    Text("此账号标识已存在，请返回账号列表修改。") .font(.footnote).foregroundStyle(.orange)
++                }
++                Button("添加账号") {
++                    let input = key; key = ""
++                    Task { await addAccount(key: input) }
++                }.disabled(page.busy || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || existingNames.contains(name.trimmingCharacters(in: .whitespacesAndNewlines)))
++            } footer: { Text("账号凭据引用由后台分配。App 不持久化 API Key。") }
++        }.navigationTitle("添加 Cline 账号").nativeSettingsLifecycle(page).onDisappear { key = "" }
++            .onChange(of: scenePhase) { if $0 == .background { key = "" } }
++    }
++    private func addAccount(key input: String) async {
++        let identifier = name.trimmingCharacters(in: .whitespacesAndNewlines)
++        guard let current = await page.call(.clinePass, "state") else { return }
++        guard !(current["accounts"]?.arrayValue ?? []).contains(where: { $0["key"]?.stringValue == identifier }) else {
++            page.error = "此账号已存在。添加操作不会覆盖已有账号，请返回列表修改。"; return
++        }
++        var payload: [String: JSONValue] = ["name": .string(identifier)]
++        if !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { payload["displayName"] = .string(label) }
++        if !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { payload["baseURL"] = .string(baseURL) }
++        if !input.isEmpty { payload["key"] = .string(input) }
++        if await page.call(.clinePass, "account.add", payload) != nil { page.notice = "账号已添加" }
++    }
++}
++
++struct NativeClineModelsView: View {
++    @StateObject private var page: NativeSettingsPage
++    @State private var snapshot: JSONValue = .null
++    @State private var search = ""
++    @State private var confirmsHideAll = false
++    init(client: NativeSettingsClient) { _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        List {
++            NativeSettingsFeedback(page: page)
++            Section {
++                Button("重新扫描官方模型目录") { Task { await apply("models.refresh") } }.disabled(page.busy)
++                Button("显示所有模型") { Task { await apply("models.visibility", ["mode": .string("all")]) } }.disabled(page.busy)
++                Button("隐藏所有模型", role: .destructive) { confirmsHideAll = true }.disabled(page.busy)
++            }
++            ForEach((snapshot["models"]?.arrayValue ?? []).filter { search.isEmpty || ($0["displayName"]?.stringValue ?? "").localizedCaseInsensitiveContains(search) || ($0["id"]?.stringValue ?? "").localizedCaseInsensitiveContains(search) }, id: \.self) { model in
++                NavigationLink {
++                    NativeClineModelView(client: page.client, model: model)
++                } label: {
++                    VStack(alignment: .leading, spacing: 5) {
++                        Text(model["displayName"]?.stringValue ?? model["id"]?.stringValue ?? "模型")
++                        Text(model["hidden"]?.boolValue == true ? "已隐藏" : "显示中").font(.footnote).foregroundStyle(.secondary)
++                    }
++                }
++            }
++        }.navigationTitle("Cline 模型与路由").nativeSettingsLifecycle(page).searchable(text: $search, prompt: "搜索模型")
++        .task { await apply("state", notice: false) }
++        .confirmationDialog("隐藏所有 Cline 模型？", isPresented: $confirmsHideAll, titleVisibility: .visible) {
++            Button("隐藏所有模型", role: .destructive) { Task { await apply("models.visibility", ["mode": .string("none")]) } }
++        }
++    }
++    private func apply(_ action: String, _ payload: [String: JSONValue] = [:], notice: Bool = true) async {
++        if let next = await page.call(.clinePass, action, payload) { snapshot = next; if notice { page.notice = "模型目录已更新" } }
++    }
++}
++
++struct NativeClineModelView: View {
++    let model: JSONValue
++    @StateObject private var page: NativeSettingsPage
++    @State private var visible: Bool
++    @State private var pinned: String
++    @State private var excluded: String
++    @State private var pinMode: String
++    @State private var sort: String
++    @State private var constraints: String
++    @State private var confirmsProbe = false
++    init(client: NativeSettingsClient, model: JSONValue) {
++        self.model = model; _page = StateObject(wrappedValue: NativeSettingsPage(client))
++        _visible = State(initialValue: model["hidden"]?.boolValue != true)
++        _pinned = State(initialValue: Self.list(model["pinned"]))
++        _excluded = State(initialValue: Self.list(model["excluded"]))
++        _pinMode = State(initialValue: model["pinMode"]?.stringValue ?? "strict")
++        _sort = State(initialValue: model["sort"]?.stringValue ?? "")
++        _constraints = State(initialValue: Self.list(model["has"]))
++    }
++    var body: some View {
++        Form {
++            NativeSettingsFeedback(page: page)
++            Section("模型") {
++                Text(model["id"]?.stringValue ?? "").font(.footnote.monospaced()).textSelection(.enabled)
++                Toggle("在模型列表中显示", isOn: $visible)
++                Button("保存显示状态") { Task { if await page.call(.clinePass, "model.visibility", ["model": model["id"] ?? .string(""), "visible": .bool(visible)]) != nil { page.notice = "显示状态已保存" } } }.disabled(page.busy)
++            }
++            Section {
++                TextField("固定通道，逗号分隔", text: $pinned).textInputAutocapitalization(.never).autocorrectionDisabled()
++                TextField("排除通道，逗号分隔", text: $excluded).textInputAutocapitalization(.never).autocorrectionDisabled()
++                Picker("固定策略", selection: $pinMode) { Text("严格固定").tag("strict"); Text("优先固定").tag("preferred") }
++                Picker("排序偏好", selection: $sort) {
++                    Text("默认").tag(""); Text("成本").tag("cost"); Text("首 Token 延迟").tag("ttft"); Text("吞吐量").tag("tps")
++                    if !["", "cost", "ttft", "tps"].contains(sort) { Text(sort).tag(sort) }
++                }
++                TextField("能力约束，逗号分隔", text: $constraints).textInputAutocapitalization(.never).autocorrectionDisabled()
++                Button("保存路由") { Task { await saveRouting() } }.disabled(page.busy)
++            } header: { Text("通道路由") } footer: {
++                let known = Self.list(model["upstreams"])
++                Text(known.isEmpty ? "后台尚无已知通道。探测会发送少量真实请求。" : "已知通道：\(known)")
++            }
++            Section {
++                Button("探测模型通道") { confirmsProbe = true }.disabled(page.busy)
++            }
++        }.navigationTitle(model["displayName"]?.stringValue ?? "模型路由").nativeSettingsLifecycle(page)
++        .confirmationDialog("探测会发送少量真实模型请求", isPresented: $confirmsProbe, titleVisibility: .visible) {
++            Button("开始探测") { Task { if await page.call(.clinePass, "model.probe", ["model": model["id"] ?? .string("")]) != nil { page.notice = "探测完成，返回列表重新进入可查看通道" } } }
++        }
++    }
++    private static func list(_ value: JSONValue?) -> String { (value?.arrayValue ?? []).compactMap(\.stringValue).joined(separator: ", ") }
++    private static func values(_ text: String) -> JSONValue {
++        .array(text.split(whereSeparator: { $0 == "," || $0 == "\n" }).map { .string($0.trimmingCharacters(in: .whitespacesAndNewlines)) }.filter { $0.stringValue?.isEmpty == false })
++    }
++    private func saveRouting() async {
++        if await page.call(.clinePass, "model.pin", ["model": model["id"] ?? .string(""), "upstreams": Self.values(pinned), "exclude": Self.values(excluded), "pinMode": .string(pinMode), "sort": .string(sort), "has": Self.values(constraints)]) != nil { page.notice = "路由已保存" }
++    }
++}
++
++struct NativeClineHistoryView: View {
++    @StateObject private var page: NativeSettingsPage
++    @State private var value: JSONValue = .null
++    @State private var modelFilter = ""
++    init(client: NativeSettingsClient) { _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        List {
++            NativeSettingsFeedback(page: page)
++            Section {
++                TextField("按模型筛选", text: $modelFilter).textInputAutocapitalization(.never).autocorrectionDisabled()
++                Button("读取最近 25 条") { Task { await load() } }.disabled(page.busy)
++                LabeledContent("总记录", value: value["total"]?.nativeText ?? "未读取")
++            }
++            ForEach(value["entries"]?.arrayValue ?? [], id: \.self) { row in
++                VStack(alignment: .leading, spacing: 7) {
++                    Text(row["model"]?.nativeText ?? "模型").font(.headline)
++                    Text("\(row["provider"]?.nativeText ?? "") · \(row["account"]?.nativeText ?? "")").font(.footnote).foregroundStyle(.secondary)
++                    LabeledContent("用时", value: "\(row["ms"]?.nativeText ?? "0") ms")
++                    if row["usageReported"]?.boolValue == true, let tokens = row["usage"] {
++                        Text("输入 \(tokens["inputTokens"]?.nativeText ?? "0") · 输出 \(tokens["outputTokens"]?.nativeText ?? "0") Token")
++                            .font(.footnote).foregroundStyle(.secondary)
++                    } else { Text("上游未返回用量").font(.footnote).foregroundStyle(.secondary) }
++                    if let error = row["error"]?.stringValue, !error.isEmpty { Text(error).font(.footnote).foregroundStyle(.red) }
++                }
++            }
++        }.navigationTitle("Cline 请求历史").nativeSettingsLifecycle(page).task { await load() }
++    }
++    private func load() async {
++        if let next = await page.call(.clinePass, "history", ["limit": .number(25), "model": .string(modelFilter)]) { value = next }
++    }
++}
+diff --git a/DeepSeekHarnessMobile/Views/NativePluginSettingsView.swift b/DeepSeekHarnessMobile/Views/NativePluginSettingsView.swift
+new file mode 100644
+index 0000000000000000000000000000000000000000..16df61e609daaf91ecd59713b72ec6e92b002b9f
+--- /dev/null
++++ b/DeepSeekHarnessMobile/Views/NativePluginSettingsView.swift
+@@ -0,0 +1,400 @@
++import SwiftUI
++
++struct NativeSchemaGraph {
++    let envelope: JSONValue
++    func resolve(_ reference: JSONValue?) -> JSONValue {
++        guard let reference else { return .null }
++        if let number = reference.doubleValue, number.isFinite, number.rounded() == number {
++            return envelope["refs"]?[String(format: "%.0f", number)] ?? .null
++        }
++        return reference
++    }
++    var root: JSONValue { envelope["uid"] == nil ? envelope : resolve(envelope["uid"]) }
++    func fields(_ node: JSONValue) -> [(String, JSONValue)] {
++        let dictionary = node["dict"]?.objectValue ?? node["properties"]?.objectValue ?? [:]
++        return dictionary.keys.sorted().map { ($0, resolve(dictionary[$0])) }
++    }
++    func choices(_ node: JSONValue) -> [JSONValue]? {
++        if let values = node["enum"]?.arrayValue { return values }
++        guard node["type"]?.stringValue == "union", let list = node["list"]?.arrayValue else { return nil }
++        let nodes = list.map { resolve($0) }
++        guard nodes.allSatisfy({ $0["type"]?.stringValue == "const" && $0["value"] != nil }) else { return nil }
++        return nodes.compactMap { $0["value"] }
++    }
++    func containsSecret(_ node: JSONValue, depth: Int = 0) -> Bool {
++        if node["meta"]?["role"]?.stringValue == "secret" { return true }
++        guard depth < 10 else { return true }
++        if fields(node).contains(where: { containsSecret($0.1, depth: depth + 1) }) { return true }
++        if let inner = node["inner"], containsSecret(resolve(inner), depth: depth + 1) { return true }
++        return (node["list"]?.arrayValue ?? []).contains { containsSecret(resolve($0), depth: depth + 1) }
++    }
++    func initialValue(_ node: JSONValue, depth: Int = 0) -> JSONValue {
++        if let value = node["meta"]?["default"] { return value }
++        guard depth < 8 else { return .null }
++        if let first = choices(node)?.first { return first }
++        switch node["type"]?.stringValue {
++        case "boolean": return .bool(false)
++        case "string": return .string("")
++        case "number": return .number(node["meta"]?["min"]?.doubleValue ?? 0)
++        case "object": return .object(Dictionary(uniqueKeysWithValues: fields(node).map { ($0.0, initialValue($0.1, depth: depth + 1)) }))
++        case "array": return .array([])
++        default: return .null
++        }
++    }
++}
++
++@MainActor
++final class NativePluginEditor: ObservableObject {
++    struct Edit { let path: [String]; let value: JSONValue? }
++    @Published var snapshot: JSONValue = .null
++    @Published var draft: JSONValue = .object([:])
++    @Published var changes: [String: Edit] = [:]
++    @Published var errors: [String: String] = [:]
++    @Published var numericText: [String: String] = [:]
++    @Published var secretText: [String: String] = [:]
++    @Published var notice: String?
++    private var sensitivePaths = Set<[String]>()
++    var graph: NativeSchemaGraph { NativeSchemaGraph(envelope: snapshot["schema"] ?? .null) }
++    var revision: JSONValue { snapshot["revision"] ?? .number(0) }
++    var namespace: String { snapshot["ns"]?.stringValue ?? "" }
++    var secretPaths: [[String]] {
++        (snapshot["secrets"]?.arrayValue ?? []).map { ($0["path"]?.arrayValue ?? []).compactMap(\.stringValue) }
++    }
++    func reset(_ value: JSONValue) {
++        clearSensitive()
++        snapshot = value; draft = value["value"] ?? .object([:]); changes = [:]; errors = [:]; numericText = [:]; notice = nil
++    }
++    func key(_ path: [String]) -> String { path.map { "\($0.utf8.count):\($0)" }.joined(separator: "/") }
++    func value(_ path: [String], default fallback: JSONValue = .null) -> JSONValue { draft.nativeValue(at: path) ?? fallback }
++    func set(_ path: [String], _ value: JSONValue) {
++        draft = draft.nativeReplacing(at: path, with: value)
++        record(path, value)
++    }
++    func unset(_ path: [String]) {
++        let fallback = snapshot["base"]?.nativeValue(at: path)
++        draft = draft.nativeReplacing(at: path, with: fallback)
++        record(path, nil); numericText[key(path)] = nil; errors[key(path)] = nil
++    }
++    private func record(_ path: [String], _ value: JSONValue?) {
++        // A structural array edit owns its descendants; later leaf edits update
++        // that already-pending parent rather than racing conflicting operations.
++        if let parent = changes.values.filter({ $0.path.count < path.count && path.starts(with: $0.path) }).min(by: { $0.path.count < $1.path.count }) {
++            changes[key(parent.path)] = Edit(path: parent.path, value: draft.nativeValue(at: parent.path))
++            return
++        }
++        for edit in changes.values.filter({ $0.path.count > path.count && $0.path.starts(with: path) }) { changes[key(edit.path)] = nil }
++        changes[key(path)] = Edit(path: path, value: value)
++    }
++    func isSecret(_ path: [String], node: JSONValue) -> Bool {
++        secretPaths.contains(path) || node["meta"]?["role"]?.stringValue == "secret"
++    }
++    func hasSecrets(below path: [String]) -> Bool { secretPaths.contains { $0.starts(with: path) } }
++    func effectiveCredentialReference(_ path: [String]) -> String? {
++        guard let value = snapshot["value"]?.nativeValue(at: path)?.stringValue,
++              NativeCredentialPolicy.isValidReference(value) else { return nil }
++        return value
++    }
++    func secretConfigured(_ path: [String]) -> Bool {
++        (snapshot["secrets"]?.arrayValue ?? []).contains { row in
++            (row["path"]?.arrayValue ?? []).compactMap(\.stringValue) == path && row["set"]?.boolValue == true
++        }
++    }
++    func setSecret(_ path: [String], _ text: String) {
++        sensitivePaths.insert(path); secretText[key(path)] = text
++        if text.isEmpty {
++            let parents = changes.values.filter { $0.path.count < path.count && path.starts(with: $0.path) }
++            if let parent = parents.min(by: { $0.path.count < $1.path.count }) {
++                changes[key(parent.path)] = nil
++                draft = draft.nativeReplacing(at: parent.path, with: snapshot["value"]?.nativeValue(at: parent.path))
++                notice = "为保留已存密钥，已撤回包含该字段的整体结构修改。"
++            } else { draft = draft.nativeReplacing(at: path, with: nil) }
++            changes[key(path)] = nil
++        } else { set(path, .string(text)) }
++    }
++    func setNumber(_ path: [String], _ text: String, node: JSONValue) {
++        let token = key(path); numericText[token] = text
++        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { unset(path); return }
++        guard let number = Double(text), number.isFinite else { errors[token] = "请输入有效数字"; return }
++        if (node["meta"]?["step"]?.doubleValue == 1 || node["type"]?.stringValue == "integer"), number.rounded() != number {
++            errors[token] = "请输入整数"; return
++        }
++        if let min = node["meta"]?["min"]?.doubleValue, number < min { errors[token] = "不能小于 \(min)"; return }
++        if let max = node["meta"]?["max"]?.doubleValue, number > max { errors[token] = "不能大于 \(max)"; return }
++        errors[token] = nil; set(path, .number(number))
++    }
++    var operations: [JSONValue] {
++        changes.values.sorted { key($0.path) < key($1.path) }.map { edit in
++            var value: [String: JSONValue] = ["op": .string(edit.value == nil ? "unset" : "set"), "path": .array(edit.path.map(JSONValue.string))]
++            value["value"] = edit.value
++            return .object(value)
++        }
++    }
++    func clearSensitive() {
++        for path in sensitivePaths {
++            draft = draft.nativeReplacing(at: path, with: nil)
++            for edit in changes.values.filter({ path.starts(with: $0.path) || $0.path.starts(with: path) }) { changes[key(edit.path)] = nil }
++        }
++        secretText = [:]; sensitivePaths = []
++    }
++}
++
++struct NativePluginSettingsView: View {
++    let initialNamespaces: [String]?
++    @StateObject private var page: NativeSettingsPage
++    @State private var value: JSONValue = .null
++    @State private var search = ""
++    init(client: NativeSettingsClient, initialNamespaces: [String]? = nil) {
++        self.initialNamespaces = initialNamespaces; _page = StateObject(wrappedValue: NativeSettingsPage(client))
++    }
++    private var rows: [JSONValue] {
++        (value["namespaces"]?.arrayValue ?? []).filter { row in
++            guard let name = row["ns"]?.stringValue else { return false }
++            return (initialNamespaces == nil || initialNamespaces?.contains(name) == true) && (search.isEmpty || name.localizedCaseInsensitiveContains(search))
++        }
++    }
++    var body: some View {
++        List {
++            Section {
++                NativeSettingsFeedback(page: page)
++                if value["writable"]?.boolValue == false { Text("当前后台配置为只读。") .foregroundStyle(.secondary) }
++                if rows.isEmpty && !page.busy { Text("此组件没有可用的设置表单。") .foregroundStyle(.secondary) }
++            }
++            ForEach(rows, id: \.self) { namespace in
++                NavigationLink {
++                    NativePluginNamespaceView(client: page.client, namespace: namespace,
++                        writable: value["writable"]?.boolValue == true)
++                } label: {
++                    VStack(alignment: .leading, spacing: 5) {
++                        Text(namespace["ns"]?.stringValue ?? "插件配置")
++                        Text("保存后实时生效").font(.footnote).foregroundStyle(.secondary)
++                    }
++                }
++            }
++            if initialNamespaces != nil {
++                NavigationLink("查看所有插件配置") { NativePluginSettingsView(client: page.client) }
++            }
++        }.navigationTitle("插件配置").nativeSettingsLifecycle(page).searchable(text: $search, prompt: "搜索配置名称")
++        .toolbar { Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }.disabled(page.busy) }
++        .task { await load() }
++    }
++    private func load() async { if let next = await page.call(.plugin, "describe") { value = next } }
++}
++
++struct NativePluginNamespaceView: View {
++    let writable: Bool
++    @StateObject private var page: NativeSettingsPage
++    @StateObject private var editor = NativePluginEditor()
++    @State private var original: JSONValue
++    @State private var confirmsReload = false
++    @Environment(\.scenePhase) private var scenePhase
++    init(client: NativeSettingsClient, namespace: JSONValue, writable: Bool) {
++        self.writable = writable; _original = State(initialValue: namespace)
++        _page = StateObject(wrappedValue: NativeSettingsPage(client))
++    }
++    var body: some View {
++        Form {
++            Section { NativeSettingsFeedback(page: page)
++                if let notice = editor.notice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
++                Text("保存只提交你修改的字段；并发版本变化会由后台拒绝，防止覆盖其他界面的修改。")
++                    .font(.footnote).foregroundStyle(.secondary)
++            }
++            Section {
++                NativeSchemaField(editor: editor, client: page.client, node: editor.graph.root, path: [], name: "配置", depth: 0).buttonStyle(.borderless)
++            }.disabled(!writable || page.busy)
++            if !editor.errors.isEmpty { Section { Text("请先修正标红的数字字段。") .foregroundStyle(.red) } }
++            Section {
++                Button("重新读取后台配置") { confirmsReload = true }.disabled(page.busy)
++            }
++        }.navigationTitle(editor.namespace.isEmpty ? "插件配置" : editor.namespace).nativeSettingsLifecycle(page)
++        .toolbar { Button("保存") { Task { await save() } }.disabled(!writable || page.busy || editor.changes.isEmpty || !editor.errors.isEmpty) }
++        .onAppear { if editor.namespace.isEmpty { editor.reset(original) } }
++        .onDisappear { editor.clearSensitive() }
++        .onChange(of: scenePhase) { if $0 == .background { editor.clearSensitive() } }
++        .confirmationDialog("放弃未保存的更改并重新读取？", isPresented: $confirmsReload, titleVisibility: .visible) {
++            Button("重新读取") { Task { await refresh() } }
++        }
++    }
++    private func refresh() async {
++        guard let next = await page.call(.plugin, "describe"),
++              let current = next["namespaces"]?.arrayValue?.first(where: { $0["ns"]?.stringValue == editor.namespace }) else { return }
++        original = current; editor.reset(current)
++    }
++    private func save() async {
++        let payload: [String: JSONValue] = ["ns": .string(editor.namespace), "expectedRevision": editor.revision, "ops": .array(editor.operations)]
++        if await page.call(.plugin, "mutate", payload) != nil {
++            await refresh(); page.notice = "配置已保存"
++        }
++    }
++}
++
++struct NativeSchemaField: View {
++    @ObservedObject var editor: NativePluginEditor
++    let client: NativeSettingsClient
++    let node: JSONValue
++    let path: [String]
++    let name: String
++    let depth: Int
++    private var title: String { node["meta"]?["title"]?.stringValue ?? name }
++    var body: some View { content }
++    private var content: AnyView {
++        guard depth < 12 else { return AnyView(Text("\(title)：嵌套过深，暂为只读").foregroundStyle(.secondary)) }
++        let graph = editor.graph
++        let current = editor.value(path, default: node["meta"]?["default"] ?? .null)
++        if editor.isSecret(path, node: node) {
++            return AnyView(VStack(alignment: .leading, spacing: 5) {
++                SecureField(title, text: Binding(get: { editor.secretText[editor.key(path)] ?? "" }, set: { editor.setSecret(path, $0) }))
++                    .textInputAutocapitalization(.never).autocorrectionDisabled()
++                Text(editor.secretConfigured(path) ? "已配置；留空保持原密钥" : "尚未配置")
++                    .font(.footnote).foregroundStyle(.secondary)
++            })
++        }
++        if let choices = graph.choices(node) {
++            return AnyView(Picker(title, selection: Binding(get: { current }, set: { editor.set(path, $0) })) {
++                if !choices.contains(.null) { Text("未设置").tag(JSONValue.null) }
++                ForEach(choices, id: \.self) { value in Text(value.nativeText).tag(value) }
++            })
++        }
++        switch node["type"]?.stringValue {
++        case "object":
++            let fields = graph.fields(node)
++            return AnyView(VStack(alignment: .leading, spacing: 12) {
++                if !path.isEmpty { Text(title).font(.headline) }
++                ForEach(fields.indices, id: \.self) { index in
++                    NativeSchemaField(editor: editor, client: client, node: fields[index].1, path: path + [fields[index].0], name: fields[index].0, depth: depth + 1)
++                }
++            })
++        case "dict":
++            let keys = current.objectValue?.keys.sorted() ?? []
++            return AnyView(DisclosureGroup(title) {
++                ForEach(keys, id: \.self) { key in
++                    NativeSchemaField(editor: editor, client: client, node: graph.resolve(node["inner"]), path: path + [key], name: key, depth: depth + 1)
++                }
++                if keys.isEmpty { Text("暂无条目；此动态键集合暂为只读。").font(.footnote).foregroundStyle(.secondary) }
++            })
++        case "array":
++            let items = current.arrayValue ?? []
++            let inner = graph.resolve(node["inner"] ?? node["items"])
++            let protected = editor.hasSecrets(below: path) || graph.containsSecret(inner)
++            return AnyView(DisclosureGroup("\(title)（\(items.count)项）") {
++                ForEach(Array(items.indices.prefix(200)), id: \.self) { index in
++                    VStack(alignment: .leading) {
++                        NativeSchemaField(editor: editor, client: client, node: inner, path: path + [String(index)], name: "第\(index + 1)项", depth: depth + 1)
++                        if !protected { Button("移除此项", role: .destructive) {
++                            var next = items; next.remove(at: index); editor.set(path, .array(next))
++                        }.font(.footnote) }
++                    }.padding(.leading, 5)
++                }
++                if items.count > 200 { Text("只展示前200项，其他项仍会保留。") .font(.footnote).foregroundStyle(.secondary) }
++                if protected { Text("含已保存密钥的数组只支持字段修改。") .font(.footnote).foregroundStyle(.secondary) }
++                else { Button("添加一项") { editor.set(path, .array(items + [graph.initialValue(inner)])) } }
++            })
++        case "boolean":
++            return AnyView(Toggle(title, isOn: Binding(get: { current.boolValue ?? false }, set: { editor.set(path, .bool($0)) })))
++        case "string":
++            return AnyView(VStack(alignment: .leading, spacing: 4) {
++                TextField(title, text: Binding(get: { current.stringValue ?? "" }, set: { editor.set(path, .string($0)) }), axis: .vertical)
++                    .textInputAutocapitalization(.never).autocorrectionDisabled().lineLimit(1...5)
++                if node["meta"]?["role"]?.stringValue == "credential-ref" {
++                    if let reference = editor.effectiveCredentialReference(path) {
++                        NavigationLink("管理此凭据（\(reference)）") { NativeCredentialView(client: client, reference: reference) }
++                        if current.stringValue != reference {
++                            Text("新引用尚未保存；此入口管理当前生效引用。请先保存配置，再管理新引用。")
++                                .font(.footnote).foregroundStyle(.secondary)
++                        }
++                    } else {
++                        Text("请先保存有效的后台凭据引用名，然后管理对应的 API Key。") .font(.footnote).foregroundStyle(.secondary)
++                    }
++                }
++            })
++        case "number", "integer":
++            return AnyView(VStack(alignment: .leading, spacing: 4) {
++                TextField(title, text: Binding(get: { editor.numericText[editor.key(path)] ?? (current == .null ? "" : current.nativeText) }, set: { editor.setNumber(path, $0, node: node) }))
++                    .keyboardType(.numbersAndPunctuation)
++                if let error = editor.errors[editor.key(path)] { Text(error).foregroundStyle(.red).font(.footnote) }
++            })
++        case "const": return AnyView(LabeledContent(title, value: node["value"]?.nativeText ?? "固定值"))
++        default:
++            return AnyView(VStack(alignment: .leading, spacing: 4) {
++                LabeledContent(title, value: current.nativeText)
++                Text("此复杂类型暂不支持原生编辑，可在原网页设置中修改。") .font(.footnote).foregroundStyle(.secondary)
++            })
++        }
++    }
++}
++
++
++struct NativeCredentialPolicy {
++    static func isValidReference(_ reference: String) -> Bool {
++        guard reference.utf8.count <= 128, !reference.isEmpty,
++              let range = reference.range(of: "^[A-Za-z_][A-Za-z0-9_]*$", options: .regularExpression) else { return false }
++        return range == reference.startIndex..<reference.endIndex
++    }
++    static func publicStatus(_ value: JSONValue) -> JSONValue? {
++        guard let configured = value["configured"]?.boolValue, let writable = value["writable"]?.boolValue else { return nil }
++        var result: [String: JSONValue] = ["configured": .bool(configured), "writable": .bool(writable)]
++        if let source = value["source"]?.stringValue { result["source"] = .string(String(source.prefix(120))) }
++        return .object(result)
++    }
++}
++
++struct NativeCredentialView: View {
++    let reference: String
++    @StateObject private var page: NativeSettingsPage
++    @Environment(\.scenePhase) private var scenePhase
++    @State private var status: JSONValue = .null
++    @State private var key = ""
++    @State private var confirmsDelete = false
++    init(client: NativeSettingsClient, reference: String) {
++        self.reference = reference; _page = StateObject(wrappedValue: NativeSettingsPage(client))
++    }
++    private var writable: Bool { status["writable"]?.boolValue == true }
++    var body: some View {
++        Form {
++            Section("当前生效引用") {
++                NativeSettingsFeedback(page: page)
++                Text(reference).font(.body.monospaced()).textSelection(.enabled)
++                LabeledContent("状态", value: status.objectValue == nil ? "未读取" : status["configured"]?.boolValue == true ? "已配置" : "未配置")
++                if let source = status["source"]?.stringValue { LabeledContent("来源", value: source) }
++                if status.objectValue != nil && !writable { Text("后台凭据存储当前不可写。") .font(.footnote).foregroundStyle(.secondary) }
++                Button("刷新配置状态") { Task { await refresh() } }.disabled(page.busy)
++            }
++            Section {
++                SecureField("粘贴新的 API Key", text: $key).textInputAutocapitalization(.never).autocorrectionDisabled()
++                Button("保存到后台") {
++                    let input = key; key = ""
++                    Task {
++                        guard await page.call(.plugin, "credentials.set", ["ref": .string(reference), "value": .string(input)]) != nil else { return }
++                        await refresh(); page.notice = "新凭据已保存到后台"
++                    }
++                }.disabled(page.busy || !writable || key.isEmpty)
++            } header: { Text("更新凭据") } footer: {
++                Text("现有密钥不会返回 App，也不会显示或回填。新输入只在本页临时内存中使用，离页或进入后台即清空。")
++            }
++            Section {
++                Button("删除本地保存值", role: .destructive) { confirmsDelete = true }.disabled(page.busy || !writable)
++            } footer: { Text("删除只移除后台管理层保存的值。若环境变量、项目或其他来源仍提供同名引用，它仍可能显示已配置。") }
++        }
++        .navigationTitle("管理后台凭据").nativeSettingsLifecycle(page)
++        .task { await refresh() }
++        .onDisappear { key = "" }
++        .onChange(of: scenePhase) { if $0 == .background { key = "" } }
++        .confirmationDialog("删除此引用的本地保存值？", isPresented: $confirmsDelete, titleVisibility: .visible) {
++            Button("删除本地保存值", role: .destructive) {
++                key = ""
++                Task {
++                    guard let result = await page.call(.plugin, "credentials.unset", ["ref": .string(reference)]) else { return }
++                    await refresh()
++                    page.notice = result["removed"]?.boolValue == false ? "没有可删除的本地保存值；外部来源保持不变" : "本地保存值已移除；请查看刷新后的实际来源"
++                }
++            }
++        } message: { Text("不会删除环境变量或外部来源。原始密钥不会发送回 App。") }
++    }
++    private func refresh() async {
++        guard NativeCredentialPolicy.isValidReference(reference) else { page.error = "此后台凭据引用名无效。"; return }
++        guard let response = await page.call(.plugin, "credentials.describe", ["refs": .array([.string(reference)])]) else { return }
++        guard let raw = response[reference], let projection = NativeCredentialPolicy.publicStatus(raw) else {
++            page.error = "后台未返回可识别的凭据状态。"; return
++        }
++        status = projection
++    }
++}
+diff --git a/DeepSeekHarnessMobile/Views/NativeSettingsViews.swift b/DeepSeekHarnessMobile/Views/NativeSettingsViews.swift
+new file mode 100644
+index 0000000000000000000000000000000000000000..12d4d29c5962688156af1b572b5e7209ff1fa837
+--- /dev/null
++++ b/DeepSeekHarnessMobile/Views/NativeSettingsViews.swift
+@@ -0,0 +1,452 @@
++import SwiftUI
++
++@MainActor
++final class NativeSettingsPage: ObservableObject {
++    let client: NativeSettingsClient
++    @Published var busy = false
++    @Published var error: String?
++    @Published var notice: String?
++    private var operation: Task<JSONValue, Error>?
++    private var generation = UUID()
++    init(_ client: NativeSettingsClient) { self.client = client }
++    func call(_ scope: NativeSettingsClient.Scope, _ action: String, _ payload: [String: JSONValue] = [:]) async -> JSONValue? {
++        guard !busy, !Task.isCancelled else { return nil }
++        busy = true; error = nil; notice = nil
++        let current = UUID(); generation = current
++        let task = Task { try await client.request(scope, action, payload: payload) }
++        operation = task
++        defer { if generation == current { operation = nil; busy = false } }
++        do {
++            let value = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
++            guard generation == current, !Task.isCancelled else { return nil }
++            return value
++        }
++        catch is CancellationError { return nil }
++        catch { if !Task.isCancelled && generation == current { self.error = error.localizedDescription }; return nil }
++    }
++    func cancel() {
++        generation = UUID(); operation?.cancel(); operation = nil; busy = false
++    }
++}
++
++private struct NativeSettingsLifecycle: ViewModifier {
++    @Environment(\.scenePhase) private var scenePhase
++    let page: NativeSettingsPage
++    func body(content: Content) -> some View {
++        content.onDisappear { page.cancel() }.onChange(of: scenePhase) { phase in
++            if phase == .background { page.cancel() }
++        }
++    }
++}
++
++extension View {
++    func nativeSettingsLifecycle(_ page: NativeSettingsPage) -> some View { modifier(NativeSettingsLifecycle(page: page)) }
++}
++
++struct NativeSettingsFeedback: View {
++    @ObservedObject var page: NativeSettingsPage
++    var body: some View {
++        if page.busy { ProgressView("正在读取或保存…") }
++        if let error = page.error { Text(error).foregroundStyle(.red).font(.footnote).textSelection(.enabled) }
++        if let notice = page.notice { Text(notice).foregroundStyle(.secondary).font(.footnote) }
++    }
++}
++
++struct NativeSettingsHomeView: View {
++    @ObservedObject var gateway: GatewayClient
++    @StateObject private var page: NativeSettingsPage
++    @State private var overview: JSONValue = .null
++    init(gateway: GatewayClient) {
++        self.gateway = gateway
++        _page = StateObject(wrappedValue: NativeSettingsPage(gateway.nativeSettings))
++    }
++    var body: some View {
++        List {
++            Section {
++                NativeSettingsFeedback(page: page)
++                if !gateway.nativeSettingsAvailable {
++                    Text("此网关尚未声明原生设置支持，请先更新手机上的适配网关。")
++                        .foregroundStyle(.secondary)
++                } else if overview["settingsReady"]?.boolValue == false {
++                    Text("Provider 设置服务尚未就绪，请稍后重试。")
++                        .foregroundStyle(.orange)
++                }
++                ForEach(overview["providers"]?.arrayValue ?? [], id: \.self) { provider in
++                    if let id = provider["id"]?.stringValue {
++                        NavigationLink {
++                            NativeProviderDetailView(client: page.client, provider: id,
++                                name: provider["name"]?.stringValue ?? id)
++                        } label: {
++                            Label(provider["name"]?.stringValue ?? id, systemImage: "cpu")
++                        }
++                    }
++                }
++            } header: { Text("Provider") } footer: {
++                Text("这里修改同一份 DSH 后台配置。账号凭据由后台保存，App 不复制 Provider 密钥。")
++            }
++            Section("网络出口") {
++                NavigationLink { NativeVlessSettingsView(client: page.client) } label: {
++                    Label("VLESS 节点与测速", systemImage: "network")
++                }
++            }
++            Section("插件设置") {
++                NavigationLink { NativeClineSettingsView(client: page.client) } label: {
++                    Label("Cline Pass", systemImage: "person.2.badge.key")
++                }
++                NavigationLink { NativePluginSettingsView(client: page.client) } label: {
++                    Label("其他插件配置", systemImage: "slider.horizontal.3")
++                }
++            }
++        }
++        .navigationTitle("Provider 与插件设置").nativeSettingsLifecycle(page)
++        .toolbar { Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }.disabled(page.busy) }
++        // A paired control hello may arrive after this page appears on cold launch.
++        // Restart this one load when support becomes available; SwiftUI cancels it
++        // again when the connection loses that capability or the page disappears.
++        .task(id: gateway.nativeSettingsAvailable) { await load() }
++    }
++    private func load() async {
++        guard gateway.nativeSettingsAvailable else { return }
++        if let value = await page.call(.provider, "overview") { overview = value }
++    }
++}
++
++struct NativeProviderDetailView: View {
++    let provider: String
++    let name: String
++    @Environment(\.openURL) private var openURL
++    @Environment(\.scenePhase) private var scenePhase
++    @StateObject private var page: NativeSettingsPage
++    @State private var auth: JSONValue = .null
++    @State private var egress: JSONValue = .null
++    @State private var selectedEgress = "direct"
++    @State private var loginURL: URL?
++    @State private var loginCode: String?
++    @State private var confirmsLogout = false
++    @State private var loginInProgress = false
++    init(client: NativeSettingsClient, provider: String, name: String) {
++        self.provider = provider; self.name = name
++        _page = StateObject(wrappedValue: NativeSettingsPage(client))
++    }
++    private var signingIn: Bool { loginInProgress || auth["status"]?.stringValue == "signing-in" }
++    var body: some View {
++        Form {
++            Section("账号") {
++                NativeSettingsFeedback(page: page)
++                LabeledContent("状态", value: statusLabel)
++                if let message = auth["message"]?.stringValue { Text(message).foregroundStyle(.secondary).font(.footnote) }
++                if provider == "provider-google", auth["configured"]?.boolValue == false {
++                    Text("后台尚未配置 Google OAuth。可在其他插件配置中检查相关 OAuth 插件。")
++                        .font(.footnote).foregroundStyle(.secondary)
++                }
++                Button(signingIn ? "重新打开授权网页" : "登录或重新授权") {
++                    Task { await login() }
++                }.disabled(page.busy || (provider == "provider-google" && auth["configured"]?.boolValue == false))
++                if let loginCode { LabeledContent("授权码") { Text(loginCode).textSelection(.enabled) } }
++                if let loginURL { Link("打开授权网页", destination: loginURL) }
++                Button("刷新账号与额度") { Task { await refreshAuth() } }.disabled(page.busy)
++                if auth["status"]?.stringValue == "signed-in" || signingIn {
++                    Button("退出此 Provider 登录", role: .destructive) { confirmsLogout = true }.disabled(page.busy)
++                }
++            }
++            if let usage = auth["usage"] {
++                Section("使用额度") { NativeQuotaView(value: usage) }
++            }
++            if let error = auth["quotaError"]?.stringValue { Section { Text(error).foregroundStyle(.secondary).font(.footnote) } }
++            Section("模型") {
++                NavigationLink { NativeProviderModelsView(client: page.client, provider: provider) } label: {
++                    Label("模型显隐与容量", systemImage: "list.bullet.rectangle")
++                }
++            }
++            if provider == "provider-codex" {
++                Section("工具与请求") {
++                    NavigationLink { NativeProviderToolSettingsView(client: page.client) } label: {
++                        Label("图片工具与 Responses API", systemImage: "photo.badge.gearshape")
++                    }
++                }
++            }
++            if provider == "provider-xai" {
++                Section("图片") {
++                    NavigationLink { NativeXaiImageSettingsView(client: page.client) } label: {
++                        Label("Grok 图片模型", systemImage: "photo")
++                    }
++                }
++            }
++            Section {
++                Picker("此 Provider 的出口", selection: $selectedEgress) {
++                    Text("直连").tag("direct"); Text("VLESS").tag("vless")
++                }
++                if let node = egress["node"]?.stringValue { Text(node).font(.footnote).foregroundStyle(.secondary) }
++                if let message = egress["message"]?.stringValue { Text(message).font(.footnote).foregroundStyle(.secondary) }
++                Button("保存出口") { Task { await saveEgress() } }.disabled(page.busy || egress.objectValue == nil)
++                NavigationLink { NativeVlessSettingsView(client: page.client) } label: { Text("管理共享 VLESS 节点") }
++            } header: { Text("网络") } footer: { Text("每个 Provider 独立选择出口；节点与连接状态仍由手机上的后台管理。") }
++        }
++        .navigationTitle(name).nativeSettingsLifecycle(page)
++        .task { await refreshAuth(); await loadEgress() }
++        .task(id: "\(scenePhase)-\(signingIn)") {
++            guard scenePhase == .active, signingIn else { return }
++            for _ in 0..<45 {
++                do { try await Task.sleep(for: .seconds(2)) } catch { return }
++                guard !Task.isCancelled, scenePhase == .active else { return }
++                do {
++                    let next = try await page.client.request(.provider, "auth.status", payload: ["provider": .string(provider)])
++                    guard !Task.isCancelled else { return }
++                    acceptAuth(next)
++                    if !signingIn { return }
++                } catch { return }
++            }
++            loginInProgress = false
++            page.notice = "授权状态尚未确认，可以手动刷新或重新打开授权网页。"
++        }
++        .confirmationDialog("退出 \(name) 登录？", isPresented: $confirmsLogout, titleVisibility: .visible) {
++            Button("退出登录", role: .destructive) {
++                Task {
++                    if await page.call(.provider, "auth.logout", ["provider": .string(provider)]) != nil {
++                        loginURL = nil; loginCode = nil; loginInProgress = false; await refreshAuth()
++                    }
++                }
++            }
++        }
++    }
++    private var statusLabel: String {
++        if signingIn && auth["status"]?.stringValue != "signed-in" { return "正在授权" }
++        switch auth["status"]?.stringValue {
++        case "signed-in": return "已登录"
++        case "signing-in": return "正在授权"
++        case "signed-out": return "未登录"
++        case "error": return "登录异常"
++        default: return "未读取"
++        }
++    }
++    private func acceptAuth(_ value: JSONValue) {
++        auth = value
++        if value["status"]?.stringValue == "signed-in" || value["status"]?.stringValue == "error" {
++            loginInProgress = false; loginURL = nil; loginCode = nil
++        }
++    }
++    private func refreshAuth() async {
++        if let value = await page.call(.provider, "auth.status", ["provider": .string(provider)]) { acceptAuth(value) }
++    }
++    private func loadEgress() async {
++        if let value = await page.call(.provider, "egress.get", ["provider": .string(provider)]) {
++            egress = value; selectedEgress = value["egress"]?.stringValue ?? "direct"
++        }
++    }
++    private func saveEgress() async {
++        if let value = await page.call(.provider, "egress.set", ["provider": .string(provider), "egress": .string(selectedEgress)]) {
++            egress = value; page.notice = "出口已保存"
++        }
++    }
++    private func login() async {
++        if signingIn, let loginURL { openURL(loginURL); return }
++        guard let value = await page.call(.provider, "auth.login", ["provider": .string(provider)]),
++              let raw = value["url"]?.stringValue, let url = URL(string: raw),
++              Self.acceptsAuthorizationURL(url, provider: provider) else {
++            if page.error == nil { page.error = "无法取得受支持的官方授权地址。" }; return
++        }
++        loginURL = url; loginCode = value["userCode"]?.stringValue
++        auth = .object(["status": .string("signing-in")]); loginInProgress = true
++        openURL(url)
++    }
++    static func acceptsAuthorizationURL(_ url: URL, provider: String) -> Bool {
++        guard url.scheme?.lowercased() == "https", url.user == nil, url.password == nil,
++              let host = url.host?.lowercased() else { return false }
++        let suffixes: [String]
++        switch provider {
++        case "provider-codex": suffixes = ["openai.com", "chatgpt.com"]
++        case "provider-xai": suffixes = ["x.ai", "grok.com"]
++        case "provider-google": suffixes = ["google.com"]
++        default: return false
++        }
++        return suffixes.contains { host == $0 || host.hasSuffix("." + $0) }
++    }
++}
++
++struct NativeQuotaView: View {
++    let value: JSONValue
++    static func windowLabel(_ value: Double?) -> String {
++        guard let value, value.isFinite, value >= 1, value < Double(Int.max), value.rounded() == value else { return "未提供" }
++        let seconds = Int(value)
++        if seconds % 86400 == 0 { return "\(seconds / 86400) 天" }
++        if seconds % 3600 == 0 { return "\(seconds / 3600) 小时" }
++        if seconds % 60 == 0 { return "\(seconds / 60) 分钟" }
++        return "\(seconds) 秒"
++    }
++    var body: some View {
++        ForEach(value["rateLimits"]?.arrayValue ?? [], id: \.self) { limit in
++            VStack(alignment: .leading, spacing: 8) {
++                Text(limit["name"]?.stringValue ?? limit["id"]?.stringValue ?? "额度")
++                ForEach(limit["windows"]?.arrayValue ?? [], id: \.self) { window in
++                    if let percent = window["remainingPercent"]?.doubleValue {
++                        ProgressView(value: min(100, max(0, percent)), total: 100)
++                        Text("剩余 \(percent, specifier: "%.1f")% · \(Self.windowLabel(window["windowSeconds"]?.doubleValue))窗口")
++                            .font(.footnote).foregroundStyle(.secondary)
++                    }
++                }
++            }
++        }
++        if let credits = value["credits"] {
++            LabeledContent("积分", value: credits["unlimited"]?.boolValue == true ? "不限额" : (credits["balance"]?.nativeText ?? "未提供"))
++        }
++        if let individual = value["individualLimit"] {
++            LabeledContent("成员剩余额度", value: individual["remaining"]?.nativeText ?? "未提供")
++        }
++        if value["rateLimits"]?.arrayValue?.isEmpty != false && value["credits"] == nil && value["individualLimit"] == nil {
++            Text("上游未提供额度数据").foregroundStyle(.secondary)
++        }
++    }
++}
++
++private struct NativeModelDraft: Identifiable {
++    let id: String; let name: String; let contextDefault: String; let outputDefault: String
++    var visible: Bool; var context: String; var output: String
++    init(_ value: JSONValue) {
++        id = value["id"]?.stringValue ?? ""; name = value["name"]?.stringValue ?? id
++        visible = value["visible"]?.boolValue ?? true
++        context = value["contextWindow"]?.nativeText ?? ""; output = value["maxTokens"]?.nativeText ?? ""
++        contextDefault = value["defaultContextWindow"]?.nativeText ?? "未提供"
++        outputDefault = value["defaultMaxTokens"]?.nativeText ?? "未提供"
++    }
++    var hasOverride: Bool { !visible || !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
++    func payload() throws -> JSONValue {
++        var value: [String: JSONValue] = ["id": .string(id), "visible": .bool(visible)]
++        for (key, text) in [("contextWindow", context), ("maxTokens", output)] {
++            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
++            guard let number = Double(text), number.isFinite, number >= 1, number.rounded() == number, number <= 9_007_199_254_740_991 else {
++                throw NativeSettingsClient.Failure.rejected("\(name) 的容量必须是正整数；留空使用默认值。")
++            }
++            value[key] = .number(number)
++        }
++        return .object(value)
++    }
++}
++
++struct NativeProviderModelsView: View {
++    let provider: String
++    @StateObject private var page: NativeSettingsPage
++    @State private var models: [NativeModelDraft] = []
++    @State private var search = ""
++    init(client: NativeSettingsClient, provider: String) { self.provider = provider; _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        Form {
++            Section { NativeSettingsFeedback(page: page) }
++            ForEach(models.indices.filter { search.isEmpty || models[$0].name.localizedCaseInsensitiveContains(search) || models[$0].id.localizedCaseInsensitiveContains(search) }, id: \.self) { index in
++                Section {
++                    Toggle(models[index].name, isOn: $models[index].visible)
++                    DisclosureGroup("上下文与输出容量") {
++                        Text(models[index].id).font(.caption.monospaced()).foregroundStyle(.secondary)
++                        TextField("上下文，默认 \(models[index].contextDefault)", text: $models[index].context).keyboardType(.numberPad)
++                        TextField("最大输出，默认 \(models[index].outputDefault)", text: $models[index].output).keyboardType(.numberPad)
++                    }
++                }
++            }
++            Section { Text("容量留空会清除覆盖值，恢复 Provider 默认。配置不能突破上游真实限制。")
++                .font(.footnote).foregroundStyle(.secondary) }
++        }
++        .navigationTitle("模型显隐与容量").nativeSettingsLifecycle(page)
++        .searchable(text: $search, prompt: "搜索模型")
++        .toolbar { Button("保存") { Task { await save() } }.disabled(page.busy || models.isEmpty) }
++        .task { await load() }
++    }
++    private func load() async {
++        if let value = await page.call(.provider, "models.get", ["provider": .string(provider)]) {
++            models = (value["models"]?.arrayValue ?? []).map(NativeModelDraft.init)
++        }
++    }
++    private func save() async {
++        do {
++            let values = try models.filter(\.hasOverride).map { try $0.payload() }
++            if await page.call(.provider, "models.set", ["provider": .string(provider), "models": .array(values)]) != nil {
++                page.notice = "模型设置已保存"
++            }
++        } catch { page.error = error.localizedDescription }
++    }
++}
++
++struct NativeProviderToolSettingsView: View {
++    @StateObject private var page: NativeSettingsPage
++    @State private var modifyReadImage = true
++    @State private var shareImagegen = true
++    @State private var contextReuse = false
++    @State private var nativeCompaction = false
++    @State private var imagesLoaded = false
++    @State private var responsesLoaded = false
++    init(client: NativeSettingsClient) { _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        Form {
++            Section { NativeSettingsFeedback(page: page) }
++            Section {
++                Toggle("增强 read_image", isOn: $modifyReadImage)
++                Toggle("其他模型共享图片生成", isOn: $shareImagegen)
++                Button("保存图片工具设置") {
++                    Task { if await page.call(.provider, "images.set", ["modifyReadImage": .bool(modifyReadImage), "shareImagegenWithOtherModels": .bool(shareImagegen)]) != nil { page.notice = "图片工具设置已保存" } }
++                }.disabled(page.busy || !imagesLoaded)
++            } header: { Text("图片工具") }
++            Section {
++                Toggle("WebSocket 上下文复用", isOn: $contextReuse)
++                Toggle("原生上下文压缩", isOn: $nativeCompaction)
++                Button("保存 Responses 设置") {
++                    Task { if await page.call(.provider, "responses.set", ["useWebSocketContextReuse": .bool(contextReuse), "useNativeCompaction": .bool(nativeCompaction)]) != nil { page.notice = "Responses 设置已保存" } }
++                }.disabled(page.busy || !responsesLoaded)
++            } header: { Text("Responses API") } footer: { Text("实验设置仅影响 Codex Provider，请按实际需要启用。") }
++        }.navigationTitle("图片与 Responses").nativeSettingsLifecycle(page)
++        .task {
++            if let value = await page.call(.provider, "images.get") { modifyReadImage = value["modifyReadImage"]?.boolValue ?? true; shareImagegen = value["shareImagegenWithOtherModels"]?.boolValue ?? true; imagesLoaded = true }
++            if let value = await page.call(.provider, "responses.get") { contextReuse = value["useWebSocketContextReuse"]?.boolValue ?? false; nativeCompaction = value["useNativeCompaction"]?.boolValue ?? false; responsesLoaded = true }
++        }
++    }
++}
++
++struct NativeXaiImageSettingsView: View {
++    @StateObject private var page: NativeSettingsPage
++    @State private var value: JSONValue = .null
++    @State private var selected = ""
++    init(client: NativeSettingsClient) { _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        Form {
++            NativeSettingsFeedback(page: page)
++            Picker("图片模型", selection: $selected) {
++                ForEach(value["models"]?.arrayValue ?? [], id: \.self) { row in Text(row["name"]?.nativeText ?? "模型").tag(row["id"]?.stringValue ?? "") }
++            }
++            Button("保存") { Task { if let next = await page.call(.provider, "xai-image.set", ["model": .string(selected)]) { value = next; page.notice = "图片模型已保存" } } }
++                .disabled(page.busy || selected.isEmpty)
++        }.navigationTitle("Grok 图片模型").nativeSettingsLifecycle(page)
++        .task { if let next = await page.call(.provider, "xai-image.get") { value = next; selected = next["model"]?.stringValue ?? "" } }
++    }
++}
++
++struct NativeVlessSettingsView: View {
++    @Environment(\.scenePhase) private var scenePhase
++    @StateObject private var page: NativeSettingsPage
++    @State private var value: JSONValue = .null
++    @State private var uri = ""
++    init(client: NativeSettingsClient) { _page = StateObject(wrappedValue: NativeSettingsPage(client)) }
++    var body: some View {
++        Form {
++            Section("状态") {
++                NativeSettingsFeedback(page: page)
++                LabeledContent("已配置", value: value["configured"]?.boolValue == true ? "是" : "否")
++                LabeledContent("运行中", value: value["running"]?.boolValue == true ? "是" : "否")
++                LabeledContent("出口可达", value: value["reachable"]?.boolValue == true ? "是" : "否")
++                if let node = value["node"]?.stringValue { Text(node).textSelection(.enabled) }
++                if let message = value["message"]?.stringValue { Text(message).font(.footnote).foregroundStyle(.secondary) }
++                if let latency = value["latencyMs"]?.doubleValue { LabeledContent("最近延迟", value: "\(Int(latency)) ms") }
++                Button("刷新状态") { Task { await load() } }.disabled(page.busy)
++                Button("测试节点延迟") { Task { if let next = await page.call(.provider, "vless.speed-test") { value = next } } }.disabled(page.busy || value["configured"]?.boolValue != true)
++            }
++            Section {
++                SecureField("粘贴 vless:// 节点地址", text: $uri)
++                    .textInputAutocapitalization(.never).autocorrectionDisabled()
++                Button("验证并保存节点") {
++                    let input = uri; uri = ""
++                    Task { if let next = await page.call(.provider, "vless.configure", ["vlessUrl": .string(input)]) { value = next; page.notice = "节点已保存" } }
++                }.disabled(page.busy || uri.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
++            } header: { Text("导入节点") } footer: { Text("节点密钥只提交给本机后台，不在 App 中持久化。每个 Provider 的出口在对应账号页选择。") }
++        }.navigationTitle("VLESS 节点").nativeSettingsLifecycle(page)
++        .task { await load() }
++        .onDisappear { uri = "" }
++        .onChange(of: scenePhase) { if $0 == .background { uri = "" } }
++    }
++    private func load() async { if let next = await page.call(.provider, "vless.get") { value = next } }
++}
+diff --git a/DeepSeekHarnessMobile/Views/PluginsView.swift b/DeepSeekHarnessMobile/Views/PluginsView.swift
+index 216dc75d92aa44c3bf99044427bd3b787c4022c4..5f4bcd8952c443708595d1fc32521a06a7e84a72 100644
+--- a/DeepSeekHarnessMobile/Views/PluginsView.swift
++++ b/DeepSeekHarnessMobile/Views/PluginsView.swift
+@@ -14,6 +14,17 @@ struct PluginsView: View {
+             LazyVStack(alignment: .leading, spacing: 26) {
+                 Text("安装、启用和配置插件")
+                     .appFont(.subheadline).foregroundStyle(.secondary)
++                VStack(alignment: .leading, spacing: 12) {
++                    NavigationLink { NativeSettingsHomeView(gateway: store.gateway) } label: {
++                        Label("Provider 账号与配置", systemImage: "person.crop.circle.badge.gearshape")
++                    }
++                    NavigationLink { NativeClineSettingsView(client: store.gateway.nativeSettings) } label: {
++                        Label("Cline Pass 管理", systemImage: "person.2.badge.key")
++                    }
++                    NavigationLink { NativePluginSettingsView(client: store.gateway.nativeSettings) } label: {
++                        Label("插件配置表单", systemImage: "slider.horizontal.3")
++                    }
++                }.disabled(!store.gateway.state.isConnected)
+                 if !store.gateway.state.isConnected {
+                     Text("网关已断开，插件状态待重新连接确认")
+                         .appFont(.subheadline).foregroundStyle(.orange)
+@@ -34,7 +45,7 @@ struct PluginsView: View {
+                     pluginSection(String(localized: "官方"), count: catalog.officialBundles.count + catalog.officialItems.count) {
+                         ForEach(catalog.officialBundles) { bundle in bundleRow(bundle) }
+                         ForEach(catalog.officialItems) { item in
+-                            NavigationLink { OfficialPluginDetailView(item: item) } label: {
++                            NavigationLink { OfficialPluginDetailView(item: item, client: store.gateway.nativeSettings) } label: {
+                                 PluginLine(icon: nil, fallback: item.id, title: item.title,
+                                     subtitle: item.description, detail: false, experimental: false)
+                             }.buttonStyle(.plain).frame(minHeight: 68)
+@@ -243,7 +254,7 @@ private struct PluginDetailView: View {
+         }
+         .navigationTitle("插件详情").navigationBarTitleDisplayMode(.inline)
+         .sheet(item: $selectedEntry) { entry in
+-            PluginComponentSheet(entry: entry)
++            PluginComponentSheet(entry: entry, client: store.gateway.nativeSettings)
+         }
+         .alert("停用移动网关？", isPresented: $confirmGatewayDisable) {
+             Button("取消", role: .cancel) {}
+@@ -255,6 +266,7 @@ private struct PluginDetailView: View {
+ private struct PluginComponentSheet: View {
+     @Environment(\.dismiss) private var dismiss
+     let entry: MobilePluginRow
++    let client: NativeSettingsClient
+ 
+     var body: some View {
+         NavigationStack {
+@@ -273,6 +285,9 @@ private struct PluginComponentSheet: View {
+                     if !entry.description.isEmpty {
+                         Text(entry.description).frame(maxWidth: .infinity, alignment: .leading)
+                     }
++                    NavigationLink("打开组件配置") {
++                        NativePluginSettingsView(client: client, initialNamespaces: entry.entryID.map { [$0] })
++                    }
+                     VStack(alignment: .leading, spacing: 12) {
+                         componentField("组件 ID", value: entry.id)
+                         if !entry.moduleName.isEmpty { componentField("模块", value: entry.moduleName) }
+@@ -308,6 +323,7 @@ private func pluginSwitchTint(for scheme: ColorScheme) -> Color {
+ 
+ private struct OfficialPluginDetailView: View {
+     let item: MobileOfficialPlugin
++    let client: NativeSettingsClient
+     var body: some View {
+         ScrollView {
+             VStack(alignment: .leading, spacing: 20) {
+@@ -316,7 +332,9 @@ private struct OfficialPluginDetailView: View {
+                 Text(item.description).foregroundStyle(.secondary)
+                 Text("配置项").appFont(.headline).padding(.top, 16)
+                 ForEach(item.namespaces, id: \.self) { namespace in
+-                    Text(namespace).appFont(.subheadline.monospaced()).foregroundStyle(.secondary)
++                    NavigationLink(namespace) {
++                        NativePluginSettingsView(client: client, initialNamespaces: [namespace])
++                    }.appFont(.subheadline)
+                 }
+             }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+                 .readableContentWidth()
 diff --git a/DeepSeekHarnessMobile/Views/RootView.swift b/DeepSeekHarnessMobile/Views/RootView.swift
-index 7f51ba8..d162929 100644
+index 7f51ba811e86e5ed7baf0278f94b004c7b137163..d16292911a8b78d6ca2f06f65ca5f3a194a20148 100644
 --- a/DeepSeekHarnessMobile/Views/RootView.swift
 +++ b/DeepSeekHarnessMobile/Views/RootView.swift
 @@ -27,6 +27,15 @@ struct RootView: View {
@@ -1241,8 +2832,31 @@ index 7f51ba8..d162929 100644
      }
  }
  
+diff --git a/DeepSeekHarnessMobile/Views/SettingsView.swift b/DeepSeekHarnessMobile/Views/SettingsView.swift
+index cb39a7d4904e2695ecc84970f0d5dcc7d2fb6da1..dd570f766d2d9f512eefcb74067ae5440811e6b1 100644
+--- a/DeepSeekHarnessMobile/Views/SettingsView.swift
++++ b/DeepSeekHarnessMobile/Views/SettingsView.swift
+@@ -156,6 +156,18 @@ struct SettingsView: View {
+                 Text("与 WebUI 使用同一份部署级设置。修改只影响之后新建的会话，运行中的会话保持启动时的配置。")
+             }
+ 
++            Section("Provider 与插件") {
++                NavigationLink {
++                    NativeSettingsHomeView(gateway: store.gateway)
++                } label: { Label("Provider 账号与配置", systemImage: "person.crop.circle.badge.gearshape") }
++                NavigationLink {
++                    NativeClineSettingsView(client: store.gateway.nativeSettings)
++                } label: { Label("Cline Pass", systemImage: "person.2.badge.key") }
++                NavigationLink {
++                    NativePluginSettingsView(client: store.gateway.nativeSettings)
++                } label: { Label("插件配置表单", systemImage: "slider.horizontal.3") }
++            }.disabled(!gatewayState.isConnected)
++
+             Section("Mobile Gateway") {
+                 TextField("ws://host:3080/ws/mobile", text: $store.endpoint)
+                     .textInputAutocapitalization(.never)
 diff --git a/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift b/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift
-index 31d01a3..08af0f9 100644
+index 31d01a3eb7b4b711b7ff223baf77a36ca303a394..08af0f91471af860f1a0a07c7f41eec7f7042317 100644
 --- a/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift
 +++ b/DeepSeekHarnessMobileTests/GatewayProtocolTests.swift
 @@ -255,6 +255,32 @@ private enum GatewayProtocolParityFixtures {
@@ -1356,7 +2970,7 @@ index 31d01a3..08af0f9 100644
          let hint = slashCommandComposerPresentation(
              draft: "/plan ",
 diff --git a/DeepSeekHarnessMobileTests/MultiGatewayTests.swift b/DeepSeekHarnessMobileTests/MultiGatewayTests.swift
-index a890023..5490d48 100644
+index a890023fde6847cf92bbf373a685a045a8a5a9cc..5490d48f40fe1d3a60d4bee83e4fdc034fc5996a 100644
 --- a/DeepSeekHarnessMobileTests/MultiGatewayTests.swift
 +++ b/DeepSeekHarnessMobileTests/MultiGatewayTests.swift
 @@ -12,6 +12,38 @@ private final class MigrationTestCredentials: GatewayCredentialStoring {

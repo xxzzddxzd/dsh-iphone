@@ -553,3 +553,38 @@ Node 与负载：
 验证：完整 `scripts/verify.sh`（含明确 `NATIVE_APP_SOURCE`）通过；45项原生安装/签名/支持标记测试、真实 Swift 订阅生命周期10场景、Widget版本/磁盘门禁与真实安装 heredoc 14条失败链均通过。Release archive、iOS16.1 Mach-O、Widget明确身份、数据/配对保留与最终 skip-install 校验通过。IME/外接键盘等未在本轮重新全面测试，保留既有记录的边界。
 
 证据位于 `.cache/upgrades/native-activity-20261027/`，包含安装、版本缓存、生命周期、数据基线、Node来源与资源采样；原始认证信息不写入提交。
+
+
+## 2026-10-27：原生 Provider／插件设置与冷启动订阅
+
+共享 Provider API 已提交至 fork/main：`731defa`。
+
+原生客户端按官方最新发布 v1.7.11 / `9bf3955` 为基线，纳入官方 `de9bace` 的独立订阅导航修复及两份 AppRelease 资源。本地最终 build39，Provider0.2.11 与 iPhone Gateway0.11.1+iphone.2；核心仍为 DSH0.2.1-rc.2 / Debian0.2.1~rc.2-2，原 iPhoneOS Node22.23.2 编译产物校验未变。shared/Gradle 输入没有改变，沿用 framework `f4d48347027f367f4dcbef847933b6a38aae23994967ffbfb128407fe9f7de91`。
+
+| 产物 | SHA-256 |
+| --- | --- |
+| Provider0.2.11 | `f320a04ae5ce5375ed1bfe7c99d3d7e89711e97e4627fb43fc1f01af133c6e8c` |
+| Gateway0.11.1+iphone.2 | `9c3c8d22aeb9d652076804f246e137f6b38615c6cfd64d083ac838ff094ba6a7` |
+| App build39 IPA | `ad4fbf8201b3c09956d79c275d4086fb3a1a0328dd5533cf18fb0122bb2e7f96` |
+| 27文件累计源码补丁 | `7e043846f4c36f0081b58d950ba4ea1a837abc1cf5bd1d09098309aa6ccabb57` |
+| Widget setup helper | `01a31f1de3201e9be6927f59c3d5e7b0063e67ed80e02cd6b8e6764e9736dadd` |
+
+原生「设置 → Provider 与插件设置」已覆盖：
+
+- Codex/xAI/Google 认证状态与官方网页登录授权、额度、模型显隐/上下文/输出容量、图片/Responses、xAI图片模型及每Provider出口/VLESS。
+- Cline Pass 账号、单向密钥保存、启停/轮换、额度、模型显隐与通道、输出预算/工具开关和请求历史。新增账号拒绝已有标识，避免空白表单覆盖现有账号。
+- 通用插件 Schemastery 图表单的基础对象/数组/bool/string/number/enum，按修改路径和 revision 保存；凭据引用显示配置状态与来源，密钥不能读回。复杂联合类型和动态键增删保留只读边界，可沿用网页。
+
+后台为同一份业务与存储。Provider 的新固定 Connection owner API 复用 Web Auth Controller 单例；Gateway 只允许已配对管理，固定 scope/action，不收客户端 URL、Header、Peer 或任意 Remote 路径。凭据复用官方 CredentialsController，描述只投影 configured/source/writable。请求16KiB、响应1MiB、每设备8在途、60秒期限；客户端65秒关联超时、离页/后台取消，OAuth仅可见且登录进行中有限轮询。
+
+设备与数据验证：
+
+- Mac在空闲时备份 `~/.dsh.before-native-settings-20261027` 和旧Provider lib，然后整合已独立验证的源码/13个lib文件，未重装共享依赖。手机备份 `/var/root/.dsh.before-native-settings-20261027`，只离线安装Provider/Gateway并bootstrap一次；未重装Node或核心包。
+- Mac161个、iPhone156个既有会话全部保留，默认模型不变，模型目录失败数0；GPT-6.1 Sol仍可见。App升级使用原容器、Keychain与网关配对。
+- 真实配对 wire 完成18次设置调用，与Web结果对照一致；读取22个配置域、2个原Cline账号和21个模型。原图片/Responses同值保存重读、通用字段set后恢复原user层通过；未写真人密钥、未启动登录或模型probe、提示数0。只撤销验收器自己的设备，App配对保留。
+
+冷启动修复：build38实机仍报 `subscription-timeout`。控制hello已建立conversation client，但异步Keychain读取尚未创建socket时，send路径在pre-hello缓冲前检查socket并提前返回；首条subscribe丢失，随后history正常也不会补发。build39把缓冲移到socket检查前，并限定连接意图有效；设置首页以capability变更重新加载，避免hello前打开时空白。真实手机冷启动服务端已观察到conversation订阅，用户停留约20秒并进入设置后确认“不再报错，设置也正常”。Widget缓存核验39-39，原活动栏能力保留。
+
+验证：Provider全量94项测试、双typecheck/build/smoke与生产闭包通过；Gateway真实owner/guest、paired/unpaired、凭据临时store与打包回归通过。App实际iOS16.1 Release archive、身份/最低系统、完整补丁重放通过。15个timer场景、6个真实生产buffer边界、7个真实URLSession WebSocket/Keychain barrier与ACK、11个设置actor场景及图表单/secret/Home生命周期通过。旧38源码能被同一cold负例稳定捕获。完整 `verify.sh` 含候选源码通过。
+
+证据位于 `.cache/upgrades/native-settings-20261027/`；App37/38回滚六件与Provider原lib已保留。认证URL、token、真人密钥和历史正文不写入提交。

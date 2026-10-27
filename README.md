@@ -12,6 +12,7 @@
 - 官方响应式 Web GUI、iOS 16 WebKit 兼容和主屏幕图标。
 - 图片附件解码、缩放及 PNG/JPEG 编码。
 - 系统通知、session 深链接和 Live Activity。
+- 原生 Provider 登录、模型偏好、图片/Responses、VLESS；Cline Pass 账号/路由与插件配置表单。
 - USB/Wi-Fi 隧道访问；Provider 页管理 OpenAI Codex、xAI、Google OAuth 及各自的可选 VLESS 出口。
 
 ## 当前版本与构建目标
@@ -19,10 +20,10 @@
 | 组件 | 版本 |
 | --- | --- |
 | Mac / iPhone DSH | `0.2.1-rc.2` |
-| dsh-codex | `0.2.10`（pi-ai `1.4.0`、zod `4.4.3`） |
+| dsh-codex | `0.2.11`（pi-ai `1.4.0`、zod `4.4.3`） |
 | dsh-cline-pass | `0.2.13` |
-| iPhone Mobile Gateway | `0.11.1+iphone.1`，仅本机连接 |
-| Whaleness 本地适配版 | `1.7.11 / build 37`，活动栏与锁屏点击已验收 |
+| iPhone Mobile Gateway | `0.11.1+iphone.2`，仅本机连接 |
+| Whaleness 本地适配版 | `1.7.11 / build 39`，原生 Provider／插件设置已验收 |
 | iPhone DSH Debian 包 | `0.2.1~rc.2-2` |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
@@ -77,7 +78,7 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 ./scripts/deploy.sh
 ```bash
 ./scripts/package-mobile-gateway.sh
 NATIVE_APP_SOURCE=/path/to/reviewed-whaleness ./scripts/build-native-app.sh
-NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build37.ipa" \
+NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build39.ipa" \
 NATIVE_APP_MANIFEST="$PWD/build/native-app/native-app-manifest.json" \
 DEVICE_HOST='<iPhone IP>' ./scripts/install-native-app.sh
 ```
@@ -123,7 +124,7 @@ iPhoneDS 页面关闭 hover/focus 提示浮框及原生 `title` 提示，避免�
 cp -a /var/root/.dsh "/var/root/.dsh.before-upgrade-$(date +%Y%m%d-%H%M%S)"
 ```
 
-后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，同时检查 DSH、pi-ai、Cline Pass、模型目录和设置持久化，再做升级前后基线比较及指定模型的真实会话验收。原生路径还需检查网关、真实 App 配对、活动栏目标和实际显示。本次旧 xAI OAuth 的 `invalid_grant` 已由用户官方重新授权解决，严格目录检查重新通过。build 34 的安装、真实 Keychain 保留、回车发送和活动点击属于既有验收；build 37 已另行通过原生活动栏显示、后台生命周期和锁屏点击验收，并修复订阅超时。
+后续更新从 [双端快速更新流程](./docs/upgrade-workflow.md) 开始，同时检查 DSH、pi-ai、Cline Pass、模型目录和设置持久化，再做升级前后基线比较及指定模型的真实会话验收。原生路径还需检查网关、真实 App 配对、活动栏目标和实际显示。本次旧 xAI OAuth 的 `invalid_grant` 已由用户官方重新授权解决，严格目录检查重新通过。build 34 的安装、真实 Keychain 保留、回车发送和活动点击属于既有验收；build 37 已另行通过原生活动栏显示、后台生命周期和锁屏点击验收，并修复锁屏期间残留订阅计时。build 39 补齐原生 Provider/插件管理，并修复冷启动首条订阅漏发。
 
 详细说明：[更新 SOP](./docs/updating.md) · [兼容说明](./docs/dsh-compatibility.md) · [历史恢复](./docs/history-migration.md) · [通知](./docs/notifications.md) · [排障](./docs/troubleshooting.md) · [VLESS](./docs/vless-client.md)
 

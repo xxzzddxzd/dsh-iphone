@@ -19,10 +19,11 @@ async function fixture(options = {}) {
   const newId = randomUUID();
   const appId = "existing-app-device";
   const devices = new Map([[appId, { id: appId, name: privateText }]]);
-  const state = { pairingCount: 0, revoked: [], messages: [], authenticatedReconnects: 0 };
+  const state = { pairingCount: 0, revoked: [], messages: [], authenticatedReconnects: 0, historySessionIds: [], subscriptionSessionIds: [] };
   const catalog = { default: { provider: "provider-codex", model: "gpt-6.1-sol" },
     groups: [{ id: "provider-codex", models: [{ id: "gpt-6.1-sol", name: privateText }] }] };
   const items = [{ sessionId: "old-session", running: false, blank: false, formatStatus: "current", title: privateText }];
+  if (options.smallHistory) items.push({ sessionId: "session-native-small-fixture", running: false, blank: false, formatStatus: "current", title: privateText });
   const event = { seq: 3, type: "assistant/message", data: { message: { role: "assistant", content: [{ type: "text", text: privateText }] } } };
   const server = createServer(async (req, res) => {
     assert.equal(req.headers.cookie, "fixture-admin=value");
@@ -79,16 +80,25 @@ async function fixture(options = {}) {
           case "host": response = { kind: "host", dshVersion: pins.DSH_VERSION, historyFormatVersion: 4, cwd: privateText }; break;
           case "models": response = { kind: "models", ...catalog }; break;
           case "history":
+            state.historySessionIds.push(request.sessionId);
             response = options.historyFailure
               ? { kind: "error", requestType: "history", message: privateText }
               : { kind: "history", sessionId: request.sessionId, historyFormatVersion: 4, events: [event] };
             break;
           case "subscribe":
+            state.subscriptionSessionIds.push(request.sessionId);
             assert.equal(request.assistantStream, true);
             // Exercise a fast opening snapshot before the subscription acknowledgement.
             ws.send(JSON.stringify({ kind: "session-snapshot", sessionId: request.sessionId,
               historyFormatVersion: 4, replace: true, events: [event], assistantStream: { revision: 0 } }));
             response = { kind: "subscribed", sessionId: request.sessionId };
+            break;
+          case "native-settings":
+            assert.equal(request.scope, "provider");
+            assert.equal(request.action, "images.get");
+            assert.deepEqual(request.payload, {});
+            response = { kind: "native-settings", requestId: request.requestId, scope: request.scope, action: request.action,
+              value: { modifyReadImage: true, shareImagegenWithOtherModels: false } };
             break;
           default: throw new Error("fixture received an unapproved mutation");
         }
@@ -136,6 +146,37 @@ for (const options of [{}, { protocol: 99 }, { historyFormatVersion: 5 }, { capa
       if (options.requireAuth === false) assert.equal(test.state.pairingCount, 0, "disabled device auth must fail before creating a pairing");
       else assert.equal(report.testDeviceRevoked, true);
     }
+  } finally { await test.close(); }
+}
+for (const fails of [false, true]) {
+  const test = await fixture({ smallHistory: true, capabilities: [...capabilities, "iphone-native-settings-v1"] });
+  try {
+    let called = 0;
+    const report = await checkNativeGateway(test.host, { WebSocket, pins, timeoutMs: 1500,
+      historySessionId: "session-native-small-fixture", settingsAcceptance: async control => {
+        called++;
+        const reply = await control.request("native-settings", "native-settings", {
+          requestId: "settings-fixture", scope: "provider", action: "images.get", payload: {},
+        });
+        assert.equal(reply.requestId, "settings-fixture");
+        if (fails) throw new Error(test.privateText);
+        return { status: "passed", requests: 1 };
+      } });
+    assert.equal(called, 1, "settings callback did not run through the paired control channel");
+    assert.equal(report.status, fails ? "failed" : "passed");
+    assert.equal(report.testDeviceRevoked, true);
+    assert.equal(report.existingAppDevicesRetained, true);
+    assert.ok(test.devices.has(test.appId));
+    assert.ok(!test.devices.has(test.newId));
+    assert.deepEqual(test.state.revoked, [test.newId], "callback cleanup revoked a foreign App device");
+    if (fails) {
+      assert.deepEqual(report.failure, { phase: "native-settings", code: "native-gateway-check-failed" });
+    } else {
+      assert.deepEqual(report.nativeSettings, { status: "passed", requests: 1 });
+      assert.deepEqual(test.state.historySessionIds, ["session-native-small-fixture"]);
+      assert.deepEqual(test.state.subscriptionSessionIds, ["session-native-small-fixture"]);
+    }
+    for (const secret of [test.privateText, test.token, test.pairingCode]) assert.ok(!JSON.stringify(report).includes(secret));
   } finally { await test.close(); }
 }
 console.log("Native Gateway pairing, token reconnect, read APIs and snapshot pass; failures retain App devices, revoke only the test device and redact all private values");

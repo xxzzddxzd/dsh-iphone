@@ -20,7 +20,7 @@ profile 模板使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`。外�
 
 ## Provider bundle
 
-DSH `0.2.1-rc.2` 当前版本固定为 `dsh-codex@0.2.10`。Mac 与 iPhone 共用
+DSH `0.2.1-rc.2` 当前版本固定为 `dsh-codex@0.2.11`。Mac 与 iPhone 共用
 同一个 checkout 和版本；插件适配了 0.2.1 的 provider 图片预算、持久化 auth 注入、replay，以及
 `prepareCall()` 冻结调用路径下的原生 Codex compaction；Provider 页还提供 pi-ai
 OpenAI Codex、xAI 与 `@kelvinwww/dsh-oauth` Google OAuth 三个子页；锁定 pi-ai
@@ -43,7 +43,7 @@ Provider 的 zod 精确固定 `4.4.3`，与 DSH storage-domain 的公开 schema 
 
 ## iPhone 原生网关
 
-`mobile-gateway/package-lock.json` 固定官方 `dsh-plugin-mobile-gateway@0.11.1` 的纯 JavaScript 生产闭包。`package-mobile-gateway.sh` 生成 `0.11.1+iphone.1` 本机变体，包含完整依赖，不带 DSH peers 或 Linux setup/init 入口。它复用现有 `web` profile 和 `:3080/ws/mobile`，不另起 Harness；`lanEnabled:false`，不会占用手机上已有的 3081 服务。
+`mobile-gateway/package-lock.json` 固定官方 `dsh-plugin-mobile-gateway@0.11.1` 的纯 JavaScript 生产闭包。`package-mobile-gateway.sh` 生成 `0.11.1+iphone.2` 本机变体，包含完整依赖，不带 DSH peers 或 Linux setup/init 入口。它复用现有 `web` profile 和 `:3080/ws/mobile`，不另起 Harness；`lanEnabled:false`，不会占用手机上已有的 3081 服务。
 
 ```bash
 ./scripts/package-mobile-gateway.sh

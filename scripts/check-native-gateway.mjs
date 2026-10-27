@@ -96,7 +96,7 @@ class NativeWire {
 }
 
 /** The caller owns the authenticated Host connection; this check owns only its new device. */
-export async function checkNativeGateway(host, { WebSocket, pins, timeoutMs = 15000 } = {}) {
+export async function checkNativeGateway(host, { WebSocket, pins, timeoutMs = 15000, historySessionId, settingsAcceptance } = {}) {
   const report = { status: "failed", target: "iphone", mode: "pairing-and-read-only" };
   let phase = "management-status", ownedDeviceId, initialDevices, token, control, conversation;
   const manage = async (path, body, accepted = [200]) => {
@@ -170,8 +170,14 @@ export async function checkNativeGateway(host, { WebSocket, pins, timeoutMs = 15
     const requiredModels = (pins.DSH_CODEX_REQUIRED_MODELS ?? "").split(",").filter(Boolean);
     requireValue(requiredModels.every(model => modelIds.has(model)), "native-required-model-missing");
     const old = beforeSessions.items.find(session => !session.running && !session.blank
-      && session.formatStatus !== "migration-required" && !/^session-(upgrade|native)-/.test(session.sessionId) && nativeIds.has(session.sessionId));
+      && session.formatStatus !== "migration-required" && nativeIds.has(session.sessionId)
+      && (historySessionId === undefined ? !/^session-(upgrade|native)-/.test(session.sessionId) : session.sessionId === historySessionId));
     requireValue(old, "old-session-unavailable-for-history-check");
+    if (settingsAcceptance !== undefined) {
+      phase = "native-settings";
+      requireValue(typeof settingsAcceptance === "function" && hello.capabilities.includes("iphone-native-settings-v1"), "native-settings-capability-missing");
+      report.nativeSettings = await settingsAcceptance(control);
+    }
     phase = "authenticated-conversation-reconnect";
     conversation = new NativeWire(new WebSocket(wsURL, ["dsh-mobile-v1"], {
       headers: { ...headers, "X-DSH-Channel": "conversation", authorization: `Bearer ${token}` }, maxPayload: 64 * 1024 * 1024,

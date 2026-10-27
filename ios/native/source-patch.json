@@ -1,15 +1,16 @@
 {
   "schema": 1,
   "commit": "9bf3955c8add4ebffaed5699d59e75ddc86733ad",
-  "sha256": "5aaace3224af9886442936780103b718684da851bd1c30e905fd2af9dfe6c64a",
+  "sha256": "7e043846f4c36f0081b58d950ba4ea1a837abc1cf5bd1d09098309aa6ccabb57",
   "version": "1.7.11",
-  "build": "37",
+  "build": "39",
   "capabilities": [
     "loopback-pairing-v1",
     "backend-managed-lifecycle-v1",
     "composer-return-send-v1",
     "root-live-activity-widget-v1",
-    "loopback-on-demand-history-v1"
+    "loopback-on-demand-history-v1",
+    "provider-plugin-settings-v1"
   ],
   "files": [
     "AgentLiveActivityWidget/AgentLiveActivityWidget.swift",
@@ -19,16 +20,24 @@
     "AgentLiveActivityWidget/DSHRootActivityWidget.swift",
     "AgentLiveActivityWidget/DSHRootNavigation.swift",
     "AgentLiveActivityWidget/Info.plist",
+    "AppRelease/release-info.json",
+    "AppRelease/release-notes.md",
     "DeepSeekHarnessMobile.xcodeproj/project.pbxproj",
     "DeepSeekHarnessMobile/Core/AgentBackgroundExecutionController.swift",
     "DeepSeekHarnessMobile/Core/AgentUserNotificationManager.swift",
     "DeepSeekHarnessMobile/Core/AppStore.swift",
     "DeepSeekHarnessMobile/Core/GatewayClient.swift",
     "DeepSeekHarnessMobile/Core/GatewayProfile.swift",
+    "DeepSeekHarnessMobile/Core/NativeSettingsClient.swift",
     "DeepSeekHarnessMobile/LiveActivity/AgentLiveActivityManager.swift",
     "DeepSeekHarnessMobile/Resources/Info.plist",
     "DeepSeekHarnessMobile/Views/ConversationView.swift",
+    "DeepSeekHarnessMobile/Views/NativeClineSettingsView.swift",
+    "DeepSeekHarnessMobile/Views/NativePluginSettingsView.swift",
+    "DeepSeekHarnessMobile/Views/NativeSettingsViews.swift",
+    "DeepSeekHarnessMobile/Views/PluginsView.swift",
     "DeepSeekHarnessMobile/Views/RootView.swift",
+    "DeepSeekHarnessMobile/Views/SettingsView.swift",
     "DeepSeekHarnessMobileTests/GatewayProtocolTests.swift",
     "DeepSeekHarnessMobileTests/MultiGatewayTests.swift"
   ]

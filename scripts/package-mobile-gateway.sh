@@ -3,6 +3,7 @@ set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib.sh"
 ROOT=$(repo_root)
+load_versions
 require_command npm
 require_command node
 require_command tar
@@ -20,6 +21,6 @@ rsync -a --exclude=dsh-plugin-mobile-gateway --exclude=.bin --exclude=.package-l
   "$ROOT/mobile-gateway/node_modules/" "$STAGE/package/node_modules/"
 node "$SCRIPT_DIR/patch-mobile-gateway.mjs" --root "$STAGE/package" >&2
 node "$ROOT/tests/test-mobile-gateway.mjs" --root "$STAGE/package" >&2
-OUTPUT="$ROOT/dist/dsh-plugin-mobile-gateway-0.11.1+iphone.1.tgz"
+OUTPUT="$ROOT/dist/dsh-plugin-mobile-gateway-$DSH_MOBILE_GATEWAY_VERSION.tgz"
 COPYFILE_DISABLE=1 tar -czf "$OUTPUT" -C "$STAGE" package
 printf '%s\n' "$OUTPUT"

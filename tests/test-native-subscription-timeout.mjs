@@ -35,6 +35,9 @@ const root = await mkdtemp(join(tmpdir(), "dsh-subscription-timeout-"));
 try {
   const swift = join(root, "SubscriptionTests.swift");
   await writeFile(swift, `import Foundation
+struct MobileConversationTarget {
+    let parentSessionId: String?
+}
 struct GatewayFrame {
     let kind: String
     let sessionId: String?
@@ -43,6 +46,7 @@ struct GatewayFrame {
     let requestType: String
 }
 func gatewayApprovalTrace(_ message: String) {}
+actor NoopNativeSettings { func invalidate() {} }
 @MainActor final class NoopRecovery { func cancel() {} }
 @MainActor final class NoopSocket {
     enum CloseCode { case goingAway }
@@ -59,6 +63,7 @@ enum ConnectionState {
         self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
     }
     var onFrame: ((GatewayFrame) -> Void)?
+    var conversationTarget: ((String) -> MobileConversationTarget?)?
     var requests: [[String: Any]] = []
     private var isApplicationInBackground = false
     private var networkRecovery = NoopRecovery()
@@ -78,6 +83,8 @@ enum ConnectionState {
     private var connectionGeneration = UUID()
     private var connectionPreparationTask: Task<Void, Never>?
     private var onConnectionInvalidated: (() -> Void)?
+    private var nativeSettingsAvailable = false
+    private let nativeSettings = NoopNativeSettings()
     private var outboundTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
     private var pendingConversationPayloads: [String] = []
@@ -239,7 +246,75 @@ enum ConnectionState {
                    "transport invalidation retained stale pending/latest intent")
             expect(f.client.acceptSubscriptionAck(sessionID: "new"), "new request blocked after failure")
         }
-        print("10 production Swift subscription lifecycle scenarios passed")
+        // Official de9bace: an old missing ACK must not drop the latest
+        // navigation. B is coalesced, C is sent after A's response window.
+        do {
+            let f = Fixture()
+            f.client.subscribe(sessionId: "a")
+            f.client.subscribe(sessionId: "b")
+            f.client.subscribe(sessionId: "c")
+            try await wait(350)
+            expect(f.failures.isEmpty, "superseded A produced a modal timeout")
+            expect(f.client.requests.count == 2 && f.client.requests.last?["sessionId"] as? String == "c",
+                   "missing old ACK dropped the latest C navigation")
+            expect(!f.client.acceptSubscriptionAck(sessionID: "a"), "late A ACK displaced C")
+            expect(f.client.acceptSubscriptionAck(sessionID: "c"), "forwarded C ACK rejected")
+            try await wait(350)
+            expect(f.failures.isEmpty, "forwarded navigation retained an obsolete timer")
+        }
+        // Leaving while an old request is pending must still send unsubscribe
+        // after that request times out. Its own missing ACK stays non-modal.
+        do {
+            let f = Fixture()
+            f.client.subscribe(sessionId: "a")
+            f.client.subscribe(sessionId: nil)
+            try await wait(700)
+            expect(f.failures.isEmpty, "leaving emitted an obsolete subscription error")
+            expect(f.client.requests.count == 2 && f.client.requests.last?["type"] as? String == "unsubscribe",
+                   "timeout did not forward the latest unsubscribe")
+            f.client.subscribe(sessionId: "next")
+            expect(f.client.requests.count == 3 && f.client.acceptSubscriptionAck(sessionID: "next"),
+                   "unacknowledged unsubscribe blocked a later selection")
+            try await wait(350)
+            expect(f.failures.isEmpty, "unsubscribe timer leaked into next selection")
+        }
+        // A standalone unsubscribe never names a visible conversation and
+        // therefore must not create a global modal when its ACK is absent.
+        do {
+            let f = Fixture()
+            f.client.subscribe(sessionId: nil)
+            try await wait(350)
+            expect(f.failures.isEmpty, "nil target surfaced a modal subscription timeout")
+            f.client.subscribe(sessionId: "next")
+            expect(f.client.requests.count == 2 && f.client.acceptSubscriptionAck(sessionID: "next"),
+                   "nil timeout did not release single-flight state")
+            try await wait(350)
+            expect(f.failures.isEmpty, "nil timeout survived a new ACK")
+        }
+        // Repeated intent for the same target is not a new navigation and
+        // must not create an endless automatic retry loop.
+        do {
+            let f = Fixture()
+            f.client.subscribe(sessionId: "same")
+            f.client.subscribe(sessionId: "same")
+            try await wait(350)
+            expect(f.client.requests.count == 1 && f.failures.count == 1,
+                   "same-target timeout started an unbounded retry")
+            expect(f.failures[0].message == "会话订阅超时，请重试",
+                   "ordinary conversation used the child-session timeout advice")
+        }
+        // Child-session advice is retained only when the target actually has
+        // a parent in the production conversation routing function.
+        do {
+            let f = Fixture()
+            f.client.conversationTarget = { _ in MobileConversationTarget(parentSessionId: "lead") }
+            f.client.subscribe(sessionId: "child")
+            try await wait(350)
+            expect(f.failures.count == 1 && f.failures[0].sessionId == "child" &&
+                   f.failures[0].message == "成员会话订阅超时，请重试或返回 Lead",
+                   "real child timeout lost its parent-navigation advice")
+        }
+        print("15 production Swift subscription lifecycle scenarios passed")
     }
 }
 `);

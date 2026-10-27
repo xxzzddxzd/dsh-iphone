@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -14,6 +17,8 @@ const args = process.argv.slice(2);
 assert.ok(args.length === 0 || (args.length === 2 && args[0] === '--root'), 'usage: test-mobile-gateway.mjs [--root path]');
 const temporary = await mkdtemp(join(tmpdir(), 'dsh-iphone-mobile-gateway-'));
 let dispose;
+let testServer;
+const testSockets = [];
 try {
   const lock = JSON.parse(await readFile(join(inputs, 'package-lock.json'), 'utf8'));
   assert.equal(lock.packages['node_modules/dsh-plugin-mobile-gateway'].integrity, UPSTREAM_INTEGRITY);
@@ -40,6 +45,7 @@ try {
   assert.doesNotMatch(template, /0\.0\.0\.0|lanEnabled: true/);
   const unexpected = join(temporary, 'unknown');
   for (const entry of report.files) {
+    if (entry.generated) continue;
     const target = join(unexpected, entry.path);
     await mkdir(dirname(target), { recursive: true });
     await cp(join(source, entry.path), target);
@@ -48,6 +54,15 @@ try {
   const pristineManifest = await readFile(join(unexpected, 'package.json'));
   await assert.rejects(patchMobileGateway(unexpected), /Unexpected mobile gateway target bytes/);
   assert.deepEqual(await readFile(join(unexpected, 'package.json')), pristineManifest, 'no files may change before every preimage is validated');
+  await assert.rejects(readFile(join(unexpected, 'lib/iphone-native-settings.mjs')), { code: 'ENOENT' }, 'a new module must not be written before every preimage is validated');
+  const generated = join(root, 'lib/iphone-native-settings.mjs');
+  assert.equal(await readFile(generated, 'utf8'), await readFile(join(repository, 'ios/native/native-settings-bridge.mjs'), 'utf8'));
+  const unknownGenerated = join(temporary, 'unknown-generated');
+  await cp(source, unknownGenerated, { recursive: true });
+  await writeFile(join(unknownGenerated, 'lib/iphone-native-settings.mjs'), '// unknown generated-module bytes\n');
+  const untouched = await readFile(join(unknownGenerated, 'package.json'));
+  await assert.rejects(patchMobileGateway(unknownGenerated), /Unexpected mobile gateway target bytes/);
+  assert.deepEqual(await readFile(join(unknownGenerated, 'package.json')), untouched, 'unknown added modules must fail without partial writes');
 
   const tools = await import(pathToFileURL(join(root, 'lib/gateway-tools.mjs')));
   assert.equal(tools.webRestartAvailable({ name: 'web' }, process), false);
@@ -56,7 +71,8 @@ try {
   let management, upgrade;
   const peerAbort = new AbortController();
   let peerDisposed = false;
-  const peer = { signal: peerAbort.signal, dispose: async () => { peerDisposed = true; peerAbort.abort(); } };
+  const peer = { principal: { kind: 'owner' }, signal: peerAbort.signal, dispose: async () => { peerDisposed = true; peerAbort.abort(); } };
+  let nativeOwnerCalls = 0;
   const waitForAbort = signal => new Promise(resolve => {
     if (signal.aborted) resolve(); else signal.addEventListener('abort', resolve, { once: true });
   });
@@ -66,7 +82,19 @@ try {
       register(route) { management = route; return () => { management = undefined; }; },
       registerUpgrade(route) { upgrade = route; return () => { upgrade = undefined; }; },
     },
-    connection: { createPeer: () => peer },
+    connection: {
+      createPeer(options) { assert.deepEqual(options, { principal: { kind: 'owner' }, interactions: 'none' }); return peer; },
+      createSharedFetchHandler(channel) {
+        assert.equal(channel, '/api');
+        return { requestBodyMode: () => 'buffered', async fetch(req, fixedPeer) {
+          assert.equal(fixedPeer, peer);
+          assert.equal(new URL(req.url).pathname, '/api/dsh-provider-settings');
+          assert.deepEqual(await req.json(), { action: 'overview', payload: {} });
+          nativeOwnerCalls++;
+          return Response.json({ ok: true, value: { settingsReady: true } });
+        } };
+      },
+    },
     typertGateway: {
       async invoke() { throw new Error('Unexpected business RPC in local capability test'); },
       async stream(request) {
@@ -111,6 +139,50 @@ try {
   assert.equal(paired.status, 201);
   assert.equal(paired.result.payload.publicUrl, 'ws://127.0.0.1:3080/ws/mobile');
   assert.ok(typeof paired.result.qrPayload === 'string' && paired.result.qrPayload.length > 0);
+  // Exercise the injected real WebSocket branch, including its paired gate
+  // when the legacy listener explicitly permits unauthenticated connections.
+  const { WebSocket } = createRequire(join(inputs, 'package.json'))('ws');
+  testServer = createServer();
+  testServer.on('upgrade', (req, socket, head) => upgrade.handler(req, socket, head));
+  testServer.listen(0, '127.0.0.1'); await once(testServer, 'listening');
+  const connect = async (credential) => {
+    const protocols = ['dsh-mobile-v1', ...(credential ? [`dsh-pair.${credential}`] : [])];
+    const ws = new WebSocket(`ws://127.0.0.1:${testServer.address().port}/ws/mobile`, protocols,
+      { headers: { 'X-DSH-Channel': 'control', 'X-DSH-Device-ID': 'fixture-native-device' } });
+    testSockets.push(ws);
+    const frames = [];
+    ws.on('message', bytes => frames.push(JSON.parse(bytes.toString())));
+    const frame = async predicate => {
+      const deadline = Date.now() + 2500;
+      while (Date.now() < deadline) {
+        const found = frames.findIndex(predicate);
+        if (found >= 0) return frames.splice(found, 1)[0];
+        await new Promise(resolve => setTimeout(resolve, 2));
+      }
+      throw new Error('Expected native Gateway frame did not arrive');
+    };
+    await once(ws, 'open');
+    return { ws, frame, hello: await frame(item => item.kind === 'hello') };
+  };
+  const native = await connect(paired.result.payload.pairingCode);
+  assert.equal(native.hello.authenticated, true);
+  assert.ok(native.hello.capabilities.includes('iphone-native-settings-v1'));
+  const settingsRequest = { type: 'native-settings', requestId: 'native-overview', scope: 'provider', action: 'overview', payload: {} };
+  native.ws.send(JSON.stringify(settingsRequest));
+  assert.deepEqual(await native.frame(item => item.requestId === settingsRequest.requestId), {
+    kind: 'native-settings', requestId: settingsRequest.requestId, scope: 'provider', action: 'overview', value: { settingsReady: true },
+  });
+  assert.equal(nativeOwnerCalls, 1);
+  native.ws.send(JSON.stringify({ ...settingsRequest, requestId: 'native-invalid-url', url: 'https://untrusted.invalid/api' }));
+  assert.equal((await native.frame(item => item.requestId === 'native-invalid-url')).code, 'native-settings/bad-request');
+  assert.equal(nativeOwnerCalls, 1, 'client-selected URLs must not reach owner dispatch');
+  assert.equal((await request('POST', '/mgw/auth', { enabled: false })).status, 200);
+  const legacy = await connect();
+  assert.equal(legacy.hello.authenticated, false);
+  assert.ok(!legacy.hello.capabilities.includes('iphone-native-settings-v1'));
+  legacy.ws.send(JSON.stringify({ ...settingsRequest, requestId: 'unpaired-native' }));
+  assert.equal((await legacy.frame(item => item.requestId === 'unpaired-native')).code, 'native-settings/authentication-required');
+  assert.equal(nativeOwnerCalls, 1, 'an unpaired socket reached the fixed owner Peer');
   // Do not log the one-time pairing payload or generated credential data.
   dispose(); dispose = undefined;
   assert.equal(management, undefined);
@@ -129,5 +201,7 @@ try {
   console.log('Mobile gateway: frozen inputs, strict patches, loopback configuration, pairing, launchd ownership, Tunnel denial and disposal passed');
 } finally {
   dispose?.();
+  for (const socket of testSockets) socket.terminate();
+  if (testServer?.listening) await new Promise(resolve => testServer.close(resolve));
   await rm(temporary, { recursive: true, force: true });
 }

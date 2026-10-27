@@ -2,7 +2,7 @@
 
 DSH 0.2.1-rc.2 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向桌面系统及更新浏览器。本项目只修改发布包，不修改或伪装官方 Git 子模块。
 
-可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.10`；该版锁定
+可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.11`；该版锁定
 pi-ai `1.4.0`，storage-domain schema 使用 zod `4.4.3`；提供 GPT-6.1 Sol、GPT-6 Astra、Grok 4.6 与 xAI Imagine 2.0 / Quality。旧的
 `0.2.5-iphone.*` 已停止维护平台分支。该版本的 Google
 Code Assist 路由复用 `@kelvinwww/dsh-oauth 0.1.1`，并强制其 gaxios 传输使用
@@ -42,7 +42,7 @@ Node iOS 构建报告 `process.platform === "ios"`，因此两个 node-pty 产�
 
 ## 原生 App 与后端边界
 
-当前原生版本为 Whaleness `1.7.11 / build 37` 与 DSH Debian `0.2.1~rc.2-2`，最低 iOS 16.1；准确构建及验收状态见[更新记录](./updating.md)。DSH 继续由 root launchd 独立运行，App 是带正常容器与 Keychain 的客户端，不能套用旧 WK 实验壳的 platform/no-sandbox entitlement。`dsh-plugin-mobile-gateway 0.11.1+iphone.1` 挂载在同一进程的 `/ws/mobile`，固定 loopback、保留设备鉴权，并禁用另起进程重启 Web 及桌面 Tunnel。实机 Node 的 `process.platform` 是 `ios`，不是 `darwin`。
+当前原生版本为 Whaleness `1.7.11 / build 39` 与 DSH Debian `0.2.1~rc.2-2`，最低 iOS 16.1；准确构建及验收状态见[更新记录](./updating.md)。DSH 继续由 root launchd 独立运行，App 是带正常容器与 Keychain 的客户端，不能套用旧 WK 实验壳的 platform/no-sandbox entitlement。`dsh-plugin-mobile-gateway 0.11.1+iphone.2` 挂载在同一进程的 `/ws/mobile`，固定 loopback、保留设备鉴权，并禁用另起进程重启 Web 及桌面 Tunnel。实机 Node 的 `process.platform` 是 `ios`，不是 `darwin`。
 
 Root Host 继续提供本机通知与 Live Activity 状态，独立 mobile UID 501 broker/短命 worker 负责 Activity 创建、更新和结束。build 37 在现有 Widget 扩展中增加 `DSHRootActivityWidget` 与原 `DSHActivityAttributes`，保留上游远端的 `AgentActivityAttributes` 配置；App 对严格本机主机继续跳过重复保活、通知与 Activity 创建。新客户端与原 Web 共享模型和历史，升级不移动会话到 App 容器。
 
@@ -51,6 +51,8 @@ Root Host 继续提供本机通知与 Live Activity 状态，独立 mobile UID 5
 broker 还核对镜像 root 所有权、禁止 group/world 写、当前安装版本，以及任务内指向已配对激活 profile 的准确 session 深链，才选择 `com.clark.dshmobile.dev`。条件不足时明确选择旧独立 Widget；原生目标选定后的错误直接报告，不能悄悄回退。已有 UUID 不能换 target，迁移必须先成功结束旧目标，再创建新 UUID。相关身份与 target 持久化，供 broker 重启后恢复。
 
 私有 ActivityKit XPC 接受请求或返回 UUID，只证明请求阶段成功；LaunchServices 记录扩展也不证明 chronod 已加载和渲染它。新 target 必须另验通知中心/锁屏可见性、退出 App 后的更新、结束时 containing App 生命周期、划除与点击，不沿用旧独立壳的结论。安装、配对与交互边界见[原生 App 接入](./native-app.md)，分阶段门禁见[活动栏迁移检查流程](./notifications.md#活动栏迁移检查流程)。
+
+原生 build 39 通过已配对的固定设置协议管理 Provider 与 Cline/插件，复用现有 owner Connection、CredentialsController 和持久存储；不会接收任意 URL 或读取密钥值。复杂联合类型和动态键增删明确只读。冷启动必须在 conversation socket 创建前就排队请求；控制通道先就绪不表示聊天传输已经可写。行为回归使用真实 URLSession WebSocket、Keychain 准备延迟和 ACK，而不仅是单飞计时器模型。
 
 ## Safari 16 兼容
 
