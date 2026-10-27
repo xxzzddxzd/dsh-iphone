@@ -18,7 +18,7 @@ flowchart LR
 | Cline Pass | `0.2.13` | 原有账号、上游通道与模型路由 |
 | iPhone Gateway | `0.11.1+iphone.2` | 设备配对与 `dsh-mobile-v1` 传输，复用 Host Remote API |
 | Whaleness 本地版 | `1.7.11 / build 39` | 原生聊天与本机活动栏 Widget；最低 iOS `16.1` |
-| Root 系统集成 | Debian `0.2.1~rc.2-2` | 本机系统通知、Live Activity 状态与生命周期、点击导航 |
+| Root 系统集成 | Debian `0.2.1~rc.2-3` | 本机系统通知、Live Activity 状态与生命周期、点击导航 |
 
 源码固定在 `9bf3955c8add4ebffaed5699d59e75ddc86733ad`，许可保留于 `ios/native/LICENSE.whaleness`。本地补丁、版本和能力由 `ios/native/source-patch.json` 锁定。`ios/native/app-release.json` 是上游未修改的 build 32 输入；本地 build 39 必须使用构建器生成的独立 manifest，不能沿用上游 IPA 的 SHA。最终 IPA、源码补丁 hash 和实机结果见[更新记录](./updating.md)。
 

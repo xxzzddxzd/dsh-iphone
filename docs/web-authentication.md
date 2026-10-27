@@ -1,6 +1,6 @@
-# DSH 0.2.0 Web 认证
+# DSH 0.2.1 Web 认证
 
-Mac 与 iPhone 保留官方 `dsh-client-connection` 认证实现，没有免认证补丁。当前 CLI 是 `0.2.0-rc.2`，内部连接包是 `0.2.0-rc.2`。
+Mac 与 iPhone 保留官方 `dsh-client-connection` 认证实现，没有免认证补丁。当前 CLI 与内部连接包均为 `0.2.1-rc.2`。
 
 ## 认证流程
 
@@ -40,7 +40,7 @@ node ./scripts/check-web-auth.mjs
 
 检查两个运行中的服务：根页面/index、启动交换、Cookie 属性、RPC、WebSocket，以及未认证、错误 token、篡改 Cookie、错误 hostname、跨来源、非浏览器会话 Bearer/query token 的拒绝路径。该检查不调用模型、不修改会话，也不输出 token 或 Cookie。
 
-认证后白屏应检查 WebKit Console。iOS 16.1 不支持新版主 bundle 的 class static block；compatibility 17 使用锁定的 esbuild 将官方主 bundle 与文档预览 bundle 转成 Safari 16.1 语法，并在启动前加载 core-js 标准 API polyfill，提供文档预览插件所需的 Iterator 等 API。布局、对话和侧栏逻辑继续使用官方实现。若出现历史事件迁移错误，见 [历史恢复](./history-migration.md)。
+认证后白屏应检查 WebKit Console。iOS 16.1 不支持新版主 bundle 的 class static block；compatibility 19 使用锁定的 esbuild 将官方主 bundle 与文档预览 bundle 转成 Safari 16.1 语法，并在启动前加载 core-js 标准 API polyfill，提供文档预览插件所需的 Iterator 等 API。布局、对话和侧栏逻辑继续使用官方实现。若出现历史事件迁移错误，见 [历史恢复](./history-migration.md)。
 
 ## 安装插件后持续重启
 
@@ -53,3 +53,20 @@ node ./scripts/check-web-auth.mjs
 不是启动失败。就绪检查应接受 200/401，随后使用本页的认证检查验证 RPC 和 WebSocket。
 判断插件是否加载失败应看当前插件清单及最新启动后的日志，不能把更早构建的报错当成
 当前故障。
+
+## HTTP 成功但插件未注册
+
+`HARNESS / Failed to load plugins` 下若列出 `dsh-client-ui-skill`、`reference`、`goal`，并出现 `loaded without registering ... via __ModuleLoader__.load`，不要仅凭插件资源HTTP200判正常。iOS16.1的JavaScriptCore不支持这三处负向lookbehind字面量，解析阶段就会失败，工厂没有机会注册。
+
+compatibility19只对这三个用户文本规则补显式左边界检查；保留原始UTF-16位置、from起点、引用引号回退和context惰性读取。单纯esbuild目标safari16.1只会把正则移到RegExp构造器，仍不能实现lookbehind语义，不能代替此补丁。安装后要求Node差分规则测试、目标iOS JSC的实际模块注册与最终WebClip启动均通过。
+
+网页和原生App共用后台，但浏览器启动资源、插件图、Cookie容器和JS引擎需要单独验收。仅更新Provider/Gateway并重启后台时，也必须执行Web认证检查及 `open-device.sh` 刷新旧主屏幕入口；不可用原生配对成功替代WebClip验收。刷新保留浏览器数据与会话，不能把清网站数据作为默认修复。
+
+目标引擎检查命令：
+
+```bash
+DEVICE_HOST='<iPhone IP>' DEVICE_PORT=22 \
+  scripts/check-ios-web-token-rules.sh --runtime build/dsh-runtime
+```
+
+该检查只上传固定三份构建代码到随机私有暂存目录，关闭JIT、20秒限时，要求正确模块ID各注册一次且无异常；不会执行工厂，退出时尝试删除自己的暂存文件。若连接中断，应恢复后检查本次随机目录；不要清理其他检查的目录。原始源码应失败、修后源码应通过，Node差分测试另行核对业务语义。

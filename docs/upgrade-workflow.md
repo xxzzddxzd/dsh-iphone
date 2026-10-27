@@ -90,7 +90,7 @@ node tests/test-activity-target.mjs
 node tests/test-activity-validation.mjs
 ```
 
-源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build、SHA 和能力。当前原生候选为 Whaleness `1.7.11 / build 39`、DSH Debian `0.2.1~rc.2-2`，以最终构建记录为准。保持 App bundle ID、数据容器和 Keychain 身份；不要把上游 build 32 或既有 build 34 的校验信息当作新归档的证明。`DSHRootActivityWidget` / `DSHActivityAttributes` 必须实际编入现有 Widget 扩展，manifest 同时声明 `root-live-activity-widget-v1`。详见[原生 App 接入](./native-app.md)。
+源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build、SHA 和能力。当前原生候选为 Whaleness `1.7.11 / build 39`、DSH Debian `0.2.1~rc.2-3`，以最终构建记录为准。保持 App bundle ID、数据容器和 Keychain 身份；不要把上游 build 32 或既有 build 34 的校验信息当作新归档的证明。`DSHRootActivityWidget` / `DSHActivityAttributes` 必须实际编入现有 Widget 扩展，manifest 同时声明 `root-live-activity-widget-v1`。详见[原生 App 接入](./native-app.md)。
 
 ## 保存双端基线
 
@@ -195,11 +195,11 @@ App 实测需要分别记录：真实 Keychain 配对、冷启动、旧会话、
 
 ## 仅更新原生客户端与管理组件
 
-原生设置迭代只需更新 Provider、Gateway 和 IPA；DSH 核心与专用 Node 版本不变时，保留其原安装。先构建/检查候选，确认两端共享 Provider 使用同一份源码与编译结果，再在空闲状态停止服务、备份数据、离线安装手机组件，最后只 bootstrap 一次。不要在共享 Provider 被 Mac live profile 链接时直接运行候选 install/build；先在独立目录验证，停服务后再整合源码与 `lib/`，无需重装相同依赖。
+原生设置迭代只需更新 Provider、Gateway 和 IPA；DSH 核心与专用 Node 版本不变时，保留其原安装。先构建/检查候选，确认两端共享 Provider 使用同一份源码与编译结果，再在空闲状态停止服务、备份数据、离线安装手机组件，最后只 bootstrap 一次。后台重启后还要执行 `check-web-auth.mjs` 和 `open-device.sh`，刷新旧 WebClip 入口并验证完整浏览器 boot。不要在共享 Provider 被 Mac live profile 链接时直接运行候选 install/build；先在独立目录验证，停服务后再整合源码与 `lib/`，无需重装相同依赖。
 
 以官方最新 release 为基线，记录明确选择的官方修复 commit 与资源 hash。Swift 和 KMP API 必须配套；仅回放独立 Swift 修复时仍检查 shared/Gradle 输入和 framework hash。验证 AppRelease 实际入包版本，不能只看主 Info。构建后同时检查旧的回车、配对、后台权威、Root Widget、按需历史与新设置入口。
 
-用 `check-native-settings.mjs` 在真实配对 wire 上核对 Provider、Cline 与通用设置，并与网页值对照。同值保存仅在空闲时进行，保留/恢复原 user 层，revision 冲突不强制覆盖。录入、退出登录、探测模型等操作用隔离测试验证；不要为验收改写真人密钥或自动重新登录。对话冷开另跑真实 WebSocket/Keychain 准备 barrier 测试，要求 subscribe 真正到达服务端并收到 ACK；不能因为后续 history 成功就判订阅正常。
+用 `check-native-settings.mjs` 在真实配对 wire 上核对 Provider、Cline 与通用设置，并与网页值对照。同值保存仅在空闲时进行，保留/恢复原 user 层，revision 冲突不强制覆盖。录入、退出登录、探测模型等操作用隔离测试验证；不要为验收改写真人密钥或自动重新登录。网页启动同时要求每个实际客户端 bundle 在目标 Safari/JSC 中完成工厂注册；HTTP200 和 Node/V8 能解析不足以证明iOS兼容。Skill、Reference、Goal的原文规则差分与真机parser检查随升级重跑。 构建后显式运行 `DEVICE_HOST=<IP> scripts/check-ios-web-token-rules.sh --runtime build/dsh-runtime`，检查只捕获模块注册，不执行UI工厂或触碰账号。对话冷开另跑真实 WebSocket/Keychain 准备 barrier 测试，要求 subscribe 真正到达服务端并收到 ACK；不能因为后续 history 成功就判订阅正常。
 
 ## 中断恢复与提交
 

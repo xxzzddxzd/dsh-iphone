@@ -5,6 +5,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { installFrontendSyntax } from "./frontend-syntax.mjs";
+import { patchIosTokenRules } from "./patch-ios-token-rules.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let runtimeRoot;
@@ -308,7 +309,7 @@ await replaceExactlyOnce(
 await replaceExactlyOnce(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-CN7NIWNw.js",
   'from"./vendor-DcuzkuQH.js"',
-  'from"./vendor-DcuzkuQH.js?ioscompat=18"',
+  'from"./vendor-DcuzkuQH.js?ioscompat=19"',
   "frontend vendor cache key",
 );
 await installNewFile(
@@ -335,5 +336,6 @@ await installExactFile(
   "Safari 16 entry document",
 );
 
+await patchIosTokenRules(runtimeRoot, { check: checkOnly });
 await installFrontendSyntax(repositoryRoot, runtimeRoot, checkOnly);
 process.stdout.write(`DSH ${dshPackage.version} iOS compatibility ${checkOnly ? "verified" : "applied"}\n`);

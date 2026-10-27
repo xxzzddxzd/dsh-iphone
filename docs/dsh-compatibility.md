@@ -42,7 +42,7 @@ Node iOS 构建报告 `process.platform === "ios"`，因此两个 node-pty 产�
 
 ## 原生 App 与后端边界
 
-当前原生版本为 Whaleness `1.7.11 / build 39` 与 DSH Debian `0.2.1~rc.2-2`，最低 iOS 16.1；准确构建及验收状态见[更新记录](./updating.md)。DSH 继续由 root launchd 独立运行，App 是带正常容器与 Keychain 的客户端，不能套用旧 WK 实验壳的 platform/no-sandbox entitlement。`dsh-plugin-mobile-gateway 0.11.1+iphone.2` 挂载在同一进程的 `/ws/mobile`，固定 loopback、保留设备鉴权，并禁用另起进程重启 Web 及桌面 Tunnel。实机 Node 的 `process.platform` 是 `ios`，不是 `darwin`。
+当前原生版本为 Whaleness `1.7.11 / build 39` 与 DSH Debian `0.2.1~rc.2-3`，最低 iOS 16.1；准确构建及验收状态见[更新记录](./updating.md)。DSH 继续由 root launchd 独立运行，App 是带正常容器与 Keychain 的客户端，不能套用旧 WK 实验壳的 platform/no-sandbox entitlement。`dsh-plugin-mobile-gateway 0.11.1+iphone.2` 挂载在同一进程的 `/ws/mobile`，固定 loopback、保留设备鉴权，并禁用另起进程重启 Web 及桌面 Tunnel。实机 Node 的 `process.platform` 是 `ios`，不是 `darwin`。
 
 Root Host 继续提供本机通知与 Live Activity 状态，独立 mobile UID 501 broker/短命 worker 负责 Activity 创建、更新和结束。build 37 在现有 Widget 扩展中增加 `DSHRootActivityWidget` 与原 `DSHActivityAttributes`，保留上游远端的 `AgentActivityAttributes` 配置；App 对严格本机主机继续跳过重复保活、通知与 Activity 创建。新客户端与原 Web 共享模型和历史，升级不移动会话到 App 容器。
 
@@ -69,7 +69,7 @@ iOS 上的 Chrome 仍使用 WebKit，因此更换 Chrome 不能绕过 Safari 16 
 - `structuredClone`
 - `crypto.randomUUID`
 
-另外，GFM email autolink 中的 RegExp lookbehind 会让 Safari 16 在解析整个 vendor bundle 时失败。补丁去除该 lookbehind，同时保留调用方已有的 email 边界检查。主 bundle 对 vendor 的 import 使用 `?ioscompat=18`，避免旧 module cache 继续返回解析失败的文件。
+另外，GFM email autolink 中的 RegExp lookbehind 会让 Safari 16 在解析整个 vendor bundle 时失败。补丁去除该 lookbehind，同时保留调用方已有的 email 边界检查。主 bundle 对 vendor 的 import 使用 `?ioscompat=19`，避免旧 module cache 继续返回解析失败的文件。
 
 当前主 bundle 和文档预览 bundle 使用 class static block，Safari 16.1 无法解析。构建时使用锁定的 esbuild 0.27.0 转成 `safari16.1` 语法；从锁定的官方产物重现输出并进行比较。文档预览还在初始化时访问 `Iterator.prototype`，入口先加载 core-js 3.50.0 的标准 API polyfill，再启动官方 module graph。依赖锁文件位于 `tools/frontend`。
 
@@ -94,7 +94,7 @@ Array.prototype.toSpliced is not a function
 Invalid regular expression: invalid group specifier name
 ```
 
-首次使用先完成 [Web 认证](./web-authentication.md)。入口自身携带 compatibility 18 资源版本，认证后可直接访问：
+首次使用先完成 [Web 认证](./web-authentication.md)。入口自身携带 compatibility 19 资源版本，认证后可直接访问：
 
 ```text
 http://127.0.0.1:3081/
@@ -147,3 +147,9 @@ DSH 自带 pi-ai `1.3.0` 与 Provider 的 `1.4.0` 分别锁定。Provider 的 zo
 Provider 安装包包含从共享 checkout 的 pnpm lock 生成的生产依赖闭包；只包含 JavaScript 依赖，DSH peer 仍由当前 Host 提供。手机使用 `--offline` 安装，不再依赖设备端 npm 连通性。新版官方 PTC 调度器统一将图片结果加入模型上下文，Provider 移除旧的重复注入。
 
 原有 xAI OAuth 的 `invalid_grant` 应通过用户重新授权处理。新 DSH 在列举模型时会检查凭据，因此失效的旧授权可能从目录门禁中暴露；不要把它改成空目录或清空凭据冒充健康。它与用户独立配置的 grok2api `xai` API Key 路由无关。
+
+## compatibility19 的客户端工厂注册门禁
+
+Core0.2.1的skill/reference/goal客户端各含一处负向lookbehind正则，Safari16.1在解析时直接失败。旧规则原文及完整SHA固定于`patch-ios-token-rules.mjs`，补丁先验证全部预像再写，不修改原始输入或UI业务。规则通过显式左边界判断匹配；reference拒绝无效quoted候选时从index+1重扫，goal在读取commands前保留合法slash预筛。`test-ios-token-rules.mjs`对原文/补丁的282712个组合比较返回值、UTF16 offset和context副作用。
+
+真机JSC验证要求三个完整bundle各注册一次正确ID、无语法错误；再由实际WebClip验证整体启动。compatibility19提升HTML/资源缓存标记，插件bundle自身rev随补丁更新。旧启动URL认证刷新与这项语法修复是独立检查，不能因修好其中一个就停止排查。

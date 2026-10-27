@@ -588,3 +588,17 @@ Node 与负载：
 验证：Provider全量94项测试、双typecheck/build/smoke与生产闭包通过；Gateway真实owner/guest、paired/unpaired、凭据临时store与打包回归通过。App实际iOS16.1 Release archive、身份/最低系统、完整补丁重放通过。15个timer场景、6个真实生产buffer边界、7个真实URLSession WebSocket/Keychain barrier与ACK、11个设置actor场景及图表单/secret/Home生命周期通过。旧38源码能被同一cold负例稳定捕获。完整 `verify.sh` 含候选源码通过。
 
 证据位于 `.cache/upgrades/native-settings-20261027/`；App37/38回滚六件与Provider原lib已保留。认证URL、token、真人密钥和历史正文不写入提交。
+
+
+## 2026-10-27：旧网页的 iOS16.1 插件启动修复
+
+旧 DSH WebClip 整页报 `Failed to load plugins`，涉及 Skill、Reference 和 Goal。设备原保存入口的启动 token 也已过期，但刷新认证后仍不能进入；真正阻断启动的是三个官方 client bundle 的正则后行断言。iOS16.1.1 的 JavaScriptCore 在解析时即抛出 `SyntaxError`，模块工厂尚未执行或注册。HTTP200、JavaScript MIME 和 Node 中捕获注册都不足以证明这个系统能打开网页；esbuild 的 Safari16.1 target 也不会消除该正则语义。
+
+本地修订为 DSH Debian `0.2.1~rc.2-3`、Safari compatibility `19`，上游版本仍为 `0.2.1-rc.2`。正式包 SHA-256 为 `8e4a7aa903d7532cf635793a017b88b45eee0c0fa5571b1611b026c2a22973e5`。Provider0.2.11、Gateway0.11.1+iphone.2、Whaleness build39 与原 iPhoneOS Node22.23.2 均沿用。
+
+- `patch-ios-token-rules.mjs` 锁定三个完整上游 SHA，先校验全部输入和目标再写。去除后行断言，以原字符串位置检查左边界；保留 Skill 的上下文读取时机、Reference 非法引号候选内的合法 `@` 重扫，以及 Goal 在读取命令前的斜杠预筛选。
+- 三个生产规则共282,712个差分用例通过，包括 Unicode、偏移、边界、引号回退及读取副作用；未知预像拒绝且无部分写入。检查模式、重复应用、混合已补丁状态及模块注册捕获通过。完整 `verify.sh` 含 build39 候选源码通过。
+- 实机 iOS16.1.1 原始三文件均解析失败、注册数0；修复后三个正确模块各注册一次，39条行为断言通过。新增 `check-ios-web-token-rules.sh` 对同一系统重跑，正式候选退出0，原始负例退出1。探针仅捕获工厂注册、不执行工厂，禁用JIT并限时；固定三文件与私有临时目录，不读取凭据或历史。
+- 三文件先原子热更新，未重启 Node，原文件保存在手机 `/var/root/dsh-native-client/artifacts/web-compat19/before/`。重新打开旧网页后用户确认“已经正常进入”。升级 SOP 现要求组件更新后的 WebClip 认证刷新，以及在实际目标系统验证插件注册。
+
+本次脱敏检查和部署证据位于 `.cache/upgrades/web-compat-20261027/`；原始 JSC 诊断位于 `.cache/upgrades/web-ios16-20261027/jsc-probe/`，不提交认证入口、Cookie、会话内容或 App 数据。

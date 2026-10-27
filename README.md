@@ -24,12 +24,12 @@
 | dsh-cline-pass | `0.2.13` |
 | iPhone Mobile Gateway | `0.11.1+iphone.2`，仅本机连接 |
 | Whaleness 本地适配版 | `1.7.11 / build 39`，原生 Provider／插件设置已验收 |
-| iPhone DSH Debian 包 | `0.2.1~rc.2-2` |
+| iPhone DSH Debian 包 | `0.2.1~rc.2-3` |
 | Node.js | `22.23.2` |
 | pnpm | `10.34.5` |
 | node-pty | `1.2.0-beta.15` |
 | node-addon-require-builtin | `0.1.9`（iOS N-API v9） |
-| Safari compatibility | `18` |
+| Safari compatibility | `19` |
 | 系统 | 后台 iOS 15.0+；原生 App iOS 16.1+；rootless 越狱 |
 
 目标设备为 iPhone 13 Pro Max（iOS 16.1.1）。已完成的核心、API 与 App 验证分别记录，不能用安装或编译成功代替横竖屏、键盘和输入法验收。精确版本见 [`versions.env`](./versions.env)，结果见[更新记录](./docs/updating.md)。

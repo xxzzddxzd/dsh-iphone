@@ -11,7 +11,7 @@ export const syntaxFiles = [
 
 export async function compatibleSource(repositoryRoot, relativePath) {
   let source = await readFile(resolve(repositoryRoot, "dsh-runtime/node_modules", relativePath), "utf8");
-  source = source.replace('from"./vendor-DcuzkuQH.js"', 'from"./vendor-DcuzkuQH.js?ioscompat=18"');
+  source = source.replace('from"./vendor-DcuzkuQH.js"', 'from"./vendor-DcuzkuQH.js?ioscompat=19"');
   const result = await transform(source, {
     target: "safari16.1", format: "esm", minifyWhitespace: true,
     legalComments: "inline", sourcefile: relativePath,
