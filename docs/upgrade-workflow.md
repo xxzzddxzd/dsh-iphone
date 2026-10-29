@@ -148,6 +148,12 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
 
 组件检查还要求持久化设置就绪。`check-provider-settings.mjs` 只在 Host 空闲时执行，按当前值实际保存 Codex/xAI 模型设置、图片工具和 Responses 开关，再重读并核对有效设置及默认模型未改变。Provider 的 Loader 回归测试同时覆盖存储服务延迟挂载、设置保存和重新加载后保留，不能用根 Context 里的直接调用测试替代真实插件依赖检查。
 
+Mac 的 `Provider xAI` 还要验证带历史图像的请求。0.2.12 将其全部保留图像的 base64 预算设为 8 MiB；超过预算由 Harness 卸载最旧的请求图像并保留原附件，Codex 仍为 20 MiB。这是本地传输预算，不是 xAI 官方上限。小文本成功不能证明十几 MB 的历史图像可以上传；出现 TIMEOUT 时应区分请求创建、上传完成、响应头和内容返回，不能直接判定为 OAuth 或模型故障。取消后才出现的 `bodySent` 也不能证明上传成功。
+
+Mac 的 LaunchAgent 直接使用 Node `--import scripts/mac-dsh-preflight.mjs` 预载后启动原 Web CLI，设置 `DSH_MANAGED_RESTART=launchd`。不加 shell 中间层，监听端口与托管 PID 保持同一个进程。已安装的 dsh-purge 必须通过 `patch-mac-dsh-purge.mjs --check`，普通重启只退出当前进程，由 launchd 拉起，不能再派生脱管 DSH。保持其后台自动更新/自动重打关闭；手动升级该插件时先审计完整预像并更新兼容补丁，再启动。托管卸载必须先停止服务，用独立 CLI 卸载后再由 launchd 启动。验收核对监听3080的PID与LaunchAgent的PID相同，且没有EADDRINUSE重启循环。
+
+若启用本机 Grok2API 的 `xai` 路由，还要检查其独立出口与账号池。`upstream_cooling` 是网关账号冷却，不等于 OAuth 失效；保留 `Retry-After`，不得为验收清冷却或绕过真实上游限制。当前 Core/pi-ai 会丢该响应头，因此该路由使用 normal 重试，移除 `RATE_LIMIT`、保留其他瞬态错误；Purge 的额外 `autoRetry` 同时关闭。`tests/test-grok-cooling-policy.mjs` 验证两层合起来只发一次429请求，网络/5xx仍能重试。Grok2API 本地取消分类修复见 `patches/grok2api-client-cancel/`；更新后验证“完整返回 → 首帧后取消 → 立即再次完整返回”，且取消审计为 `request_canceled`、不增加账号失败计数。
+
 基线比较要求原会话全部仍存在，默认模型没有意外改变。真实验收器会新建一个有明确标题的 `/tmp` 测试会话，调用一次 Bash 打印随机标记并 `exit`，要求匹配的 `tool/result` 为成功、输出含标记、退出码 0、存在流式帧且 turn 完成。标记只出现在提示词、没有工具结果或工具报错，均判失败。
 
 用户在升级期间主动改选默认模型时，保留原始基线，确认新值后单独记录该变更，再核对原会话与最终默认值；不能覆盖升级前文件，也不能擅自把用户的新选择恢复回去。

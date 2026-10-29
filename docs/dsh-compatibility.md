@@ -2,7 +2,7 @@
 
 DSH 0.2.1-rc.2 要求 Node 22，但它的 npm 闭包和 Web 前端默认面向桌面系统及更新浏览器。本项目只修改发布包，不修改或伪装官方 Git 子模块。
 
-可选 Provider bundle 的已验证配套版本为 `dsh-codex 0.2.11`；该版锁定
+可选 Provider bundle 的当前源码目标为 `dsh-codex 0.2.12`（本次仅更新 Mac；iPhone 仍为已验收的 `0.2.11`）；该版锁定
 pi-ai `1.4.0`，storage-domain schema 使用 zod `4.4.3`；提供 GPT-6.1 Sol、GPT-6 Astra、Grok 4.6 与 xAI Imagine 2.0 / Quality。旧的
 `0.2.5-iphone.*` 已停止维护平台分支。该版本的 Google
 Code Assist 路由复用 `@kelvinwww/dsh-oauth 0.1.1`，并强制其 gaxios 传输使用

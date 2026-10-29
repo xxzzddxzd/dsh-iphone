@@ -1,0 +1,29 @@
+{
+  "project": "chenyme/grok2api",
+  "baseVersion": "v3.0.6",
+  "baseCommit": "c7b4a51aa0d3e3724654fdaf94c7b89236ecf27d",
+  "patchSHA256": "9fa4eb47f8bf0f59d55f48978ff77e1287290a2974bcf96b4f7b4a2f3838f445",
+  "files": [
+    {
+      "path": "backend/internal/transport/http/inference/handler.go",
+      "beforeSHA256": "877b052d935af6ab6e70836402e6e2abc1047b525aae8393dff9e70b36f3ceda",
+      "afterSHA256": "17617c5647a52b1a63ef9759b56b1e6c6988b60d46d9dc021204950153734891"
+    },
+    {
+      "path": "backend/internal/transport/http/inference/handler_test.go",
+      "beforeSHA256": "654d59f5849cea9f1e3c3558f8b6ec52fb77afbe44dbce19cff85005a688a9c0",
+      "afterSHA256": "d1637192dce8249b93a899af5ec3f75673ab7184871e34dd756a4a90f44f72fa"
+    },
+    {
+      "path": "backend/internal/application/gateway/service.go",
+      "beforeSHA256": "fab6b0387ac7dbf935bc2832f64afd4601d33e0312f6797d349e0554dde1d6cd",
+      "afterSHA256": "4e54dc33ebea4fccb42bc76c0b342878230295fe2e7271ffed4f1693ca0bdfba"
+    },
+    {
+      "path": "backend/internal/application/gateway/service_test.go",
+      "beforeSHA256": "b221d7ca443b61da3d6d3ab420c948152fe9a655655cc4a5c8e84058d6875a44",
+      "afterSHA256": "e88f1eb3a6a94bd29376425bc09b1b29cb4557bbf7cbc901e48676476653e852"
+    }
+  ],
+  "scope": "Downstream cancellation is not an upstream account failure; preserve legitimate upstream failure cooldown."
+}

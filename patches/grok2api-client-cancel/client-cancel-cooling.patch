@@ -1,0 +1,252 @@
+diff --git a/backend/internal/application/gateway/service.go b/backend/internal/application/gateway/service.go
+index b95ebfcf..fa7d8841 100644
+--- a/backend/internal/application/gateway/service.go
++++ b/backend/internal/application/gateway/service.go
+@@ -763,7 +763,10 @@ attemptLoop:
+ 				lease.Release()
+ 				persistCtx, cancel := context.WithTimeout(context.Background(), finalizationTimeout)
+ 				defer cancel()
+-				if isUpstreamStreamFailure(errorCode) {
++				// A downstream cancellation also aborts the upstream body read. It
++				// must not turn a healthy account into a cooling account merely
++				// because finalization persists independently of the request context.
++				if ctx.Err() == nil && isUpstreamStreamFailure(errorCode) {
+ 					s.selector.MarkFailure(persistCtx, credential, http.StatusBadGateway, 0)
+ 				}
+ 				now := time.Now().UTC()
+diff --git a/backend/internal/application/gateway/service_test.go b/backend/internal/application/gateway/service_test.go
+index c9d4bc2a..fa79bb49 100644
+--- a/backend/internal/application/gateway/service_test.go
++++ b/backend/internal/application/gateway/service_test.go
+@@ -284,6 +284,104 @@ func TestGatewayFailsOverBeforeReturningBody(t *testing.T) {
+ 	}
+ }
+ 
++func TestGatewayStreamFinalizationDoesNotCoolCanceledRequests(t *testing.T) {
++	for _, test := range []struct {
++		name      string
++		errorCode string
++		canceled  bool
++	}{
++		{name: "client-canceled-read", errorCode: "upstream_stream_interrupted", canceled: true},
++		{name: "client-canceled-eof", errorCode: "upstream_stream_incomplete", canceled: true},
++		{name: "upstream-read-failed", errorCode: "upstream_stream_interrupted"},
++		{name: "upstream-eof-incomplete", errorCode: "upstream_stream_incomplete"},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			ctx := context.Background()
++			database, err := relational.OpenSQLite(ctx, filepath.Join(t.TempDir(), "stream-finalization.db"))
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer database.Close()
++			if err := database.InitializeSchema(ctx); err != nil {
++				t.Fatal(err)
++			}
++			accountRepo := relational.NewAccountRepository(database)
++			modelRepo := relational.NewModelRepository(database)
++			auditRepo := relational.NewAuditRepository(database)
++			responseRepo := relational.NewResponseRepository(database)
++			keyRepo := relational.NewClientKeyRepository(database)
++			credential, _, err := accountRepo.UpsertByIdentity(ctx, account.Credential{
++				Provider: account.ProviderBuild, Name: "fixture-account", SourceKey: "stream-finalization-fixture",
++				EncryptedAccessToken: "fixture-only", ExpiresAt: time.Now().Add(time.Hour),
++				Enabled: true, AuthStatus: account.AuthStatusActive, MaxConcurrent: 1,
++			})
++			if err != nil {
++				t.Fatal(err)
++			}
++			if err := modelRepo.UpsertDiscovered(ctx, account.ProviderBuild, []string{"grok-stream-finalization"}); err != nil {
++				t.Fatal(err)
++			}
++			if err := modelRepo.ReplaceAccountCapabilities(ctx, credential.ID, []string{"grok-stream-finalization"}, time.Now().UTC()); err != nil {
++				t.Fatal(err)
++			}
++			key, err := keyRepo.Create(ctx, clientkey.Key{
++				Name: "fixture-key", Prefix: "fixture-prefix", SecretHash: strings.Repeat("0", 64),
++				EncryptedSecret: "fixture-only", Enabled: true, RPMLimit: 120, MaxConcurrent: 8,
++			})
++			if err != nil {
++				t.Fatal(err)
++			}
++			// The in-memory adapter returns a synthetic response; no account or
++			// token is sent to an external service by this test.
++			registry := provider.NewRegistry(&failoverAdapter{})
++			sticky := memory.NewStickyStore()
++			accountService := accountapp.NewService(accountRepo, auditRepo, memory.NewDeviceSessionStore(), sticky, registry, testCipher(t), nil)
++			clientService := clientkeyapp.NewService(nil, nil, nil, 60, 4, nil)
++			selector := NewSelector(accountRepo, memory.NewConcurrencyLimiter(), sticky, registry, time.Hour, time.Second, time.Minute)
++			service := NewService(modelRepo, auditRepo, accountService, clientService, registry, selector, responseRepo, 1)
++			requestCtx, cancel := context.WithCancel(ctx)
++			defer cancel()
++			result, err := service.CreateResponse(requestCtx, Input{
++				RequestID: "stream-finalization-fixture", ClientKey: key, PublicModel: "grok-stream-finalization",
++				Body: []byte(`{"model":"grok-stream-finalization","stream":true}`), Streaming: true,
++			})
++			if err != nil {
++				t.Fatal(err)
++			}
++			if test.canceled {
++				cancel()
++			}
++			// Stream close and handler completion can race. Account health and
++			// the audit must still be finalized only once.
++			var finished sync.WaitGroup
++			for i := 0; i < 8; i++ {
++				finished.Add(1)
++				go func() {
++					defer finished.Done()
++					result.Finalize(Usage{}, "", test.errorCode)
++				}()
++			}
++			finished.Wait()
++			_ = result.Body.Close()
++			observed, err := accountRepo.Get(ctx, credential.ID)
++			if err != nil {
++				t.Fatal(err)
++			}
++			if test.canceled {
++				if observed.FailureCount != 0 || observed.CooldownUntil != nil || observed.LastError != "" {
++					t.Fatalf("client cancellation penalized account: failureCount=%d cooldown=%v lastError=%q", observed.FailureCount, observed.CooldownUntil, observed.LastError)
++				}
++			} else if observed.FailureCount != 1 || observed.CooldownUntil == nil || observed.LastError != "upstream status 502" {
++				t.Fatalf("upstream failure was not penalized once: failureCount=%d cooldown=%v lastError=%q", observed.FailureCount, observed.CooldownUntil, observed.LastError)
++			}
++			logs, total, err := auditRepo.List(ctx, 0, 10)
++			if err != nil || total != 1 || len(logs) != 1 || logs[0].ErrorCode != test.errorCode {
++				t.Fatalf("finalization audit count=%d logs=%#v err=%v", total, logs, err)
++			}
++		})
++	}
++}
++
+ func TestGatewaySSOUnauthorizedMarksInvalidAndSwitchesAccount(t *testing.T) {
+ 	for _, providerValue := range []account.Provider{account.ProviderWeb, account.ProviderConsole} {
+ 		providerValue := providerValue
+diff --git a/backend/internal/transport/http/inference/handler.go b/backend/internal/transport/http/inference/handler.go
+index 9d4acc95..e1cd1973 100644
+--- a/backend/internal/transport/http/inference/handler.go
++++ b/backend/internal/transport/http/inference/handler.go
+@@ -940,6 +940,8 @@ func (h *Handler) writeProtocolResult(c *gin.Context, result *gateway.Result, st
+ 	}
+ 	if err != nil {
+ 		switch {
++		case c.Request != nil && c.Request.Context().Err() != nil:
++			errorCode = "request_canceled"
+ 		case errors.Is(err, errResponseTransferLimit):
+ 			errorCode = "response_too_large"
+ 		case errors.Is(err, errUpstreamStreamFailed):
+@@ -1554,6 +1556,9 @@ func selectionErrorResponse(c *gin.Context, failure *gateway.SelectionUnavailabl
+ 	if failure.RetryAfter > 0 {
+ 		seconds := max(int64(1), int64((failure.RetryAfter+time.Second-1)/time.Second))
+ 		c.Header("Retry-After", strconv.FormatInt(seconds, 10))
++		if failure.Reason == gateway.SelectionCooling || failure.Reason == gateway.SelectionModelCooling {
++			message = fmt.Sprintf("%s，请在约%d秒后重试", message, seconds)
++		}
+ 	}
+ 	return status, code, message
+ }
+diff --git a/backend/internal/transport/http/inference/handler_test.go b/backend/internal/transport/http/inference/handler_test.go
+index 61579176..0e0bca2a 100644
+--- a/backend/internal/transport/http/inference/handler_test.go
++++ b/backend/internal/transport/http/inference/handler_test.go
+@@ -2,6 +2,7 @@ package inference
+ 
+ import (
+ 	"bytes"
++	"context"
+ 	"encoding/json"
+ 	"errors"
+ 	"io"
+@@ -657,6 +658,74 @@ func TestWriteResultRecordsStreamFailureDiagnostic(t *testing.T) {
+ 	}
+ }
+ 
++type coolingRegressionReader func([]byte) (int, error)
++
++func (read coolingRegressionReader) Read(p []byte) (int, error) { return read(p) }
++
++type coolingRegressionBody struct {
++	io.Reader
++	closed bool
++}
++
++func (body *coolingRegressionBody) Close() error { body.closed = true; return nil }
++
++type coolingRegressionWriter struct{ gin.ResponseWriter }
++
++func (writer *coolingRegressionWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
++
++func TestWriteResultDoesNotMisclassifyDownstreamCancellationAsUpstreamFailure(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	for _, test := range []struct {
++		name         string
++		cancelOnRead bool
++		deadline     bool
++		writeFailure bool
++		readErr      error
++		wantCode     string
++	}{
++		{name: "downstream cancels upstream read", cancelOnRead: true, readErr: context.Canceled, wantCode: "request_canceled"},
++		{name: "downstream deadline", deadline: true, readErr: context.DeadlineExceeded, wantCode: "request_canceled"},
++		{name: "canceled stream ends at EOF", cancelOnRead: true, readErr: io.EOF, wantCode: "request_canceled"},
++		{name: "real upstream read failure", readErr: io.ErrUnexpectedEOF, wantCode: "upstream_stream_interrupted"},
++		{name: "real upstream incomplete EOF", readErr: io.EOF, wantCode: "upstream_stream_incomplete"},
++		{name: "downstream write failure", writeFailure: true, wantCode: "stream_interrupted"},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			requestCtx, cancel := context.WithCancel(context.Background())
++			if test.deadline {
++				cancel()
++				requestCtx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
++			}
++			defer cancel()
++			reader := coolingRegressionReader(func([]byte) (int, error) {
++				if test.cancelOnRead {
++					cancel()
++				}
++				return 0, test.readErr
++			})
++			var source io.Reader = reader
++			if test.writeFailure {
++				source = strings.NewReader("data: {}\n\n")
++			}
++			body := &coolingRegressionBody{Reader: source}
++			recorder := httptest.NewRecorder()
++			ginCtx, _ := gin.CreateTestContext(recorder)
++			ginCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(requestCtx)
++			if test.writeFailure {
++				ginCtx.Writer = &coolingRegressionWriter{ginCtx.Writer}
++			}
++			var finalCode string
++			finalCalls := 0
++			result := &gateway.Result{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}},
++				Body: body, Finalize: func(_ gateway.Usage, _ string, code string) { finalCode = code; finalCalls++ }}
++			NewHandler(nil, nil, 1<<20).writeResult(ginCtx, result, true, streamProtocolResponses)
++			if finalCode != test.wantCode || finalCalls != 1 || !body.closed {
++				t.Fatalf("final code=%q calls=%d closed=%v; want %q once and closed", finalCode, finalCalls, body.closed, test.wantCode)
++			}
++		})
++	}
++}
++
+ func TestProjectStreamFailureDiagnosticBoundsErrorMessage(t *testing.T) {
+ 	diagnostic := projectStreamFailureDiagnostic([]byte(`{"type":"error","error":{"code":"server_error","message":"` + strings.Repeat("错误", maxStreamFailureDiagnosticBytes) + `"},"output":"must-not-be-audited"}`))
+ 	if !diagnostic.BodyTruncated || len(diagnostic.Body) > maxStreamFailureDiagnosticBytes || len(diagnostic.Body) == 0 || !utf8.Valid(diagnostic.Body) || strings.Contains(string(diagnostic.Body), "must-not-be-audited") {
+@@ -750,10 +819,15 @@ func TestSelectionErrorResponseDistinguishesCoolingAndSaturation(t *testing.T) {
+ 		t.Run(test.name, func(t *testing.T) {
+ 			recorder := httptest.NewRecorder()
+ 			context, _ := gin.CreateTestContext(recorder)
+-			status, code, _ := selectionErrorResponse(context, test.failure)
++			status, code, message := selectionErrorResponse(context, test.failure)
+ 			if status != test.status || code != test.code || recorder.Header().Get("Retry-After") != test.retryAfter {
+ 				t.Fatalf("status=%d code=%q retry-after=%q", status, code, recorder.Header().Get("Retry-After"))
+ 			}
++			if test.code == "upstream_cooling" || test.code == "upstream_model_cooling" {
++				if !strings.Contains(message, "约"+test.retryAfter+"秒后重试") {
++					t.Fatalf("cooling message must explain its retry delay: %q", message)
++				}
++			}
+ 		})
+ 	}
+ }

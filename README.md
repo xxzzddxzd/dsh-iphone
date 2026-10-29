@@ -20,7 +20,7 @@
 | 组件 | 版本 |
 | --- | --- |
 | Mac / iPhone DSH | `0.2.1-rc.2` |
-| dsh-codex | `0.2.11`（pi-ai `1.4.0`、zod `4.4.3`） |
+| dsh-codex | Mac `0.2.12` / iPhone `0.2.11`（pi-ai `1.4.0`、zod `4.4.3`） |
 | dsh-cline-pass | `0.2.13` |
 | iPhone Mobile Gateway | `0.11.1+iphone.2`，仅本机连接 |
 | Whaleness 本地适配版 | `1.7.11 / build 39`，原生 Provider／插件设置已验收 |

@@ -11,3 +11,5 @@ ios/native/whaleness-iphone.patch whitespace=-blank-at-eol,-space-before-tab
 *.plist text eol=lf
 *.sh text eol=lf
 *.xml text eol=lf
+# Unified Go patch data includes context indentation and blank context markers.
+patches/grok2api-client-cancel/*.patch whitespace=-space-before-tab,-blank-at-eol

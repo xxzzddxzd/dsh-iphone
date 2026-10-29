@@ -602,3 +602,22 @@ Node 与负载：
 - 三文件先原子热更新，未重启 Node，原文件保存在手机 `/var/root/dsh-native-client/artifacts/web-compat19/before/`。重新打开旧网页后用户确认“已经正常进入”。升级 SOP 现要求组件更新后的 WebClip 认证刷新，以及在实际目标系统验证插件注册。
 
 本次脱敏检查和部署证据位于 `.cache/upgrades/web-compat-20261027/`；原始 JSC 诊断位于 `.cache/upgrades/web-ios16-20261027/jsc-probe/`，不提交认证入口、Cookie、会话内容或 App 数据。
+
+
+## 2026-10-29：Mac Grok 大图请求、托管重启与账号冷却
+
+本次区分了两条独立路由：`provider-xai` 直接使用 xAI OAuth / `api.x.ai`；用户后来选用的 `xai` 是 `127.0.0.1:8000` 的 Grok2API。当前 Mac Provider 为 `0.2.12`，pi-ai仍为 `1.4.0`；iPhone本轮未部署，仍为 `0.2.11`。各轮测试按开始时的默认模型恢复；末次验收时保留当前 `provider-xai / grok-4.6 / xhigh`。
+
+大图上传：原会话的请求体为14,736,511字节，反复在收到响应头之前触发300秒空闲超时。独立合成对照中，小文本、xhigh、大输出预算、工具定义及路由alias均可正常工作；固定Node26.3.1、停止并发请求后，约1.1/3.2/7.4MB请求完整返回，14.7MB上传出现停顿。HTTP代理和HTTP版本切换重复测试也有失败，因此未部署这些未经稳定验证的方案，不能认定是H2或连接池泄漏。外部链路内部停顿原因未进一步归因。
+
+`createXaiAdapter` 将保留图像base64总预算从20MiB改为8MiB，Codex仍为20MiB。超过预算先触发Harness原生 `IMAGE_OFFLOAD_REQUIRED`，记录最旧图像出现位置的 `image/offload` 决策，再重新组装较小请求；原附件与原始用户消息不删、不改图像质量。这是本地请求预算，不是xAI官方上限。本机Grok2API `xai` profile也通过公开volatile字段保存同样预算。真实14张合成PNG验收保留14个原始图像事件、卸载最旧7次：`provider-xai` 连续两轮约14.3/9.3秒；`xai / Grok2API` 连续两轮约10.9/5.0秒，均完整结束且未调用工具。
+
+托管重启：诊断期间Purge已为1.1.82，其内置restart helper会派生脱管DSH，与KeepAlive LaunchAgent竞争3080，曾造成EADDRINUSE循环及日志中的失效启动URL。已停止竞争实例，固定依赖到 `0c933dc7d3252698f3f0f9756932dcc88355f532`，并按完整预像修补普通重启为“响应后退出，由launchd拉起”。托管卸载在修改数据前明确拒绝，要求先停止服务后用独立CLI卸载；未托管运行保留上游行为。启动使用Node原生 `--import mac-dsh-preflight.mjs`，不加shell中间层；macOS launchd下shell访问Documents的限制已在实际验收中排除。Purge后台更新/重打关闭。启动前严格校验两文件SHA，监听3080的PID与托管PID一致。
+
+13:58的429是另一条明确链路：Grok2API首轮HTTP200在审计中实际为 `upstream_stream_interrupted`，唯一Build候选账号随即冷却30秒，至13:59:29.887结束；后续6个429都发生在冷却窗口内，未再次请求上游。原记录不能确定首轮由哪一端先断开。代码审查另复现了客户端取消误罚：下游取消引起上游Read错误，被误记为上游故障，Finalize又用Background Context处罚账号。Grok2API本地v3.0.6修复已部署：取消记 `request_canceled`，已取消的请求不处罚账号；真实上游Read或不完整EOF仍保留冷却。冷却提示补充等待秒数，429、错误码及Retry-After保持兼容。只改4个原先干净的源码/test，原CLI/settings等本地改动逐字保留；补丁和完整预像见 `patches/grok2api-client-cancel/`。
+
+当前Core/pi-ai错误桥会丢弃Retry-After，默认5次退避仅15.5秒，无法跨过30秒冷却；Purge还会额外补发。本机 `xai` 的normal策略移除 `RATE_LIMIT`，保留 `EMPTY_RESPONSE/SERVER/TIMEOUT/TRANSPORT` 五次重试，并关闭Purge冗余 `autoRetry`。这些设置已热保存、重读，其他Provider字段保持原值。遇冷却立即交还错误和等待时间，不清冷却、不绕过真实上游限制。
+
+验证：Provider96项测试、双typecheck/build/import通过；Purge18项托管/预载回归通过；Core→Harness→Purge的10项纯合成冷却回归证明默认6次、去RATE_LIMIT但Purge开启仍2次、两层正确配置后仅1次，网络/5xx重试保留。Grok2API全部48个有测试包通过，新增Finalize并发race回归通过，旧实现负例捕获取消误罚。真实“完整请求→首帧后取消→立即完整请求”分别约3.7/2.6/4.2秒；中间请求审计为 `request_canceled`，账号failureCount保持0、cooldown为空，后续请求未等待30秒即成功。
+
+Grok2API修复二进制SHA-256为 `8711485dbf64252cc2b695c9e77a6b457991ac9c328e54e271342271e826fc40`。账号数量2保持不变，一致性SQLite备份integrity_check通过。DSH备份位于 `~/.dsh.before-grok-root-20261029`、`~/.dsh.before-grok-budget-20261029`；Grok2API旧二进制、配置、主库快照及源码备份位于私有 `.cache/upgrades/grok-cooling-20261029/runtime-before/`。脱敏时序及合成数据在 `.cache/upgrades/grok-root-cause-20261029/`，认证信息、DB及真人会话不提交。
