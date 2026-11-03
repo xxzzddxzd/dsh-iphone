@@ -50,7 +50,7 @@ for (const [packageName, selectors] of [
 // owns a search field, and the transcript's scrollport and follow-tail state.
 for (const [entry, needles] of [
   // Pure primitives are inlined into the published frontend entry in 0.2.1.
-  ["dsh-web-frontend/dist/assets/index-CN7NIWNw.js", ['"data-menu-material"']],
+  ["dsh-web-frontend/dist/assets/index-BXV-oxvX.js", ['"data-menu-material"']],
   ["dsh-client-ui-chat/lib/client.js", ['"data-chat-following-tail"', "[data-conversation-scroll]"]],
 ]) {
   const source = await readFile(new URL(`../dsh-runtime/node_modules/@deepseek-ai/${entry}`, import.meta.url), "utf8");

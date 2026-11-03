@@ -36,6 +36,9 @@ try {
   assert.equal(report.version, IPHONE_VERSION);
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   assert.equal(metadata.version, IPHONE_VERSION);
+  const hostAdapter = await import(pathToFileURL(join(root, 'lib/dsh-host-adapter.mjs')));
+  const pins = await import('../scripts/provider-components.mjs').then(module => module.readVersionPins());
+  assert.equal(hostAdapter.DSH_VERSION, pins.DSH_VERSION, 'native hello must report the pinned Host version');
   assert.equal(metadata.bin, undefined);
   assert.deepEqual(metadata.bundledDependencies, Object.keys(metadata.dependencies));
   const template = await readFile(join(root, 'cordis.patch.yml'), 'utf8');

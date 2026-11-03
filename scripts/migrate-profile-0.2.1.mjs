@@ -33,7 +33,7 @@ function balanceManifest(current) {
   if (current.name !== balanceName || !["0.1.1", "0.1.2"].includes(current.version)) throw new Error("Unknown local balance package revision");
   const peers = current.peerDependencies;
   if (!["~4.0.4", "~4.0.5"].includes(peers?.["@deepseek-ai/cordis"])
-    || !["0.2.0-rc.2", "0.2.1-rc.2"].includes(peers?.["@deepseek-ai/dsh-credentials"])) throw new Error("Unknown local balance peer requirements");
+    || !["0.2.0-rc.2", "0.2.1-rc.2", "0.2.1-rc.5"].includes(peers?.["@deepseek-ai/dsh-credentials"])) throw new Error("Unknown local balance peer requirements");
   const injected = current.dsh?.client?.inject;
   if (!Array.isArray(injected)
     || injected.filter(name => ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-renderer"].includes(name)).length !== 1) {
@@ -42,7 +42,7 @@ function balanceManifest(current) {
   const next = structuredClone(current);
   next.version = "0.1.2";
   next.peerDependencies["@deepseek-ai/cordis"] = "~4.0.5";
-  next.peerDependencies["@deepseek-ai/dsh-credentials"] = "0.2.1-rc.2";
+  next.peerDependencies["@deepseek-ai/dsh-credentials"] = "0.2.1-rc.5";
   next.dsh.client.inject = injected.map(name => name === "@deepseek-ai/dsh-client-runtime" ? "@deepseek-ai/dsh-client-ui-renderer" : name);
   return next;
 }
@@ -98,13 +98,13 @@ export async function migrateProfile(profileDirectory, { apply = false } = {}) {
     balance = plans.some(plan => plan.path.startsWith(prefix + "/")) ? "upgrade-required" : "current";
   }
 
-  const report = { targetDSH: "0.2.1-rc.2", mode: apply ? "apply" : "audit", status: plans.length ? "changes-required" : "current",
+  const report = { targetDSH: "0.2.1-rc.5", mode: apply ? "apply" : "audit", status: plans.length ? "changes-required" : "current",
     changedFiles: plans.map(plan => plan.path), balance, dependencyInstallRequired: plans.some(plan => plan.path.endsWith("package.json")) };
   if (!apply || !plans.length) return report;
   for (const plan of plans) {
     if (!(await readFile(plan.absolute)).equals(plan.before)) throw new Error(`Profile changed during audit: ${plan.path}`);
   }
-  const backupRoot = join(root, ".migration-backups", `dsh-0.2.1-rc.2-${new Date().toISOString().replaceAll(":", "-")}-${randomUUID().slice(0, 8)}`);
+  const backupRoot = join(root, ".migration-backups", `dsh-0.2.1-rc.5-${new Date().toISOString().replaceAll(":", "-")}-${randomUUID().slice(0, 8)}`);
   await mkdir(backupRoot, { recursive: true, mode: 0o700 });
   await chmod(dirname(backupRoot), 0o700);
   for (const plan of plans) {

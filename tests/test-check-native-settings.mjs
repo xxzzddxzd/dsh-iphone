@@ -107,7 +107,7 @@ for (const options of [{}, { writeSameValues: true }, { writeSameValues: true, n
   try {
     const report = await verifyNativeSettings(test.host, test.control, { pins, writeSameValues: options.writeSameValues });
     assert.equal(report.status, 'passed');
-    assert.equal(report.credentialMetadataOnly, true);
+    assert.ok(!test.state.calls.some(call => call.scope === 'cline-pass'));
     assert.equal(report.credentialsWritten, 0);
     assert.equal(report.loginsStarted, 0);
     assert.equal(report.modelProbesSubmitted, 0);
@@ -135,7 +135,6 @@ for (const [options, code, expectedMutates] of [
   [{ firstMutationFails: true }, 'fixture-mutation-rejected', 1],
   [{ noUser: true, changedResponseMismatch: true }, 'native-web-settings-disagree', 2],
   [{ noUser: true, concurrentAfterSet: true }, 'fixture-revision-conflict', 2],
-  [{ credentialLeak: true }, 'credential-read-projection-invalid', 0],
   [{ webMismatch: true }, 'native-web-settings-disagree', 0],
 ]) {
   const test = await fixture(options);
@@ -155,7 +154,7 @@ for (const [options, code, expectedMutates] of [
     } else {
       assert.deepEqual(test.state.namespace.user ?? {}, test.originalUser ?? {}, 'exception did not restore or preserve the original user layer');
     }
-    if (options.busy || options.credentialLeak || options.webMismatch) assert.deepEqual(mutations(test.state.calls), [], 'a failed read/idle gate allowed writes');
+    if (options.busy || options.webMismatch) assert.deepEqual(mutations(test.state.calls), [], 'a failed read/idle gate allowed writes');
     assert.ok(!test.state.calls.some(call => ['auth.login', 'credentials.set', 'credentials.unset', 'model.probe', 'model.test', 'model.validate', 'models.set'].includes(call.action)));
   } finally { await test.close(); }
 }

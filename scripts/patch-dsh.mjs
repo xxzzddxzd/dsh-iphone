@@ -112,7 +112,7 @@ async function readJson(relativePath) {
 }
 
 const dshPackage = await readJson("package.json");
-if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.2.1-rc.2") {
+if (dshPackage.name !== "@deepseek-ai/dsh" || dshPackage.version !== "0.2.1-rc.5") {
   throw new Error(
     `unsupported DSH package: ${dshPackage.name ?? "unknown"}@${dshPackage.version ?? "unknown"}`,
   );
@@ -307,9 +307,9 @@ await replaceExactlyOnce(
   "Safari 16 GFM email regexp",
 );
 await replaceExactlyOnce(
-  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-CN7NIWNw.js",
+  "node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/index-BXV-oxvX.js",
   'from"./vendor-DcuzkuQH.js"',
-  'from"./vendor-DcuzkuQH.js?ioscompat=19"',
+  'from"./vendor-DcuzkuQH.js?ioscompat=20"',
   "frontend vendor cache key",
 );
 await installNewFile(
@@ -332,7 +332,7 @@ await installNewFile(
 await installExactFile(
   "node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
   resolve(repositoryRoot, "web/index.ios.html"),
-  "3a402b94efa1253d80666438e60ed89d0b5cf1fd07d24a2f59731623e9bd8a49",
+  "3ddfb0ce0bc60975c3dba70c8b960768f2f83d7293b562d82cb97e7d365a54c9",
   "Safari 16 entry document",
 );
 

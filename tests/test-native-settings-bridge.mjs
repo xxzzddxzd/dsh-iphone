@@ -7,7 +7,6 @@ import { createNativeSettingsBridge, NATIVE_SETTINGS_TIMEOUT_MS, NATIVE_SETTINGS
 const require = createRequire(new URL('../dsh-runtime/package.json', import.meta.url))
 const { Context } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis')))
 const { HostConnectionService } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-client-connection')))
-const { registerPanel } = await import(new URL('../cline-pass/node_modules/dsh-cline-pass/lib/panel.js', import.meta.url))
 const { createDshHostAdapter } = await import(new URL('../mobile-gateway/node_modules/dsh-plugin-mobile-gateway/lib/dsh-host-adapter.mjs', import.meta.url))
 const device = { deviceId: 'paired-fixture-device' }
 let sequence = 0
@@ -90,20 +89,6 @@ for (const [action, payload] of Object.entries(providerPayloads)) {
   assert.deepEqual(call.body, { action, payload })
   assert.deepEqual([...call.request.headers.keys()], ['content-type'])
 }
-const clinePayloads = {
-  state: {}, usage: {}, 'key.set': { ref: 'FIXTURE_KEY', value: 'fixture-secret' }, 'key.test': { ref: 'FIXTURE_KEY' },
-  'account.add': { name: 'fixture', displayName: 'Fixture', key: 'fixture-secret', enabled: true }, 'account.remove': { name: 'fixture' },
-  'account.mode': { mode: 'roundrobin' }, 'account.enable': { name: 'fixture', enabled: false },
-  'model.pin': { model: 'cline-pass/fixture', upstreams: ['fixture'], pinMode: 'preferred' }, 'model.visibility': { model: 'cline-pass/fixture', visible: true },
-  'models.visibility': { mode: 'invert' }, 'model.probe': { model: 'cline-pass/fixture' }, 'model.validate': { model: 'cline-pass/fixture' },
-  'model.test': { model: 'cline-pass/fixture', exclude: [] }, 'model.reset': { model: 'cline-pass/fixture' }, 'models.refresh': {},
-  'tools.expose': { value: false }, 'budget.set': { value: 8192 }, history: { limit: 2 },
-}
-for (const [action, payload] of Object.entries(clinePayloads)) {
-  assert.equal((await bridge.handle(message('cline-pass', action, payload), device)).kind, 'native-settings')
-  assert.equal(calls.at(-1).request.url, 'http://dsh.internal/api/cline-pass')
-  assert.deepEqual(calls.at(-1).body, { endpoint: action, payload }, 'Cline endpoint body changed')
-}
 const described = await bridge.handle(message('plugin', 'describe', { ns: 'entry-a' }), device)
 assert.deepEqual(described.value.namespaces, [{ ns: 'entry-a', revision: 2, value: { enabled: true } }])
 const edits = { ns: 'entry-a', expectedRevision: 2, ops: [{ op: 'set', path: ['enabled'], value: false }] }
@@ -175,7 +160,7 @@ await tick()
 await failures(disposingBridge, message(), 'unavailable')
 assert.equal(disposedCalls, 1, 'a disposed Peer started new settings work')
 
-// Real official Connection dispatch, owner fence, and the untouched Cline route.
+// Real official Connection dispatch, owner fence, and Provider route.
 const ctx = new Context()
 ctx.provide('webServer', { register() { return () => {} } })
 const official = new HostConnectionService(ctx, [], {})
@@ -204,17 +189,7 @@ assert.deepEqual((await adapterBridge.handle(message('plugin', 'mutate', edits),
 assert.deepEqual(hostCalls.map(call => ({ method: call.method, args: call.args })), [
   { method: 'describe', args: {} }, { method: 'mutate', args: edits },
 ], 'plugin settings changed the official adapter argument contract')
-let config = { accounts: {}, knownModels: [], defaultMaxTokens: 4096 }
-registerPanel(ctx, { control: {
-  readConfig: () => config, accountsWithKeys: async () => [], effectiveAccount: async () => '', settingsAvailable: () => true,
-  async updateConfig(patch) { config = { ...config, ...patch } },
-}, engine: {}, store: { usage: () => null, catalog: () => null, historySize: () => 0, historyRevision: () => 0 } })
-await tick()
-const changed = await realBridge.handle(message('cline-pass', 'budget.set', { value: 8192 }), device)
-assert.equal(changed.kind, 'native-settings')
-assert.equal(changed.value.defaultMaxTokens, 8192)
-assert.equal(config.defaultMaxTokens, 8192, 'native Cline mutation did not reach the existing panel owner')
-assert.equal((await realBridge.handle(message('cline-pass', 'state'), device)).value.defaultMaxTokens, 8192)
+await failures(realBridge, message('cline-pass', 'state'))
 await owner.dispose()
 await ctx.fiber.dispose()
-console.log('Native settings: strict paired owner dispatch, Provider/Cline actions, plugin revision edits, redacted failures, bounded responses/concurrency/deadlines and real Connection+Cline route passed')
+console.log('Native settings: strict paired owner dispatch, Provider actions, plugin revision edits, redacted failures, bounded responses/concurrency/deadlines and real Connection+Provider route passed')

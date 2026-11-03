@@ -43,7 +43,6 @@ export function validateProviderDependencyPins(metadata, lock, pins) {
 export async function componentUpdateReport(pins, fetcher = fetch) {
   const specs = [
     { name: "@earendil-works/pi-ai", pinned: pins.DSH_CODEX_PI_AI_VERSION, integrity: pins.DSH_CODEX_PI_AI_INTEGRITY },
-    { name: "dsh-cline-pass", pinned: pins.DSH_CLINE_PASS_VERSION },
   ];
   return Promise.all(specs.map(async spec => {
     if (!spec.pinned) throw new Error(`Missing version pin for ${spec.name}`);

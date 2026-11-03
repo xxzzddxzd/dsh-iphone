@@ -13,14 +13,13 @@ flowchart LR
 
 | 部分 | 当前版本或目标 | 负责内容 |
 | --- | --- | --- |
-| Mac / iPhone DSH | `0.2.1-rc.2` | 会话、模型认证、工具、权限、执行和持久化 |
-| Provider | `0.2.11` / pi-ai `1.4.0` / zod `4.4.3` | Codex、xAI、Google 路由及偏好；核心 pi-ai `1.3.0` 分开维护 |
-| Cline Pass | `0.2.13` | 原有账号、上游通道与模型路由 |
-| iPhone Gateway | `0.11.1+iphone.2` | 设备配对与 `dsh-mobile-v1` 传输，复用 Host Remote API |
-| Whaleness 本地版 | `1.7.11 / build 39` | 原生聊天与本机活动栏 Widget；最低 iOS `16.1` |
-| Root 系统集成 | Debian `0.2.1~rc.2-3` | 本机系统通知、Live Activity 状态与生命周期、点击导航 |
+| Mac / iPhone DSH 目标 | `0.2.1-rc.5` | 会话、模型认证、工具、权限、执行和持久化 |
+| Provider 目标 | `0.2.13` / pi-ai `1.5.0` / zod `4.4.3` | Codex、xAI、Google 路由及偏好 |
+| iPhone Gateway 目标 | `0.11.1+iphone.4` | 设备配对与 `dsh-mobile-v1` 传输，复用 Host Remote API |
+| Whaleness 本地目标 | `1.7.13 / build 40` | 原生聊天与本机活动栏 Widget；最低 iOS `16.1` |
+| Root 系统集成目标 | Debian `0.2.1~rc.5-1` | 本机系统通知、Live Activity 状态与生命周期、点击导航 |
 
-源码固定在 `9bf3955c8add4ebffaed5699d59e75ddc86733ad`，许可保留于 `ios/native/LICENSE.whaleness`。本地补丁、版本和能力由 `ios/native/source-patch.json` 锁定。`ios/native/app-release.json` 是上游未修改的 build 32 输入；本地 build 39 必须使用构建器生成的独立 manifest，不能沿用上游 IPA 的 SHA。最终 IPA、源码补丁 hash 和实机结果见[更新记录](./updating.md)。
+目标源码固定在 `497947559a29eb6108efa34b6aced30822beafdb`，许可保留于 `ios/native/LICENSE.whaleness`。本地补丁、版本和能力由 `ios/native/source-patch.json` 锁定。本地 build 40 必须使用构建器生成的独立 manifest，不能沿用上游 IPA 的 SHA。最终 IPA、源码补丁 hash 和实机结果见[更新记录](./updating.md)。
 
 既有 build 34 的安装、真实 Keychain 配对、冷启动和旧历史/snapshot 已验证，升级保留同一容器与配对；用户实机确认回车发送和活动窗跳转正常。build 37 已独立通过 Widget 承载、锁屏实际显示、后台创建/更新/结束与点击会话验收；用户确认锁屏返回停留后不再出现 `subscription-timeout`。中文输入法与硬件键盘保留独立验收项；UIKit/XCTest 源码语法解析不代替 Simulator XCTest 或输入场景实测。
 
@@ -34,17 +33,16 @@ Gateway 插件挂载在 DSH 已有的 loopback listener，原 HTTP/Web API 与 `
 
 ## 构建和部署
 
-先按[双端更新流程](./upgrade-workflow.md)完成 core、Provider、Cline 与网关的候选构建、空闲检查和停机备份。Node、pnpm 及其他原生组件只在本次变化确实需要时升级。
+先按[双端更新流程](./upgrade-workflow.md)完成 core、Provider 与网关的候选构建、空闲检查和停机备份。Node、pnpm 及其他原生组件只在本次变化确实需要时升级。
 
 ```bash
 ./scripts/package-dsh.sh
 ./scripts/package-dsh-codex.sh
-./scripts/package-dsh-cline-pass.sh
 ./scripts/package-mobile-gateway.sh
 ./scripts/verify.sh
 ```
 
-`mobile-gateway/package-lock.json` 固定纯 JavaScript 生产闭包；`cline-pass/package-lock.json` 固定官方包，不先更改 Mac live profile。手机使用已生成的本地 tarball 和 `--offline` 安装，Host peers 由当前 DSH 提供。
+`mobile-gateway/package-lock.json` 固定纯 JavaScript 生产闭包。手机使用已生成的本地 tarball 和 `--offline` 安装，Host peers 由当前 DSH 提供。
 
 `scripts/install-native-profile.mjs <profile-dir>` 先报告本机配置计划，`--apply` 才合并 Gateway 与按需搜索配置，并保存原 `cordis.patch.yml` 私有备份。`--runtime` 必须指向该运行环境的 DSH 包目录：Mac 候选通常为 `build/dsh-runtime`，手机安装目录为 `/var/jb/usr/local/lib/dsh`。该脚本处理 **Host profile**，不写 App 主机资料或 Keychain。
 
@@ -64,7 +62,7 @@ NATIVE_ANDROID_SDK=/path/to/android-sdk \
 安装本地适配版必须同时指定 IPA 和对应 manifest：
 
 ```bash
-NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build39.ipa" \
+NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.13-build40.ipa" \
 NATIVE_APP_MANIFEST="$PWD/build/native-app/native-app-manifest.json" \
 DEVICE_HOST='<iPhone IP>' ./scripts/install-native-app.sh
 ```
@@ -81,15 +79,14 @@ DEVICE_HOST='<iPhone IP>' ./scripts/install-native-app.sh
 | Codex 工具与请求 | read_image、共享图片工具、WebSocket 上下文复用、原生压缩 |
 | xAI 图片 | Grok 图片模型选择 |
 | VLESS | 节点导入、状态与显式测速 |
-| Cline Pass | 账号/密钥、启停/轮换、额度、模型显隐/路由、预算、工具开关与历史 |
 | 其他插件配置 | Schemastery 图生成的基础类型、对象和数组表单，按路径和 revision 保存 |
 | 凭据引用 | 对当前生效引用显示 configured/source/writable；密钥只能安全录入和删除，不能读回 |
 
-Cline Pass 的新增账号拒绝重用现有标识，省略未填可选值；密钥提示不会当作密钥回填。插件表单只提交修改的路径，并携带 `expectedRevision`，其他界面已改变配置时由后台拒绝覆盖。复杂联合类型与动态键集合的新增/删除保留明确只读边界，其余基础字段仍可编辑；需要完整高级编辑时沿用原网页。
+插件表单只提交修改的路径，并携带 `expectedRevision`，其他界面已改变配置时由后台拒绝覆盖。复杂联合类型与动态键集合的新增/删除保留明确只读边界，其余基础字段仍可编辑；需要完整高级编辑时沿用原网页。
 
-网关仅接收固定 scope/action，不接受客户端指定 URL、HTTP 头、Remote namespace 或 Peer。Provider 与 Cline 复用 Connection 的 owner Fetch 接口，凭据复用官方 CredentialsController。未配对设备不能访问管理操作；16 KiB 请求、1 MiB 响应、每设备8个在途及60秒界限限制额外负载。密钥只单向提交，App 离页/后台清空草稿。OAuth 仅在页面可见且授权进行中有限轮询，不为设置页持续预取历史或改选默认模型。
+网关仅接收固定 scope/action，不接受客户端指定 URL、HTTP 头、Remote namespace 或 Peer。Provider 复用 Connection 的 owner Fetch 接口，凭据复用官方 CredentialsController。未配对设备不能访问管理操作；16 KiB 请求、1 MiB 响应、每设备8个在途及60秒界限限制额外负载。密钥只单向提交，App 离页/后台清空草稿。OAuth 仅在页面可见且授权进行中有限轮询，不为设置页持续预取历史或改选默认模型。
 
-官方最新发布基线仍为 `9bf3955` / v1.7.11。本地同步了官方 `de9bace` 的发布资源和独立订阅导航修复；未改 shared/Gradle 输入，KMP framework 沿用已验证构建。build 39 另修冷启动的聊天请求排队：控制通道 hello 后、聊天通道异步读 Keychain 且 socket 尚未创建时，订阅先缓冲，聊天 hello 后按顺序发出。不能用 history 成功或仅计时器单元测试代替真实传输/ACK 验证。
+目标基线为 v1.7.13，并重新构建 KMP framework。保留冷启动的聊天请求排队：控制通道 hello 后、聊天通道异步读 Keychain 且 socket 尚未创建时，订阅先缓冲，聊天 hello 后按顺序发出。不能用 history 成功或仅计时器单元测试代替真实传输/ACK 验证。
 
 验收使用自己的短期配对，完成后只撤销测试设备并保留 App 配对：
 

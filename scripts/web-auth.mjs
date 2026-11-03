@@ -15,8 +15,8 @@ export async function launchUrl(target) {
       "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
       "-p", process.env.DEVICE_PORT ?? "22",
       `${process.env.DEVICE_USER ?? "root"}@${process.env.DEVICE_HOST ?? "10.99.1.41"}`,
-      "tail -c 200000 /var/root/dsh.log",
-    ], { encoding: "utf8", maxBuffer: 250000 });
+      "tail -c 4000000 /var/root/dsh.log",
+    ], { encoding: "utf8", maxBuffer: 4200000 });
     port = process.env.LOCAL_PORT ?? "3081";
   } else {
     throw new Error("target must be mac or iphone");

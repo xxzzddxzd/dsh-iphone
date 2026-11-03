@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readVersionPins } from './provider-components.mjs';
 
 export const UPSTREAM_VERSION = '0.11.1';
-export const IPHONE_VERSION = '0.11.1+iphone.2';
+export const IPHONE_VERSION = '0.11.1+iphone.4';
 export const UPSTREAM_INTEGRITY = 'sha512-je77m6JXDNFz371PvhwtHpWNVnJk5OnSyH5+ke8bZM5zukE1wE4ve1LW8f9oxZQX7kToy1LNwfcQQO3x+HpEhg==';
 const repository = fileURLToPath(new URL('../', import.meta.url));
 const defaultSource = resolve(repository, 'mobile-gateway/node_modules/dsh-plugin-mobile-gateway');
@@ -34,14 +35,18 @@ const patches = [
     readFile(resolve(repository, 'packaging/mobile-gateway/cordis.patch.yml'), 'utf8')],
   ['lib/gateway-tools.mjs', '782adadf14bd6e6f1822d81bdec45ea36ff47bc1627de2cbe4c3e04f0b38215e', () =>
     `// iPhone variant: launchd exclusively owns the DSH service lifecycle.\nexport function webRestartAvailable() { return false }\nexport async function prepareWebRestart() {\n  throw new Error('The iPhone DSH service is managed by launchd')\n}\n`],
-  ['lib/dsh-host-adapter.mjs', '6b0a64954e2f4609a744b0f72173fa51e69e251747f7a77640568d9b4ef91140', text =>
-    once(text, '    settings: {\n', `    credentials: {
+  ['lib/dsh-host-adapter.mjs', '6b0a64954e2f4609a744b0f72173fa51e69e251747f7a77640568d9b4ef91140', async text => {
+    const version = (await readVersionPins()).DSH_VERSION;
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version ?? '')) throw new Error('Invalid pinned DSH version');
+    text = once(text, "export const DSH_VERSION = '0.2.1-rc.2'", `export const DSH_VERSION = '${version}'`);
+    return once(text, '    settings: {\n', `    credentials: {
       describe: (payload, signal) => invoke('credentials', 'describe', { refs: payload.refs }, signal),
       set: (payload, signal) => invoke('credentials', 'set', { ref: payload.ref, value: payload.value }, signal),
       unset: (payload, signal) => invoke('credentials', 'unset', { ref: payload.ref }, signal),
     },
     settings: {
-`)],
+`);
+  }],
   ['lib/index.mjs', '01a2d488fbe00a3b0faaeddf6912928319f93a6013b73c8a957d95cf1e40eadf', text => {
     text = once(text, "supported: process.platform === 'darwin' || process.platform === 'win32',",
       'supported: false, // iPhone-local artifact: no desktop Tunnel executable');

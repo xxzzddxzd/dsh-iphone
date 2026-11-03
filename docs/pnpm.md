@@ -34,16 +34,15 @@ OAuth 路由不会出现在聊天模型选择器中。`deploy.sh` 会先运行�
 ./scripts/package-dsh-codex.sh
 DEVICE_HOST=10.99.1.139 DEVICE_PORT=22 ./scripts/deploy.sh
 ssh -p 22 root@10.99.1.139 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-codex'
-ssh -p 22 root@10.99.1.139 '/var/jb/usr/local/bin/dsh22 plugin --profile web why dsh-cline-pass'
 ```
 
-`dsh-cline-pass@0.2.13` 没有本地维护的产品分支：`cline-pass/package-lock.json` 固定官方 npm 包和 integrity。`package-dsh-cline-pass.sh` 默认从该输入打包，不先改变 Mac live profile；构建时不自动安装其 Host peers。它仍使用相对 fetch，iOS 补丁保留绝对同源 URL/Cookie/XHR 回退，并锁定 0.2.13 完整预像。Cline 的原有账号、配置和 `CLINE_PASS_API_KEY` 不由 deb 或原生 App 安装器写入。
+Cline Pass 已从本项目安装和打包流程移除；升级前的数据备份保留原有配置与凭据。
 
 Provider 的 zod 精确固定 `4.4.3`，与 DSH storage-domain 的公开 schema 类型一致。DSH 自带 pi-ai `1.3.0` 与 Provider 的 `1.4.0` 分开维护，不能全局覆盖成同一版本。原空 invariant companion 随 0.2.1 已退役接口删除。
 
 ## iPhone 原生网关
 
-`mobile-gateway/package-lock.json` 固定官方 `dsh-plugin-mobile-gateway@0.11.1` 的纯 JavaScript 生产闭包。`package-mobile-gateway.sh` 生成 `0.11.1+iphone.2` 本机变体，包含完整依赖，不带 DSH peers 或 Linux setup/init 入口。它复用现有 `web` profile 和 `:3080/ws/mobile`，不另起 Harness；`lanEnabled:false`，不会占用手机上已有的 3081 服务。
+`mobile-gateway/package-lock.json` 固定官方 `dsh-plugin-mobile-gateway@0.11.1` 的纯 JavaScript 生产闭包。`package-mobile-gateway.sh` 生成 `0.11.1+iphone.4` 本机变体，包含完整依赖，不带 DSH peers 或 Linux setup/init 入口。它复用现有 `web` profile 和 `:3080/ws/mobile`，不另起 Harness；`lanEnabled:false`，不会占用手机上已有的 3081 服务。
 
 ```bash
 ./scripts/package-mobile-gateway.sh

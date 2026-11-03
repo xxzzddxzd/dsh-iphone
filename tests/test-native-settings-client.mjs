@@ -68,7 +68,7 @@ func reply(_ client: NativeSettingsClient, _ request: JSONValue, _ value: JSONVa
   }
   do {
    let wire = Wire(); let client = NativeSettingsClient(transport: { try await wire.send($0) })
-   let task = Task { try await client.request(.clinePass, "state") }; let frame = try await wire.frame(0)
+   let task = Task { try await client.request(.provider, "overview") }; let frame = try await wire.frame(0)
    task.cancel()
    do { _ = try await task.value; throw TestFailure(message: "Canceled request returned a value") } catch is CancellationError { }
    try await reply(client, frame)

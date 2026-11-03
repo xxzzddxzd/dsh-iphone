@@ -16,15 +16,6 @@ const PROVIDER_FIELDS = Object.freeze({
   'xai-image.get': [], 'xai-image.set': ['model'], 'egress.get': ['provider'], 'egress.set': ['provider', 'egress'],
   'vless.get': [], 'vless.configure': ['vlessUrl'], 'vless.speed-test': [],
 })
-const CLINE_FIELDS = Object.freeze({
-  state: [], usage: [], 'key.set': ['ref', 'value'], 'key.test': ['ref', 'value'],
-  'account.add': ['name', 'displayName', 'apiKeyEnv', 'enabled', 'baseURL', 'key'],
-  'account.remove': ['name'], 'account.mode': ['mode', 'active'], 'account.enable': ['name', 'enabled'],
-  'model.pin': ['model', 'upstreams', 'exclude', 'pinMode', 'sort', 'has'],
-  'model.visibility': ['model', 'visible'], 'models.visibility': ['mode'],
-  'model.probe': ['model'], 'model.validate': ['model'], 'model.test': ['model', 'upstreams', 'exclude'],
-  'model.reset': ['model'], 'models.refresh': [], 'tools.expose': ['value'], 'budget.set': ['value'], history: ['limit', 'model'],
-})
 
 function failure(code) { return Object.assign(new Error('Native settings request failed'), { nativeSettingsCode: code }) }
 function check(condition, code = 'bad-request') { if (!condition) throw failure(code) }
@@ -95,27 +86,6 @@ function validateProvider(action, payload) {
   if (action === 'xai-image.set') check(text(payload.model))
   if (action === 'egress.set') check(['direct', 'vless'].includes(payload.egress))
   if (action === 'vless.configure') check(text(payload.vlessUrl, 8192) && payload.vlessUrl.startsWith('vless://'))
-}
-
-function validateCline(action, payload) {
-  check(Object.hasOwn(CLINE_FIELDS, action))
-  fields(payload, CLINE_FIELDS[action])
-  for (const field of ['name', 'displayName', 'apiKeyEnv', 'baseURL', 'key', 'ref', 'model', 'active', 'sort', 'value']) {
-    if (!Object.hasOwn(payload, field) || ['budget.set', 'tools.expose'].includes(action) && field === 'value') continue
-    check(typeof payload[field] === 'string' && payload[field].length <= (['key', 'value'].includes(field) ? 8192 : 2048))
-  }
-  if (action.startsWith('model.')) check(text(payload.model))
-  if (action === 'key.set') check(text(payload.ref) && text(payload.value, 8192))
-  if (action === 'key.test') check(text(payload.ref) || text(payload.value, 8192))
-  if (['account.add', 'account.remove', 'account.enable'].includes(action)) check(text(payload.name) && /^[A-Za-z0-9._-]+$/.test(payload.name) && !FORBIDDEN.has(payload.name))
-  for (const field of ['enabled', 'visible']) if (Object.hasOwn(payload, field)) check(typeof payload[field] === 'boolean')
-  if (action === 'account.mode') check((Object.hasOwn(payload, 'mode') || Object.hasOwn(payload, 'active')) && (payload.mode === undefined || ['single', 'roundrobin'].includes(payload.mode)))
-  if (action === 'models.visibility') check(['all', 'none', 'invert'].includes(payload.mode))
-  if (Object.hasOwn(payload, 'pinMode')) check(['preferred', 'strict'].includes(payload.pinMode))
-  for (const field of ['upstreams', 'exclude', 'has']) if (Object.hasOwn(payload, field)) check(Array.isArray(payload[field]) && payload[field].length <= 100 && payload[field].every(value => text(value)))
-  if (action === 'tools.expose') check(typeof payload.value === 'boolean')
-  if (action === 'budget.set') check(Number.isSafeInteger(payload.value) && payload.value >= 1024 && payload.value <= 2_000_000)
-  if (action === 'history' && payload.limit !== undefined) check(Number.isSafeInteger(payload.limit) && payload.limit >= 1 && payload.limit <= 100)
 }
 
 function validatePlugin(action, payload) {
@@ -227,8 +197,8 @@ export function createNativeSettingsBridge({ api, connection, peer, timeoutMs = 
       return value
     }
     check(typeof carrier?.fetch === 'function' && peer, 'unavailable')
-    const path = msg.scope === 'provider' ? '/api/dsh-provider-settings' : '/api/cline-pass'
-    const body = msg.scope === 'provider' ? { action: msg.action, payload: msg.payload } : { endpoint: msg.action, payload: msg.payload }
+    const path = '/api/dsh-provider-settings'
+    const body = { action: msg.action, payload: msg.payload }
     const request = new Request('http://dsh.internal' + path, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal,
     })
@@ -246,8 +216,8 @@ export function createNativeSettingsBridge({ api, connection, peer, timeoutMs = 
     try {
       safeJSON(msg, NATIVE_SETTINGS_REQUEST_BYTES)
       fields(msg, ['type', 'requestId', 'scope', 'action', 'payload'], ['type', 'requestId', 'scope', 'action', 'payload'])
-      check(msg.type === 'native-settings' && requestID(msg.requestId) && typeof msg.action === 'string' && ['provider', 'cline-pass', 'plugin'].includes(msg.scope))
-      const validate = { provider: validateProvider, 'cline-pass': validateCline, plugin: validatePlugin }[msg.scope]
+      check(msg.type === 'native-settings' && requestID(msg.requestId) && typeof msg.action === 'string' && ['provider', 'plugin'].includes(msg.scope))
+      const validate = { provider: validateProvider, plugin: validatePlugin }[msg.scope]
       validate(msg.action, msg.payload)
     } catch (error) { return errorFrame(msg, errorCode(error)) }
     if (peer?.signal?.aborted) return errorFrame(msg, 'unavailable')

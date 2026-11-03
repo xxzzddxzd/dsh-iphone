@@ -1,6 +1,6 @@
 # Mac 与 iPhone 双端快速更新流程
 
-所有升级使用一份 `versions.env`、一份官方源码 gitlink、DSH npm lock 和同一份 `dsh-codex` checkout；Cline Pass、Mobile Gateway 和原生 App 分别锁定自己的发布输入、依赖与补丁。每个阶段保留结果；USB 中断时从手机部署阶段继续，不重复升级已经验收的 Mac。详细命令和回滚步骤见 [更新 SOP](./updating.md)。
+所有升级使用一份 `versions.env`、一份官方源码 gitlink、DSH npm lock 和同一份 `dsh-codex` checkout；Mobile Gateway 和原生 App 分别锁定自己的发布输入、依赖与补丁。每个阶段保留结果；USB 中断时从手机部署阶段继续，不重复升级已经验收的 Mac。详细命令和回滚步骤见 [更新 SOP](./updating.md)。
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
 node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 ```
 
-这个命令读取官方 DSH npm/tag，以及 Provider 的 pi-ai、Cline Pass 的独立 npm 发布：对照准确版本、commit、integrity、Node engine 和依赖变化。`dshStatus` 表示 DSH 本身是否变化，顶层 `status` 汇总组件变化；只有两者及组件都为 current 才结束检查。较高的 `next` 只作观察。原生 App 还需对照其 source commit、最低 iOS、所需 Gateway 版本与本地 build；App 安装包和上游 README 可能不同步，以准确源码和实际 IPA manifest 为准。网络失败、发布不完整或锁定信息不符时停止，不能按“没有更新”处理。
+这个命令读取官方 DSH npm/tag 和 Provider 的 pi-ai 独立 npm 发布：对照准确版本、commit、integrity、Node engine 和依赖变化。`dshStatus` 表示 DSH 本身是否变化，顶层 `status` 汇总组件变化；只有两者及组件都为 current 才结束检查。较高的 `next` 只作观察。原生 App 还需对照其 source commit、最低 iOS、所需 Gateway 版本与本地 build；App 安装包和上游 README 可能不同步，以准确源码和实际 IPA manifest 为准。网络失败、发布不完整或锁定信息不符时停止，不能按“没有更新”处理。
 
 **DSH 主版本不变，也可能需要更新 Provider 和模型目录。** pi-ai 有自己的发布周期和静态模型数据，升级 DSH 不会自动把本地 Provider 的 pi-ai 升到最新版本。
 
@@ -35,7 +35,7 @@ node scripts/check-dsh-update.mjs --save .cache/upgrades/official-release.json
 | --- | --- | --- | --- |
 | 1. 候选 | 官方 npm/tag 检查、依赖与 engine 差异 | release notes、准确 Git 差异；不能用 master 代替发布 tag | 候选版本、commit、integrity |
 | 2. 版本闭包 | 更新 runtime lock、严格预像检查 | 内部包版本、完整发布时间截点、Provider peer/API | `versions.env` 与 lock 一致 |
-| 2a. Provider 组件与目录 | pi-ai/Cline Pass 发布检查，Provider manifest、lock integrity、编译版本与模型清单核对 | 新增/删除模型、默认容量、图片/聊天 API 变化；本次要求的模型 ID | 本地与两端实际加载的组件、目录一致 |
+| 2a. Provider 组件与目录 | pi-ai 发布检查，Provider manifest、lock integrity、编译版本与模型清单核对 | 新增/删除模型、默认容量、图片/聊天 API 变化；本次要求的模型 ID | 本地与两端实际加载的组件、目录一致 |
 | 3. 本地门禁 | Provider check、iOS 构建、`verify.sh` | 失败补丁与新增兼容面；上游已修复的旧补丁应移除 | 检查成功、deb/tarball SHA |
 | 4. 保护数据 | 保存两端会话与默认模型基线 | Web 中确认队列、后台任务、审批和问答已处理；停止服务后备份 | 基线、数据与程序备份 |
 | 5. Mac | 精确 npm 安装、锁定 pnpm、共享 Provider 更新、健康与对话验收 | 已启用的额外插件与配置迁移 | Mac 版本与验收结果 |
@@ -60,7 +60,7 @@ Node、pnpm、Xray 和原生通知组件按依赖变化升级，普通 DSH 更�
 ## 候选准备与构建
 
 1. 更新只读官方子模块指针、`versions.env`、`dsh-runtime/package.json` 和完整 lock；审计 `patch-dsh.mjs` 的支持版本、预像和 bundle hash。
-2. 同步共享 Provider 的 DSH peers/dev dependencies 与 pnpm lock。只有实际需要时更新 pi-ai、Cline Pass 和 native addon；本地 Provider 代码变更要升自己的 bundle 版本。
+2. 同步共享 Provider 的 DSH peers/dev dependencies 与 pnpm lock。只有实际需要时更新 pi-ai 和 native addon；本地 Provider 代码变更要升自己的 bundle 版本。
 3. `DSH_RELEASE_CUTOFF` 必须覆盖目标闭包各包的实际发布时间，并避开下一版。**CLI 的发布时间不代表其依赖已全部发布**。本次 rc.2 的部分内部包晚于 CLI 发布，直接用 CLI 时间会解析失败。
 4. 同一上游版本的修订必须递增 Debian revision；已部署的编号不再复用。
 
@@ -69,13 +69,12 @@ Node、pnpm、Xray 和原生通知组件按依赖变化升级，普通 DSH 更�
 ```bash
 ./scripts/package-dsh.sh
 ./scripts/package-dsh-codex.sh
-./scripts/package-dsh-cline-pass.sh
 ./scripts/package-mobile-gateway.sh
 ./scripts/verify.sh
 node scripts/check-provider-components.mjs local
 ```
 
-`package-dsh.sh` 内部已经执行 prepare、严格补丁和原生构建。只在排查预像时单独调用 `prepare-dsh.sh`，不把它再重复当作常规构建前置。Provider 打包内部执行共享 checkout 的 check。Cline Pass 默认从 `cline-pass/package-lock.json` 固定的官方包打候选，不先改变 Mac profile；显式 `DSH_CLINE_PASS_SOURCE` 的所有未补丁文件也必须匹配该输入。Gateway 同样通过独立 lock 构建，iPhone 变体只允许本机连接与设备鉴权。
+`package-dsh.sh` 内部已经执行 prepare、严格补丁和原生构建。只在排查预像时单独调用 `prepare-dsh.sh`，不把它再重复当作常规构建前置。Provider 打包内部执行共享 checkout 的 check。Gateway 通过独立 lock 构建，iPhone 变体只允许本机连接与设备鉴权。Cline Pass 已退出当前部署流程，历史配置和凭据随数据备份保留。
 
 Provider 代码更新时同步 `DSH_CODEX_VERSION`、`DSH_CODEX_PI_AI_VERSION`、`DSH_CODEX_PI_AI_INTEGRITY` 和 `DSH_CODEX_REQUIRED_MODELS`。打包器强制检查 manifest、pnpm lock 和编译产物中的版本及必需模型，不能只改版本文件。pi-ai 1.4.0 的图片目录使用统一 `Provider.getAllModels()` 并按 `type` 过滤；DSH 自带 pi-ai 与 Provider 的版本可不同，不能整体覆盖 DSH 的内部依赖。
 
@@ -90,7 +89,7 @@ node tests/test-activity-target.mjs
 node tests/test-activity-validation.mjs
 ```
 
-源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build、SHA 和能力。当前原生候选为 Whaleness `1.7.11 / build 39`、DSH Debian `0.2.1~rc.2-3`，以最终构建记录为准。保持 App bundle ID、数据容器和 Keychain 身份；不要把上游 build 32 或既有 build 34 的校验信息当作新归档的证明。`DSHRootActivityWidget` / `DSHActivityAttributes` 必须实际编入现有 Widget 扩展，manifest 同时声明 `root-live-activity-widget-v1`。详见[原生 App 接入](./native-app.md)。
+源码补丁必须校验 commit、完整预像和 patch SHA；实际 IPA manifest 记录最终 build、SHA 和能力。当前原生候选为 Whaleness `1.7.13 / build 40`、DSH Debian `0.2.1~rc.5-1`，以最终构建记录为准。保持 App bundle ID、数据容器和 Keychain 身份；不要把旧版的校验信息当作新归档的证明。`DSHRootActivityWidget` / `DSHActivityAttributes` 必须实际编入现有 Widget 扩展，manifest 同时声明 `root-live-activity-widget-v1`。详见[原生 App 接入](./native-app.md)。
 
 ## 保存双端基线
 
@@ -112,7 +111,7 @@ DEVICE_HOST=127.0.0.1 DEVICE_PORT=2224 LOCAL_PORT=3081 \
 
 ## 双端部署与验收
 
-标准顺序为 Mac → iPhone：Mac 使用准确 npm 版本和安装归属的 pnpm 10；共享 `dsh-codex` 使用本地 link；iPhone 使用同一 checkout 生成的自包含离线 tarball。手机端安装完核心、Provider/Cline、Gateway 和离线 profile 迁移检查后再 bootstrap，不在部署结束后重复 kickstart。
+标准顺序为 Mac → iPhone：Mac 使用准确 npm 版本和安装归属的 pnpm 10；共享 `dsh-codex` 使用本地 link；iPhone 使用同一 checkout 生成的自包含离线 tarball。手机端安装完核心、Provider、Gateway 和离线 profile 迁移检查后再 bootstrap，不在部署结束后重复 kickstart。
 
 部署完成后分别执行：
 
@@ -205,7 +204,7 @@ App 实测需要分别记录：真实 Keychain 配对、冷启动、旧会话、
 
 以官方最新 release 为基线，记录明确选择的官方修复 commit 与资源 hash。Swift 和 KMP API 必须配套；仅回放独立 Swift 修复时仍检查 shared/Gradle 输入和 framework hash。验证 AppRelease 实际入包版本，不能只看主 Info。构建后同时检查旧的回车、配对、后台权威、Root Widget、按需历史与新设置入口。
 
-用 `check-native-settings.mjs` 在真实配对 wire 上核对 Provider、Cline 与通用设置，并与网页值对照。同值保存仅在空闲时进行，保留/恢复原 user 层，revision 冲突不强制覆盖。录入、退出登录、探测模型等操作用隔离测试验证；不要为验收改写真人密钥或自动重新登录。网页启动同时要求每个实际客户端 bundle 在目标 Safari/JSC 中完成工厂注册；HTTP200 和 Node/V8 能解析不足以证明iOS兼容。Skill、Reference、Goal的原文规则差分与真机parser检查随升级重跑。 构建后显式运行 `DEVICE_HOST=<IP> scripts/check-ios-web-token-rules.sh --runtime build/dsh-runtime`，检查只捕获模块注册，不执行UI工厂或触碰账号。对话冷开另跑真实 WebSocket/Keychain 准备 barrier 测试，要求 subscribe 真正到达服务端并收到 ACK；不能因为后续 history 成功就判订阅正常。
+用 `check-native-settings.mjs` 在真实配对 wire 上核对 Provider 与通用设置，并与网页值对照。同值保存仅在空闲时进行，保留/恢复原 user 层，revision 冲突不强制覆盖。录入、退出登录、探测模型等操作用隔离测试验证；不要为验收改写真人密钥或自动重新登录。网页启动同时要求每个实际客户端 bundle 在目标 Safari/JSC 中完成工厂注册；HTTP200 和 Node/V8 能解析不足以证明iOS兼容。Skill、Reference、Goal的原文规则差分与真机parser检查随升级重跑。 构建后显式运行 `DEVICE_HOST=<IP> scripts/check-ios-web-token-rules.sh --runtime build/dsh-runtime`，检查只捕获模块注册，不执行UI工厂或触碰账号。对话冷开另跑真实 WebSocket/Keychain 准备 barrier 测试，要求 subscribe 真正到达服务端并收到 ACK；不能因为后续 history 成功就判订阅正常。
 
 ## 中断恢复与提交
 

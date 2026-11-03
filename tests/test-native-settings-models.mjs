@@ -16,7 +16,6 @@ const homeSource=provider.slice(provider.indexOf('struct NativeSettingsHomeView:
 assert.match(homeSource,/\.task\(id: gateway\.nativeSettingsAvailable\) \{ await load\(\) \}/,'Cold-open capability must restart the Provider overview load');
 const nativePage=provider.slice(provider.indexOf('@MainActor\nfinal class NativeSettingsPage:'),provider.indexOf('private struct NativeSettingsLifecycle:'));
 const draft = provider.slice(provider.indexOf('private struct NativeModelDraft:'),provider.indexOf('struct NativeProviderModelsView:'));
-const cline = await readFile(join(base,'Views/NativeClineSettingsView.swift'),'utf8');
 function method(source, signature) {
  const begin=source.indexOf(signature);if(begin<0)throw Error('Missing production method '+signature);
  const open=source.indexOf('{',begin);let depth=1,end=open+1;while(depth){if(source[end]==='{')depth++;else if(source[end]==='}')depth--;end++;if(end>source.length)throw Error('Unbalanced method');}
@@ -37,21 +36,6 @@ func homeReply(_ client:NativeSettingsClient,_ request:JSONValue,_ value:JSONVal
 }
 struct TestFailure: Error { let message: String }
 func expect(_ condition: @autoclosure () -> Bool, _ message: String) throws { if !condition() { throw TestFailure(message: message) } }
-@MainActor final class FakePage {
- var error: String?;var notice: String?
- var state: JSONValue
- var calls: [(String,[String:JSONValue])] = []
- init(_ state: JSONValue) { self.state=state }
- func call(_ scope: NativeSettingsClient.Scope,_ action:String,_ payload:[String:JSONValue]=[:]) async -> JSONValue? {
-  calls.append((action,payload));return action=="state" ? state : .object([:])
- }
-}
-@MainActor final class AccountProbe {
- var name="";var label="";var baseURL="";let page:FakePage
- init(_ page:FakePage){self.page=page}
- func run(_ input:String="") async { await addAccount(key:input) }
-`+method(cline,'private func addAccount(key input: String) async')+String.raw`
-}
 @main @MainActor struct Tests {
  static func main() async throws {
   // Exercise the actual Home.load + NativeSettingsPage + RPC actor across
@@ -127,16 +111,11 @@ func expect(_ condition: @autoclosure () -> Bool, _ message: String) throws { if
   for raw in ["http://auth.openai.com/","https://auth.openai.com.attacker.invalid/","https://name:password@auth.openai.com/","javascript:alert(1)"] {
    try expect(!AuthProbe.acceptsAuthorizationURL(URL(string:raw)!,provider:"provider-codex"),"Unsafe auth URL accepted")
   }
-  let page=FakePage(.object(["accounts":.array([.object(["key":.string("existing")])])]))
-  let account=AccountProbe(page);account.name="existing";await account.run()
-  try expect(page.calls.map(\.0)==["state"] && page.error != nil,"Add account overwrote an existing account")
-  let blank=FakePage(.object(["accounts":.array([])]));let add=AccountProbe(blank);add.name="new";await add.run()
-  try expect(blank.calls.count==2 && Set(blank.calls[1].1.keys)==["name"],"Blank fields were sent as destructive upsert defaults")
   let model=NativeModelDraft(.object(["id":.string("model"),"name":.string("Example"),"visible":.bool(false),"contextWindow":.number(123)]))
   try expect(model.hasOverride,"Non-default model settings lost")
   let payload=try model.payload()
   try expect(payload["name"]==nil && payload["contextWindow"] == .number(123),"Read-only model metadata was sent")
-  print("Native form graph, safe edits, ancestor secret cleanup, account-create and quota/auth policy scenarios passed")
+  print("Native form graph, safe edits, ancestor secret cleanup and quota/auth policy scenarios passed")
  }
 }
 `);

@@ -19,19 +19,19 @@ try {
   for (const file of ["deploy.sh", "lib.sh"]) await copyFile(join(sourceRoot, "scripts", file), join(scripts, file));
   await write(join(root, "versions.env"), [
     "NODE_VERSION=22.23.2", "NODE_PACKAGE_REVISION=1", "PNPM_VERSION=10.34.5", "PNPM_PACKAGE_REVISION=1",
-    "DSH_DEBIAN_VERSION=0.2.1~rc.2-1", "DSH_CODEX_VERSION=0.2.10", "DSH_CLINE_PASS_VERSION=0.2.13",
+    "DSH_DEBIAN_VERSION=0.2.1~rc.2-1", "DSH_CODEX_VERSION=0.2.10",
     "DSH_MOBILE_GATEWAY_VERSION=0.11.1+iphone.1", "",
   ].join("\n"));
-  for (const file of ["nodejs22_22.23.2-1_iphoneos-arm64.deb", "pnpm10_10.34.5-1_iphoneos-arm64.deb", "dsh_0.2.1~rc.2-1_iphoneos-arm64.deb", "dsh-codex-0.2.10.tgz", "dsh-cline-pass-0.2.13.tgz"]) await write(join(dist, file), "fixture");
+  for (const file of ["dsh_0.2.1~rc.2-1_iphoneos-arm64.deb", "dsh-codex-0.2.10.tgz"]) await write(join(dist, file), "fixture");
   await write(join(root, "packaging/mobile-gateway/cordis.patch.yml"), "fixture-template\n");
-  for (const file of ["migrate-profile-0.2.1.mjs", "install-native-profile.mjs"]) await write(join(scripts, file), "// uploaded fixture only\n");
+  for (const file of ["migrate-profile-0.2.1.mjs", "remove-cline-profile.mjs", "install-native-profile.mjs"]) await write(join(scripts, file), "// uploaded fixture only\n");
   const record = `#!/usr/bin/env python3
 import json,os,sys
 with open(os.environ['FIXTURE_LOG'],'a') as f:
  f.write(json.dumps({'kind':os.path.basename(sys.argv[0]),'args':sys.argv[1:]})+'\\n')
 `;
   for (const command of ["ssh", "scp"]) await write(join(bin, command), record, true);
-  for (const command of ["package-dsh-codex.sh", "package-dsh-cline-pass.sh", "migrate-device-history.sh", "open-device.sh"]) {
+  for (const command of ["package-dsh-codex.sh", "migrate-device-history.sh", "open-device.sh"]) {
     await write(join(scripts, command), `#!/usr/bin/env bash
 python3 - <<'PY'
 import json,os
@@ -81,13 +81,16 @@ PY
     const dpkg = index(events, event => remote(event).includes("DSH_DEPLOY_DEFER_START=1 dpkg -i"));
     const migration = index(events, event => remote(event).includes("scripts/migrate-profile-0.2.1.mjs'"));
     const provider = index(events, event => remote(event).includes("--offline '/var/root/dsh-codex-shared.tgz'"));
-    const cline = index(events, event => remote(event).includes("--offline '/var/root/dsh-cline-pass-shared.tgz'"));
     const gateway = index(events, event => remote(event).includes("--offline '/var/root/dsh-mobile-gateway-shared.tgz'"));
     const nativeProfile = index(events, event => remote(event).includes("scripts/install-native-profile.mjs'"));
     const history = index(events, event => event.kind === "migrate-device-history.sh");
     const bootstrap = index(events, event => remote(event).includes("launchctl bootstrap"));
     assert.ok(packaged < uploaded && uploaded < dpkg && template < nativeProfile);
-    assert.ok(dpkg < migration && migration < provider && provider < cline && cline < gateway && gateway < nativeProfile && nativeProfile < history && history < bootstrap);
+    assert.ok(dpkg < migration && migration < provider && provider < gateway && gateway < nativeProfile && nativeProfile < history && history < bootstrap);
+    assert.ok(events.some(event => remote(event).includes('dpkg-query -W') && remote(event).includes('com.xxzzddxzd.nodejs22')));
+    assert.ok(!events.some(event => event.kind === 'scp' && /(?:nodejs22|pnpm10)_.*\.deb/.test(JSON.stringify(event))));
+    assert.ok(!/node22\.deb|pnpm10\.deb/.test(remote(events[dpkg])), 'installed device Node and pnpm must not be replaced');
+    assert.ok(!events.some(event => /add.*dsh-cline-pass/.test(JSON.stringify(event))), "deployment must not reinstall Cline Pass");
     assert.match(remote(events[nativeProfile]), /--runtime '\/var\/jb\/usr\/local\/lib\/dsh' --apply/);
     assert.equal(events.filter(event => remote(event).includes("launchctl bootstrap")).length, 1);
     assert.ok(!events.some(event => /kickstart|respring|sbreload/.test(remote(event))));

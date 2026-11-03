@@ -12,7 +12,7 @@ DEVICE_HOST=10.99.1.139 ./scripts/install-native-app.sh
 
 安装器使用手机现有的 TrollStoreLite，给 App 建立正常的数据容器和 Keychain 身份；不套用旧 WK 壳的 platform/no-sandbox entitlement，不删除 App 数据。相同版本/build 已安装时跳过，较新版本拒绝降级。发布包尚未包含本项目的本机生命周期和自动配对改动，初次配对需在 App 中扫码或粘贴真实的一次性配对串。
 
-自定义适配版的准确版本/build 由 `source-patch.json` 锁定（当前 `1.7.11 / build 39`）。编译后为该 IPA 生成准确 SHA-256 manifest，保留相同 bundle ID。manifest 的 `capabilities` 包含 `loopback-pairing-v1`、`backend-managed-lifecycle-v1`、`composer-return-send-v1`、`root-live-activity-widget-v1`、`loopback-on-demand-history-v1`、`provider-plugin-settings-v1`，再显式指定两个本地产物：
+自定义适配版的准确版本/build 由 `source-patch.json` 锁定（当前目标 `1.7.13 / build 40`）。编译后为该 IPA 生成准确 SHA-256 manifest，保留相同 bundle ID。manifest 的 `capabilities` 包含 `loopback-pairing-v1`、`backend-managed-lifecycle-v1`、`composer-return-send-v1`、`root-live-activity-widget-v1`、`loopback-on-demand-history-v1`、`provider-plugin-settings-v1`，再显式指定两个本地产物：
 
 ```bash
 NATIVE_APP_IPA=/path/to/Whaleness-iphone-build37.ipa \
@@ -68,7 +68,7 @@ python3 ios/native/apply_source.py /path/to/whaleness
 
 ```bash
 git clone https://github.com/Clarklevis1995/dsh-mobile.git /path/to/whaleness
-git -C /path/to/whaleness checkout 9bf3955c8add4ebffaed5699d59e75ddc86733ad
+git -C /path/to/whaleness checkout 497947559a29eb6108efa34b6aced30822beafdb
 NATIVE_APP_SOURCE=/path/to/whaleness \
 NATIVE_JAVA_HOME=/path/to/jdk17 \
 NATIVE_ANDROID_SDK=/path/to/android-sdk \
@@ -83,10 +83,10 @@ NATIVE_ANDROID_SDK=/path/to/android-sdk \
 
 单独修改 helper 时，可运行 `./scripts/build-native-widget-setup.sh` 更新已有 `build/native-app` 中的 helper 和 manifest；它核对现有 IPA 的 SHA，不重建或修改 IPA。
 
-输出 IPA 文件名由锁定版本/build 生成，当前为 `build/native-app/Whaleness-iphone-1.7.11-build39.ipa`，配套 `build/native-app/native-app-manifest.json`。manifest 记录实际 SHA-256、源码 commit、补丁 SHA 和适配能力，打包后再次验证主 App 与 Widget：
+输出 IPA 文件名由锁定版本/build 生成，当前为 `build/native-app/Whaleness-iphone-1.7.13-build40.ipa`，配套 `build/native-app/native-app-manifest.json`。manifest 记录实际 SHA-256、源码 commit、补丁 SHA 和适配能力，打包后再次验证主 App 与 Widget：
 
 ```bash
-NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.11-build39.ipa" \
+NATIVE_APP_IPA="$PWD/build/native-app/Whaleness-iphone-1.7.13-build40.ipa" \
 NATIVE_APP_MANIFEST="$PWD/build/native-app/native-app-manifest.json" \
 DEVICE_HOST=10.99.1.139 ./scripts/install-native-app.sh
 ```
@@ -112,8 +112,8 @@ build 35 的实机记录表明：TrollStoreLite 只给主 App 补默认身份，
 
 ## 原生管理与冷启动传输
 
-build 39 新增 Provider/Cline/插件原生表单和 credential-ref 单向密钥管理；对应后台为 Provider0.2.11、Gateway0.11.1+iphone.2。App 仅通过已配对 control wire 的固定 scope/action 调用同一份后台服务，普通聊天流不额外重解码。设置读取、同值保存/恢复与旧历史的设备验收命令见[原生接入](../../docs/native-app.md)。
+build 40 保留 Provider、通用插件原生表单和 credential-ref 单向密钥管理，并移除 Cline 专用入口；对应后台为 Provider0.2.13、Gateway0.11.1+iphone.4。App 仅通过已配对 control wire 的固定 scope/action 调用同一份后台服务，普通聊天流不额外重解码。设置读取、同值保存/恢复与旧历史的设备验收命令见[原生接入](../../docs/native-app.md)。
 
 控制 hello 会先创建 conversation client，而其 socket 要等待异步 Keychain 读取。请求必须先进入 pre-hello 缓冲再检查 socket；否则 cold launch 会丢首条 subscribe，后来 history 虽然能到，仍会报 subscription-timeout。真实 URLSession WebSocket 回归验证 cold/warm、ACK、顺序、取消及队列边界；原38负例必须能复现漏发。设置首页使用 capability 作为加载任务标识，hello前进入后能在连接就绪时自动读取。
 
-升级中保留发布基线9bf，回放官方de9的独立订阅导航修复与两份1.7.11 AppRelease资源。shared/Gradle输入和KMP framework hash保持一致，未声称同步未发布的共享投影改造。
+当前基线为上游 1.7.13，shared/KMP framework 已重新构建，并保留本项目的冷启动订阅恢复与系统活动栏适配。

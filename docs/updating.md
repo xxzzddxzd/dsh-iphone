@@ -1,5 +1,13 @@
 # DSH 双端更新标准 SOP
 
+## 2026-11-03：0.2.1-rc.5、Provider 与原生客户端
+
+目标为 DSH `0.2.1-rc.5`、Provider `0.2.13` / pi-ai `1.5.0`、iPhone Gateway `0.11.1+iphone.4` 和 Whaleness `1.7.13 / build 40`。Gateway 上游的 Host 版本常量仍为 rc.2，iPhone 变体按 `versions.env` 精确修订，并在配对握手和 Host 信息验收中验证。Cline Pass 适配器及观察插件已退出部署，旧配置、凭据和会话保留在备份中。
+
+Mac 备份位于 `.cache/upgrades/rc5-20261103/mac-runtime-before/`，iPhone 停机数据备份位于 `/var/root/.dsh.before-rc5-20261103`。手机继续使用原 Node 22.23.2，二进制 SHA-256 为 `fb1cbe36da9d607e0c8feade40c4ee6c5e689805fc3744aa986c54091a63ad3e`；部署只校验已安装 Node/pnpm，不覆盖设备上的专用二进制。
+
+Mac 原有 181 个会话和默认 Grok 模型、iPhone 原有 169 个会话和默认 GPT-6.1 Sol 经基线核对保留。Mac 两种模型和 iPhone GPT-6.1 Sol 的真实对话、Bash 均通过；手机原生 Gateway 配对、历史、设置保存与恢复、Safari 的 Skill/Reference/Goal 模块注册通过。build 40 的主 App 和 Widget 身份、安装和注册已检查；用户确认会话、设置、回车发送、横竖屏以及锁屏或通知中心活动栏显示与点击正常。
+
 本 SOP 用于把官方 DSH 新版本同步升级到 Mac 与本项目维护的 iPhoneOS 运行时。日常入口与分级检查见 [双端快速更新流程](./upgrade-workflow.md)。默认只升级 DSH；只有运行条件确实变化时，才升级 Node 或 pnpm。
 
 更新分成两个阶段：
@@ -13,7 +21,7 @@
 
 - `upstream/deepseek-harness` 是只读的官方 Git 子模块。本项目兼容上游，不要求上游兼容本项目，也不在子模块里保留任何本地修改。
 - Git tag/commit 与 npm 发布包是两份独立证据：子模块固定到准确 commit，实际打包使用准确 npm 版本、integrity 和带时间截点的完整 lock。
-- DSH 主程序默认跟进 npm `dist-tags.latest`；Provider 的 pi-ai、Cline Pass 和模型目录独立检查。`next`、单独出现的新 tag 或 `master` 新提交只做观察；用户明确指定目标时按其指令执行全部验证门禁。
+- DSH 主程序默认跟进 npm `dist-tags.latest`；Provider 的 pi-ai 和模型目录独立检查。`next`、单独出现的新 tag 或 `master` 新提交只做观察；用户明确指定目标时按其指令执行全部验证门禁。
 - iOS 改动只存在于本仓库的 `scripts/`、`shims/`、`ios/`、`web/` 和 `packaging/` 中，并且只修改 `build/dsh-runtime` 内的发布包副本。
 - 补丁必须 fail-closed。上游预像、文件名或 hash 变化时停止构建并逐项审计，不能为了让构建通过而放宽成模糊匹配。
 - 新的上游版本把 Debian revision 重置为 `-1`；同一上游版本的本地修订依次使用 `-2`、`-3`，不能复用已经部署过的版本号。
@@ -254,7 +262,7 @@ DEVICE_USER="$dsh_device_user" \
 ./scripts/deploy.sh
 ```
 
-当前 `deploy.sh` 会安装仓库锁定的 Node、pnpm 和 DSH 三个 deb，并用 `DSH_DEPLOY_DEFER_START=1` 延迟 DSH 启动。使用本地自包含 tarball 的 `--offline` 安装完成 Provider bundle 和历史恢复检查后只 bootstrap 一次 DSH，再等待 3080 返回成功。即使本次只升级 DSH，Node 和 pnpm 的版本也必须仍与 `versions.env` 及 deb 依赖一致；它们不需要无理由升版。
+当前 `deploy.sh` 校验设备已安装的 Node、pnpm 版本并复用其二进制，仅安装 DSH deb；用 `DSH_DEPLOY_DEFER_START=1` 延迟 DSH 启动。使用本地自包含 tarball 的 `--offline` 安装完成 Provider bundle 和历史恢复检查后只 bootstrap 一次 DSH，再等待 3080 返回成功。Node 和 pnpm 的版本必须与 `versions.env` 及 deb 依赖一致；设备已有的专用 Node 不由旧 deb 覆盖。
 
 部署会重载 DSH 服务，因此不要在部署之后再执行一遍手工重启。只有以下原生通知内容发生变化时，才额外 respring 一次让 SpringBoard 载入新代码：
 
@@ -403,7 +411,6 @@ Mac 与 iPhone 使用同一个 DSH npm 完整版本、release cutoff 和共享 P
 npm install -g "@deepseek-ai/dsh@$DSH_VERSION" --before="$DSH_RELEASE_CUTOFF" --no-audit --no-fund
 ./scripts/install-mac-pnpm.sh
 PATH="$HOME/.local/share/dsh-iphone/bin:$PATH" dsh plugin --profile web add --workspace-root "link:../dsh-codex"
-PATH="$HOME/.local/share/dsh-iphone/bin:$PATH" dsh plugin --profile web add --workspace-root "dsh-cline-pass@$DSH_CLINE_PASS_VERSION"
 ```
 
 Mac DSH 的 LaunchAgent 使用锁定的 pnpm 10.34.5，确保 profile 中 `nodeLinker: hoisted` 和 `autoInstallPeers: false` 生效。pnpm 9 不读取这些 workspace 设置，会为第三方 bundle 解析旧的 DSH peer，不能用于新 profile 的安装。原来启用 Schedule 的 profile 使用 `@deepseek-ai/dsh-experimental-schedule-bundle`，删除针对已移出默认组合的 `ui-schedule` 的旧启用行；保留既有任务库。

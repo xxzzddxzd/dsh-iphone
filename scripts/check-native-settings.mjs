@@ -56,16 +56,6 @@ export async function verifyNativeSettings(host, control, { writeSameValues = fa
   compare(imageModel, await web('plugins/dsh-openai-codex/providers/xai/image-model'));
   const namespaces = await call('plugin', 'describe');
   need(Array.isArray(namespaces.namespaces), 'plugin-settings-list-invalid');
-  const cline = await call('cline-pass', 'state');
-  need(Array.isArray(cline.accounts) && Array.isArray(cline.models), 'cline-settings-state-invalid');
-  const history = await call('cline-pass', 'history', { limit: 1 });
-  need(Array.isArray(history.entries), 'cline-settings-history-invalid');
-  const refs = [...new Set(cline.accounts.map(row => row.apiKeyEnv).filter(ref => typeof ref === 'string'))];
-  const credentials = refs.length ? await call('plugin', 'credentials.describe', { refs }) : {};
-  for (const [ref, info] of Object.entries(credentials)) {
-    need(refs.includes(ref) && typeof info.configured === 'boolean' && typeof info.writable === 'boolean'
-      && Object.keys(info).every(key => ['configured', 'source', 'writable'].includes(key)), 'credential-read-projection-invalid');
-  }
   const saved = [];
   if (writeSameValues) {
     const sessions = await host.rpc('session/list', { _request: {} });
@@ -98,7 +88,6 @@ export async function verifyNativeSettings(host, control, { writeSameValues = fa
     }
   }
   return { status: 'passed', requests, modelCounts, pluginNamespaces: namespaces.namespaces.length,
-    clineAccounts: cline.accounts.length, clineModels: cline.models.length, credentialMetadataOnly: true,
     nativeAndWebAgree: true, savedAndReadBack: saved, credentialsWritten: 0, loginsStarted: 0, modelProbesSubmitted: 0 };
 }
 
