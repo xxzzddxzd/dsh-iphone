@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-models/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 
 const KEY_REF = 'OPENAI_IMAGE_API_KEY'
@@ -81,10 +82,13 @@ function OpenAIImagesSettings({ describe, save, remove, subscribe }: PageFace) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 640 }}>
-      <h2>OpenAI 生图</h2>
+      <h3>OpenAI 图片模型</h3>
       <p>使用独立 OpenAI API 生成和编辑图片。API 按用量计费，与 ChatGPT／Codex 订阅分开。</p>
-      <p>可在对话中要求使用 OpenAI API 生图，并指定 Image 2.6 Flare 或 Sunburst；未指定时使用配置的默认模型（初始为 Flare）。</p>
-      <p>是否调用该工具以及传入的模型由对话助手决定，可在会话中的工具调用详情里核对。</p>
+      <p>在对话的模型列表中选择图片模型，然后输入生图或编辑需求。</p>
+      <ul aria-label="OpenAI 图片模型">
+        <li>GPT Image 2.6 Flare</li>
+        <li>GPT Image 2.6 Sunburst</li>
+      </ul>
       <div>
         <strong>API Key</strong>
         <p>{credential === undefined ? '正在读取配置状态…' : credential.configured ? '已配置' : '未配置'}
@@ -134,11 +138,10 @@ export function apply(ctx: Context): void {
       return ctx.remote.$on('credentials/reference-updated', (ref: string) => { if (ref === KEY_REF) listener() })
     },
   }
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
+  ctx.slots.inject('settings.models.footer', () => ctx.slots.register({
+    name: 'settings.models.footer',
     id: 'openai-images-api',
-    order: 16,
-    label: () => 'OpenAI 生图',
+    order: 20,
     inject: () => face,
   }, OpenAIImagesSettings))
 }

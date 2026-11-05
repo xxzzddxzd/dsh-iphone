@@ -643,3 +643,11 @@ Mac Provider 升至 0.2.14，在「设置 → Provider → Provider Codex → �
 密钥通过「设置 → OpenAI 生图」单向保存到 DSH 凭据服务的独立引用 `OPENAI_IMAGE_API_KEY`；不会写进插件配置或返回页面。用户选择继续使用曾在聊天中公开的 Key，已按其要求存入凭据服务，仍建议尽快轮换；Key 不进入代码库、命令行参数或验收记录。直接 Images API 的 Flare 生图已实测成功。
 
 插件在独立目录冻结依赖，双 TypeScript 检查、13 项测试和 Host/Client 构建通过。独立 DSH 配置中检查 Host 插件为 active，浏览器 bundle 正常提供；Mac Web profile 安装后检查 Host active、原有 186 个会话、Provider 0.2.14 和原默认聊天模型。真实 Mac DSH 会话调用 `openai_imagegen`，传入 `gpt-image-2.6-flare`，成功生成并保存 PNG；此次真实请求产生 API 用量。独立设置页已经打包并通过组件测试，因浏览器正由用户使用，尚未做实际页面交互验收。安装前快照位于 `.cache/upgrades/openai-images-api-mac-before-attempt3/`。安装时必须使用项目固定的 pnpm 10；当前 profile 有固定 commit 的 Purge 包，离线安装如缺其 tarball 可联网读取该固定包。iPhone 未安装或验收。
+
+## 2026-11-05：改为独立图片模型并验证 GIF
+
+按用户要求将 Mac 插件改为 0.2.0 的独立图片模型，Flare 和 Sunburst 出现在聊天模型目录，配置入口整合到「设置 → 模型」，不再注册全局 `openai_imagegen` 工具。选择图片模型后直接提交当前文本和本次明确附加的图片；历史图片不会自动上传，要继续编辑须重新附图。原 Codex/xAI 生图通道不受影响。
+
+后台标题、压缩和无会话的辅助请求不会生成图片；不转发系统提示或上下文注入。取消自动重试，过滤自动续跑，并在进程内对同一用户消息去重；该去重不跨进程重启，上游超时也可能已经计费。明确要求 GIF 时使用 API 的动画输出；原始 GIF 作为文件附件保存，经 DSH 已认证 `/api/file` 播放，避免普通图片附件规范化导致丢帧。该文件地址沿用 DSH 现有用户级访问控制，未来若附件引入垃圾回收，需要识别消息中的 Markdown 引用。
+
+双 TypeScript、18 项测试与构建通过，真实 Mac 的聊天模型列表和「设置 → 模型」均显示两个图片模型，原有密钥状态正常。以用户提供图片选择 Flare 发起真实会话，成功返回 512×512、4 帧、循环 GIF，工具调用为零；原始文件经已认证接口返回 `image/gif`，未认证请求为 401。原默认模型和 187 个已有会话保留，iPhone 未更新。回滚备份位于 `.cache/upgrades/openai-image-model-mac-before/`，密钥与图片均未提交。

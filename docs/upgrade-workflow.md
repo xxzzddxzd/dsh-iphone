@@ -80,7 +80,7 @@ Provider 代码更新时同步 `DSH_CODEX_VERSION`、`DSH_CODEX_PI_AI_VERSION`�
 
 仅更新 Mac 时，用 `DSH_CODEX_IPHONE_VERSION` 记录 iPhone 上次验收的 Provider 版本；双端同步完成后，更新或移除该覆盖值。设备检查按各自实际目标校验，不应把仅 Mac 验收当作 iPhone 已更新。
 
-Mac 还安装了独立的 `openai-images-api/` 生图插件，使用单独的 OpenAI API 凭据和按量计费，与 Codex Provider 分开维护。升级 DSH 时在该目录运行 `pnpm install --frozen-lockfile` 和 `pnpm run check`，核对 Host 插件和 Web 设置页；模型目录和 API 支持应以 OpenAI 官方文档及实际请求为准。不能把密钥写进配置、测试报告或版本库；真实付费生图仅在已授权并配置密钥时验收。iPhone 尚未安装该插件。
+Mac 还安装了独立的 `openai-images-api/` 图片模型，使用单独的 OpenAI API 凭据和按量计费，与 Codex Provider 分开维护。升级 DSH 时在该目录运行 `pnpm install --frozen-lockfile` 和 `pnpm run check`，核对 Host 图片模型目录、设置 → 模型中的凭据页及 GIF 显示；图片模型不能向其他聊天模型暴露生图工具。模型目录和 API 支持应以 OpenAI 官方文档及实际请求为准。不能把密钥写进配置、测试报告或版本库；真实付费生图仅在已授权并配置密钥时验收。iPhone 尚未安装该插件。
 
 iPhone 原生路径还要构建并验证：
 

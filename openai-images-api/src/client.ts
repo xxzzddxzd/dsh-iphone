@@ -1,6 +1,7 @@
 /** OpenAI Images API: separate from the subscription OAuth backend. */
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
+import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 
 export const MODELS = ['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst'] as const
 export type ImageModel = typeof MODELS[number]
@@ -12,19 +13,21 @@ export class OpenAIImagesApiClient {
     credentialRef(apiKeyRef)
     if (!MODELS.includes(model)) throw new Error('Unsupported image model')
   }
-  async generate(prompt: string, images: string[], signal: AbortSignal): Promise<Uint8Array> {
+  async generate(prompt: string, images: string[], signal: AbortSignal, animated = false): Promise<Uint8Array> {
     let key: string | undefined
     try { key = (await this.credentials.resolve(credentialRef(this.apiKeyRef)))?.value } catch { throw new Error('OpenAI API credential service failed') }
     if (!key) throw new Error(`OpenAI API key is not configured (${this.apiKeyRef})`)
     if (key.length > 512 || !/^[A-Za-z0-9_-]+$/u.test(key)) throw new Error('OpenAI API key contains invalid characters')
     let body: string | FormData
-    const headers: Record<string, string> = { Authorization: `Bearer ${key}` }
+    const headers: Record<string, string> = { ...attributionHeaders(), Authorization: `Bearer ${key}` }
     if (images.length === 0) {
       headers['content-type'] = 'application/json'
-      body = JSON.stringify({ model: this.model, prompt, quality: 'auto', size: 'auto', n: 1 })
+      body = JSON.stringify({ model: this.model, prompt, quality: 'auto', size: 'auto', n: 1,
+        ...animated ? { output_format: 'gif', frame_count: 4, frame_duration_ms: 200 } : {} })
     } else {
       const form = new FormData()
       form.set('model', this.model); form.set('prompt', prompt); form.set('quality', 'auto'); form.set('size', 'auto'); form.set('n', '1')
+      if (animated) { form.set('output_format', 'gif'); form.set('frame_count', '4'); form.set('frame_duration_ms', '200') }
       for (const [index, image] of images.entries()) {
         const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/u.exec(image)
         if (!match?.[1] || !match[2]) throw new Error('OpenAI image edit requires PNG, JPEG, or WebP references')
