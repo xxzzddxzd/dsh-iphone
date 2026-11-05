@@ -104,7 +104,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     }
     process.env.LOCAL_PORT ??= '13081';
     host = await UpgradeHost.connect('iphone');
-    const pins = await readVersionPins();
+    const pins = await readVersionPins('iphone');
     const report = await checkNativeGateway(host, { WebSocket: require('ws'), pins, timeoutMs: 30000, historySessionId,
       settingsAcceptance: control => verifyNativeSettings(host, control, { pins, writeSameValues }) });
     report.mode = writeSameValues ? 'paired-settings-save-and-restore' : 'paired-settings-read-only';

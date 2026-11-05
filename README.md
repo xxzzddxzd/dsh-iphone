@@ -20,7 +20,7 @@
 | 组件 | 版本 |
 | --- | --- |
 | Mac / iPhone DSH 目标 | `0.2.1-rc.5` |
-| dsh-codex 目标 | `0.2.13`（pi-ai `1.5.0`、zod `4.4.3`） |
+| dsh-codex | Mac 目标 `0.2.14`；iPhone 上次验收 `0.2.13`（pi-ai `1.5.0`、zod `4.4.3`） |
 | iPhone Mobile Gateway 目标 | `0.11.1+iphone.4`，仅本机连接 |
 | Whaleness 本地适配目标 | `1.7.13 / build 40` |
 | iPhone DSH Debian 包 | `0.2.1~rc.5-1` |

@@ -1,11 +1,18 @@
 import { readFile } from "node:fs/promises";
 
-export async function readVersionPins() {
-  return Object.fromEntries((await readFile(new URL("../versions.env", import.meta.url), "utf8"))
+export function pinsForTarget(pins, target) {
+  return target === "iphone" && pins.DSH_CODEX_IPHONE_VERSION
+    ? { ...pins, DSH_CODEX_VERSION: pins.DSH_CODEX_IPHONE_VERSION }
+    : pins;
+}
+
+export async function readVersionPins(target) {
+  const pins = Object.fromEntries((await readFile(new URL("../versions.env", import.meta.url), "utf8"))
     .split("\n").filter(line => line && !line.startsWith("#")).map(line => {
       const split = line.indexOf("=");
       return [line.slice(0, split), line.slice(split + 1)];
     }));
+  return pinsForTarget(pins, target);
 }
 
 export function validateProviderComponents(info, pins, visibleModels) {

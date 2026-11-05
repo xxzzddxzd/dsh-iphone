@@ -628,3 +628,10 @@ Node 与负载：
 验证：Provider96项测试、双typecheck/build/import通过；Purge18项托管/预载回归通过；Core→Harness→Purge的10项纯合成冷却回归证明默认6次、去RATE_LIMIT但Purge开启仍2次、两层正确配置后仅1次，网络/5xx重试保留。Grok2API全部48个有测试包通过，新增Finalize并发race回归通过，旧实现负例捕获取消误罚。真实“完整请求→首帧后取消→立即完整请求”分别约3.7/2.6/4.2秒；中间请求审计为 `request_canceled`，账号failureCount保持0、cooldown为空，后续请求未等待30秒即成功。
 
 Grok2API修复二进制SHA-256为 `8711485dbf64252cc2b695c9e77a6b457991ac9c328e54e271342271e826fc40`。账号数量2保持不变，一致性SQLite备份integrity_check通过。DSH备份位于 `~/.dsh.before-grok-root-20261029`、`~/.dsh.before-grok-budget-20261029`；Grok2API旧二进制、配置、主库快照及源码备份位于私有 `.cache/upgrades/grok-cooling-20261029/runtime-before/`。脱敏时序及合成数据在 `.cache/upgrades/grok-root-cause-20261029/`，认证信息、DB及真人会话不提交。
+## 2026-11-05：Mac Codex 图片请求模型选择
+
+Mac Provider 升至 0.2.14，在「设置 → Provider → Provider Codex → 图片工具」增加生图请求模型选择；默认仍为 `gpt-image-2`，也可发送 `gpt-image-2.6-flare` 或 `gpt-image-2.6-sunburst`。该设置应用于生图和参考图编辑，不改变聊天模型。订阅端接口不报告实际使用的模型，虚构模型名的反例请求也返回了图片，因此这些选项只能指定请求名，不能证明后端实际采用了哪个型号。
+
+用户的 Codex 订阅对两个 2.6 请求名的生图和 Flare 参考图编辑均返回图片；独立 OpenAI API Key 对 Flare 的 Images API 实际生图也成功。API 和订阅是独立计费与认证通道，当前 Provider 的生图工具仍使用 Codex 订阅，不接收普通 API Key。密钥和生成图片不进入版本库。
+
+本次只更新 Mac；iPhone 上次验收的 Provider 仍为 0.2.13。版本文件分别记录两端的 Provider 版本，以免 Mac 更新造成手机检查误报。验收包括 Provider 全量测试、网页实际入口、设置保存与无效值拒绝，以及原会话和默认聊天模型检查。

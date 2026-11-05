@@ -78,6 +78,8 @@ node scripts/check-provider-components.mjs local
 
 Provider 代码更新时同步 `DSH_CODEX_VERSION`、`DSH_CODEX_PI_AI_VERSION`、`DSH_CODEX_PI_AI_INTEGRITY` 和 `DSH_CODEX_REQUIRED_MODELS`。打包器强制检查 manifest、pnpm lock 和编译产物中的版本及必需模型，不能只改版本文件。pi-ai 1.4.0 的图片目录使用统一 `Provider.getAllModels()` 并按 `type` 过滤；DSH 自带 pi-ai 与 Provider 的版本可不同，不能整体覆盖 DSH 的内部依赖。
 
+仅更新 Mac 时，用 `DSH_CODEX_IPHONE_VERSION` 记录 iPhone 上次验收的 Provider 版本；双端同步完成后，更新或移除该覆盖值。设备检查按各自实际目标校验，不应把仅 Mac 验收当作 iPhone 已更新。
+
 iPhone 原生路径还要构建并验证：
 
 ```bash

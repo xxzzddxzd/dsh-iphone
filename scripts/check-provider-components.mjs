@@ -16,7 +16,7 @@ for (let index = 0; index < args.length; index++) {
 if (!["local", "mac", "iphone"].includes(target) || args.at(-1)?.startsWith("--")) throw new Error("Invalid component-check arguments");
 let host;
 try {
-  const pins = await readVersionPins();
+  const pins = await readVersionPins(target);
   let info, visible;
   if (target === "local") {
     const root = resolve(source ?? process.env.DSH_CODEX_SOURCE ?? fileURLToPath(new URL("../../dsh-codex", import.meta.url)));
