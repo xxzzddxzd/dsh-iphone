@@ -32,12 +32,17 @@ function numberValue(text: string): number {
   return total + pending
 }
 
-function values(text: string, expressions: readonly RegExp[], rejectEveryFrame = false): number[] {
+function values(text: string, expressions: readonly RegExp[], rejectFrameReferences = false): number[] {
   const found: number[] = []
   for (const expression of expressions) {
     for (const match of text.matchAll(expression)) {
-      // “每一帧” describes per-frame timing rather than a total of one frame.
-      if (rejectEveryFrame && match.index !== undefined && /每$/u.test(text.slice(Math.max(0, match.index - 1), match.index))) continue
+      // “第一帧”, “最后一帧” and “相邻两帧” refer to existing frames,
+      // not the total count; “每一帧” similarly describes per-frame timing.
+      if (rejectFrameReferences && match.index !== undefined) {
+        const prefix = text.slice(Math.max(0, match.index - 32), match.index)
+        if (/(?:每|第|最后|相邻|连续|前|后|首|末|头|尾|任意|其中)\s*$/u.test(prefix)
+          || /\b(?:each|every|first|last|next|previous|prior|adjacent|consecutive)\s+$/iu.test(prefix)) continue
+      }
       found.push(numberValue(match[1]!))
     }
   }

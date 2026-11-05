@@ -61,6 +61,12 @@ it('requests default GIF edit frames, saves original bytes, and safely escapes i
  expect(gifFrameCount(gif)).toBe(4);expect(ctx.attachments.saveFile).toHaveBeenCalledOnce();expect(Buffer.from(ctx.attachments.saveFile.mock.calls[0][0].data)).toEqual(gif)
  expect(ctx.attachments.saveImage).not.toHaveBeenCalled();expect(chunks.find(x=>x.type==='text-delta').text).toBe('![生成的动图](</Users/my%20name%20%28x%29/attachments/a%23b/generated.gif>)')
 })
+it('sends requested GIF settings despite ordinal frame references in the prompt',async()=>{
+ const fetch=vi.fn(async()=>new Response(JSON.stringify({data:[{b64_json:gif.toString('base64')}]})));vi.stubGlobal('fetch',fetch)
+ const {adapter}=make();const prompt='把这张图做成 16 帧的循环 GIF，每帧 60 毫秒。角色自然轻轻眨眼、轻微弹跳；特别注意动作连贯性，相邻帧的姿势和位移要平滑渐变，不要突跳、闪烁、变形或抖动，最后一帧自然衔接第一帧形成无缝循环。保持原图角色面容、蓝发、衣服、文字、构图和画风一致。'
+ const chunks=await collect(adapter.stream(options([user(prompt,'gif-ordinal',[{type:'image',attachment:imageRef}])])));const form=fetch.mock.calls[0][1].body
+ expect(fetch).toHaveBeenCalledOnce();expect(form.get('frame_count')).toBe('16');expect(form.get('frame_duration_ms')).toBe('60');expect(chunks.at(-1).reason.kind).toBe('stop')
+})
 it('rejects invalid GIF timing before resolving credentials, reading images or sending a paid request',async()=>{
  const fetch=vi.fn();vi.stubGlobal('fetch',fetch);const {ctx,adapter}=make()
  for(const [i,text] of ['做成 GIF，17帧','生成 GIF，每帧19毫秒','生成 GIF，12帧和13帧'].entries()){
