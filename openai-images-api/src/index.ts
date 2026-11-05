@@ -7,6 +7,7 @@ import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, StreamChunk }
 import { OpenAIImagesApiClient, MODELS } from './client.ts'
 import type { ImageModel } from './client.ts'
 import { imageMediaType } from './mime.ts'
+import { GifParameterError, parseGifOptions } from './gif-options.ts'
 
 export { OpenAIImagesApiClient, GENERATIONS_URL, EDITS_URL, MODELS } from './client.ts'
 export const name = 'openai-images-api'
@@ -72,6 +73,7 @@ export class OpenAIImageModelAdapter extends LlmAdapter {
     try { yield* this.streamOnce(options) }
     catch (error: unknown) {
       if (options.signal?.aborted) throw error
+      if (error instanceof GifParameterError) throw new LlmError(error.message, 'INVALID_REQUEST')
       const message = error instanceof Error && /^OpenAI Images API request failed \(HTTP [0-9]{3}(?:; [a-zA-Z /-]+)?\)$/u.test(error.message)
         ? error.message : 'Image request was refused or did not complete'
       throw new LlmError(`${message}. If a request reached OpenAI it may have been billed; retry only if you choose.`, 'INVALID_REQUEST')
@@ -91,6 +93,7 @@ export class OpenAIImageModelAdapter extends LlmAdapter {
     const prompt = latest.content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim()
     if (!prompt) throw new Error('Enter an image-generation instruction')
     const animated = wantsAnimatedGif(prompt)
+    const animation = animated ? parseGifOptions(prompt) : undefined
     const images = latest.content.filter(block => block.type === 'image')
     if (images.length > MAX_REFERENCES) throw new Error(`At most ${MAX_REFERENCES} reference images are supported`)
     if (latest.content.some(block => block.type === 'file')) throw new Error('Only image attachments are supported')
@@ -107,7 +110,7 @@ export class OpenAIImageModelAdapter extends LlmAdapter {
     this.dispatched.add(dispatchId)
     if (this.dispatched.size > 4096) this.dispatched.delete(this.dispatched.values().next().value!)
     const client = new OpenAIImagesApiClient(this.ctx.credentials, KEY_REF, options.model as ImageModel)
-    const data = await client.generate(prompt, references, signal, animated)
+    const data = await client.generate(prompt, references, signal, animation)
     if (animated) {
       if (gifFrameCount(data) < 2) throw new Error('OpenAI did not return an animated GIF')
       if (data.length > this.ctx.attachments.imageLimits.maxImageBytes) throw new Error('Animated GIF exceeds the authenticated file display limit')

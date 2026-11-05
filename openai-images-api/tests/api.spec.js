@@ -36,3 +36,20 @@ describe('OpenAI Images API boundary',()=>{
   const pending=client.generate('x',[],controller.signal);await vi.waitFor(()=>expect(fetch).toHaveBeenCalled());controller.abort();await expect(pending).rejects.toThrow()
  })
 })
+
+it('sends caller-selected animation options to generation and edits and omits them for still images', async()=>{
+ const fetch=vi.fn(async()=>response());vi.stubGlobal('fetch',fetch)
+ const client=new OpenAIImagesApiClient({resolve:async()=>({value:'test-key'})},'OPENAI_IMAGE_API_KEY','gpt-image-2.6-sunburst')
+ await client.generate('gif',[],signal,{frameCount:12,frameDurationMs:120})
+ await client.generate('edit',[`data:image/png;base64,${png.toString('base64')}`],signal,{frameCount:8,frameDurationMs:200})
+ await client.generate('still',[],signal)
+ expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({output_format:'gif',frame_count:12,frame_duration_ms:120})
+ const form=fetch.mock.calls[1][1].body;expect(form.get('output_format')).toBe('gif');expect(form.get('frame_count')).toBe('8');expect(form.get('frame_duration_ms')).toBe('200')
+ expect(JSON.parse(fetch.mock.calls[2][1].body)).not.toHaveProperty('output_format')
+})
+it('does not send a request when direct animation parameters are invalid', async()=>{
+ const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
+ const resolve=vi.fn(async()=>({value:'test-key'}));const client=new OpenAIImagesApiClient({resolve},'OPENAI_IMAGE_API_KEY','gpt-image-2.6-flare')
+ for(const animation of [{frameCount:1,frameDurationMs:100},{frameCount:17,frameDurationMs:100},{frameCount:4,frameDurationMs:2010}]) await expect(client.generate('gif',[],signal,animation)).rejects.toThrow('请求未发送')
+ expect(resolve).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled()
+})

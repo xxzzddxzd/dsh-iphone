@@ -85,6 +85,7 @@ function OpenAIImagesSettings({ describe, save, remove, subscribe }: PageFace) {
       <h3>OpenAI 图片模型</h3>
       <p>使用独立 OpenAI API 生成和编辑图片。API 按用量计费，与 ChatGPT／Codex 订阅分开。</p>
       <p>在对话的模型列表中选择图片模型，然后输入生图或编辑需求。</p>
+      <p>GIF 可在提示词指定 2–16 帧和每帧 20–2000 毫秒；默认 16 帧、每帧 100 毫秒。实际帧时长由服务按 10 毫秒取整。</p>
       <ul aria-label="OpenAI 图片模型">
         <li>GPT Image 2.6 Flare</li>
         <li>GPT Image 2.6 Sunburst</li>
