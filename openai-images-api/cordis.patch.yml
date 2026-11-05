@@ -1,0 +1,4 @@
+# OpenAI Images API is a standalone billed tool, independent of Codex OAuth.
+- insert:
+    - id: openai-images-api
+      name: dsh-openai-images-api

@@ -635,3 +635,11 @@ Mac Provider 升至 0.2.14，在「设置 → Provider → Provider Codex → �
 用户的 Codex 订阅对两个 2.6 请求名的生图和 Flare 参考图编辑均返回图片；独立 OpenAI API Key 对 Flare 的 Images API 实际生图也成功。API 和订阅是独立计费与认证通道，当前 Provider 的生图工具仍使用 Codex 订阅，不接收普通 API Key。密钥和生成图片不进入版本库。
 
 本次只更新 Mac；iPhone 上次验收的 Provider 仍为 0.2.13。版本文件分别记录两端的 Provider 版本，以免 Mac 更新造成手机检查误报。验收包括 Provider 全量测试、网页实际入口、设置保存与无效值拒绝，以及原会话和默认聊天模型检查。
+
+## 2026-11-05：Mac 独立 OpenAI Images API 工具
+
+`openai-images-api/` 是单独的 DSH 插件，不注册聊天 Provider，不依赖 Codex 订阅。`openai_imagegen` 直接使用 OpenAI Images API 生成或编辑，按 API 项目用量计费；默认 Flare，可在对话中明确指定 Sunburst。工具描述要求仅在用户请求 API 生图时调用，但这只是模型指令，无法从技术上保证绝不误调用。原订阅／xAI 的 `imagegen` 保持不变。
+
+密钥通过「设置 → OpenAI 生图」单向保存到 DSH 凭据服务的独立引用 `OPENAI_IMAGE_API_KEY`；不会写进插件配置或返回页面。用户选择继续使用曾在聊天中公开的 Key，已按其要求存入凭据服务，仍建议尽快轮换；Key 不进入代码库、命令行参数或验收记录。直接 Images API 的 Flare 生图已实测成功。
+
+插件在独立目录冻结依赖，双 TypeScript 检查、13 项测试和 Host/Client 构建通过。独立 DSH 配置中检查 Host 插件为 active，浏览器 bundle 正常提供；Mac Web profile 安装后检查 Host active、原有 186 个会话、Provider 0.2.14 和原默认聊天模型。真实 Mac DSH 会话调用 `openai_imagegen`，传入 `gpt-image-2.6-flare`，成功生成并保存 PNG；此次真实请求产生 API 用量。独立设置页已经打包并通过组件测试，因浏览器正由用户使用，尚未做实际页面交互验收。安装前快照位于 `.cache/upgrades/openai-images-api-mac-before-attempt3/`。安装时必须使用项目固定的 pnpm 10；当前 profile 有固定 commit 的 Purge 包，离线安装如缺其 tarball 可联网读取该固定包。iPhone 未安装或验收。
